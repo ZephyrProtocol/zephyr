@@ -33,6 +33,7 @@
 #include "cryptonote_basic/difficulty.h"
 #include "ringct/rctSigs.h"
 #include "rpc/rpc_handler.h"
+#include "oracle/pricing_record.h"
 
 #include <unordered_map>
 #include <vector>
@@ -50,8 +51,10 @@ namespace rpc
   };
 
   typedef std::vector<uint64_t> tx_output_indices;
+  typedef std::vector<uint64_t> tx_asset_type_output_indices;
 
   typedef std::vector<tx_output_indices> block_output_indices;
+  typedef std::vector<tx_asset_type_output_indices> block_asset_type_output_indices;
 
   struct transaction_info
   {
@@ -164,6 +167,7 @@ namespace rpc
     uint64_t timestamp;
     crypto::hash  prev_id;
     uint32_t nonce;
+    oracle::pricing_record pricing_record;
     uint64_t height;
     uint64_t depth;
     crypto::hash hash;

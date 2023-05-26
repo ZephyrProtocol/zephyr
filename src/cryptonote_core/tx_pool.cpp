@@ -111,11 +111,7 @@ namespace cryptonote
 
     uint64_t get_transaction_weight_limit(uint8_t version)
     {
-      // from v8, limit a tx to 50% of the minimum block weight
-      if (version >= 8)
-        return get_min_block_weight(version) / 2 - CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE;
-      else
-        return get_min_block_weight(version) - CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE;
+      return get_min_block_weight(version) / 2 - CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE;
     }
 
     // external lock must be held for the comparison+set to work properly
@@ -138,6 +134,11 @@ namespace cryptonote
     // We don't set these to "now" already here as we don't know how long it takes from construction
     // of the pool until it "goes to work". It's safer to set when the first actual txs enter the
     // corresponding lists.
+  }
+  //---------------------------------------------------------------------------------
+  uint64_t tx_memory_pool::get_zeph_fee_amount(const std::string& fee_asset, uint64_t fee_amount, const cryptonote::transaction_type tt, const oracle::pricing_record& pr, const uint16_t hf_version)
+  {
+    return fee_amount;
   }
   //---------------------------------------------------------------------------------
   bool tx_memory_pool::add_tx(transaction &tx, /*const crypto::hash& tx_prefix_hash,*/ const crypto::hash &id, const cryptonote::blobdata &blob, size_t tx_weight, tx_verification_context& tvc, relay_method tx_relay, bool relayed, uint8_t version)
@@ -174,40 +175,107 @@ namespace cryptonote
     }
 
     // fee per kilobyte, size rounded up.
-    uint64_t fee;
+    uint64_t fee = tx.rct_signatures.txnFee;
 
-    if (tx.version == 1)
-    {
-      uint64_t inputs_amount = 0;
-      if(!get_inputs_money_amount(tx, inputs_amount))
-      {
+    MDEBUG("tx.rct_signatures.txnFee: " << tx.rct_signatures.txnFee);
+
+    // get vars we need from tvc
+    std::string source = tvc.m_source_asset;
+    std::string dest = tvc.m_dest_asset;
+    transaction_type tx_type = tvc.m_type;
+    // since tvc can be empty for some situations such as "popping blocks",
+    // we make sure those vars are populated.
+    if (source.empty() || dest.empty() || tx_type == transaction_type::UNSET) {
+      if (!get_tx_asset_types(tx, id, source, dest, false)) {
+        LOG_PRINT_L1("At least 1 input or 1 output of the tx was invalid." << id);
+        tvc.m_verifivation_failed = true;
+        if (source.empty()) {
+          tvc.m_invalid_input = true;
+        }
+        if (dest.empty()) {
+          tvc.m_invalid_output = true;
+        }
+        return false;
+      }
+      if (!get_tx_type(source, dest, tx_type)) {
+        LOG_ERROR("At least 1 input or 1 output of the tx was invalid." << id);
         tvc.m_verifivation_failed = true;
         return false;
       }
-
-      uint64_t outputs_amount = get_outs_money_amount(tx);
-      if(outputs_amount > inputs_amount)
-      {
-        LOG_PRINT_L1("transaction use more money than it has: use " << print_money(outputs_amount) << ", have " << print_money(inputs_amount));
-        tvc.m_verifivation_failed = true;
-        tvc.m_overspend = true;
-        return false;
-      }
-      else if(outputs_amount == inputs_amount)
-      {
-        LOG_PRINT_L1("transaction fee is zero: outputs_amount == inputs_amount, rejecting.");
-        tvc.m_verifivation_failed = true;
-        tvc.m_fee_too_low = true;
-        return false;
-      }
-
-      fee = inputs_amount - outputs_amount;
+      // now populate the tvc
+      tvc.m_source_asset = source;
+      tvc.m_dest_asset = dest;
+      tvc.m_type = tx_type;
     }
-    else
-    {
-      fee = tx.rct_signatures.txnFee;
+
+    // check whether this is a conversion tx.
+    if (source != dest) {
+
+      if (tx.version < HF_VERSION_DJED) {
+        LOG_ERROR("Conversion txs are only allowed after HF_VERSION_DJED");
+        tvc.m_verifivation_failed = true;
+        return false;
+      }
+
+      // get pr for this tx
+      uint64_t current_height = m_blockchain.get_current_blockchain_height();
+      if (!tvc.tx_pr_height_verified) { // tx_pr_height_verified will only be false if poping blocks, otherwise the tx should already have been rejected.
+        if (!tx_pr_height_valid(current_height, tx.pricing_record_height, id)) {
+          LOG_ERROR("Tx uses older pricing record than what is allowed. Current height: " << current_height << " Pr height: " << tx.pricing_record_height);
+          tvc.m_verifivation_failed = true;
+          return false;
+        } else {
+          tvc.tx_pr_height_verified = true;
+        }
+      }
+      if(tvc.pr.empty()) {
+        // Get the pricing record that was used for conversion
+        block bl;
+        bool r = m_blockchain.get_block_by_hash(m_blockchain.get_block_id_by_height(tx.pricing_record_height), bl);
+        if (!r) {
+          LOG_ERROR("error: failed to get block containing pricing record");
+          tvc.m_verifivation_failed = true;
+          return false;
+        }
+        tvc.pr = bl.pricing_record;
+      }
+
+      if (!tvc.pr.zEPHUSD || !tvc.pr.zEPHRSV) {
+        LOG_ERROR("error: empty exchange rate. Conversion not possible.");
+        tvc.m_verifivation_failed = true;
+        return false;
+      }
+    
+      // check whether we have empty amount burnt/mint. Actual validation happens in verRctSemanticsSimple2()
+      if (!tx.amount_burnt || !tx.amount_minted) {
+        LOG_ERROR("error: Invalid Tx found. 0 burnt/minted for a conversion tx.");
+        tvc.m_verifivation_failed = true;
+        return false;
+      }
+
+      // Check the amount burnt and minted
+      if (!rct::checkBurntAndMinted(tx.rct_signatures, tx.amount_burnt, tx.amount_minted, tvc.pr, source, dest, version)) {
+        LOG_PRINT_L1("amount burnt / minted is incorrect: burnt = " << tx.amount_burnt << ", minted = " << tx.amount_minted);
+        tvc.m_verifivation_failed = true;
+        return false;
+      }
+    } else {
+      // make sure there is no burnt/mint set for transfers, since these numbers will affect circulating supply.
+      if (tx.amount_burnt || tx.amount_minted) {
+        LOG_ERROR("error: Invalid Tx found. Amount burnt/mint > 0 for a transfer tx.");
+        tvc.m_verifivation_failed = true;
+        return false;
+      }
+      // make sure no pr height set
+      if (tx.pricing_record_height) {
+        LOG_ERROR("error: Invalid Tx found. Tx pricing_record_height > 0 for a transfer tx.");
+        tvc.m_verifivation_failed = true;
+        return false;
+      }
     }
 
+
+    // END TODO
     if (!kept_by_block && !m_blockchain.check_fee(tx_weight, fee))
     {
       tvc.m_verifivation_failed = true;
@@ -217,7 +285,7 @@ namespace cryptonote
     }
 
     size_t tx_weight_limit = get_transaction_weight_limit(version);
-    if ((!kept_by_block || version >= HF_VERSION_PER_BYTE_FEE) && tx_weight > tx_weight_limit)
+    if (tx_weight > tx_weight_limit)
     {
       LOG_PRINT_L1("transaction is too heavy: " << tx_weight << " bytes, maximum weight: " << tx_weight_limit);
       tvc.m_verifivation_failed = true;
@@ -266,6 +334,7 @@ namespace cryptonote
     crypto::hash max_used_block_id = null_hash;
     uint64_t max_used_block_height = 0;
     cryptonote::txpool_tx_meta_t meta{};
+    strcpy(meta.fee_asset_type, source.c_str());
     bool ch_inp_res = check_tx_inputs([&tx]()->cryptonote::transaction&{ return tx; }, id, max_used_block_height, max_used_block_id, tvc, kept_by_block);
     if(!ch_inp_res)
     {
@@ -297,7 +366,10 @@ namespace cryptonote
             return false;
 
           m_blockchain.add_txpool_tx(id, blob, meta);
-          add_tx_to_transient_lists(id, fee / (double)(tx_weight ? tx_weight : 1), receive_time);
+
+          uint64_t total_fee = meta.fee;
+ 
+          add_tx_to_transient_lists(id, total_fee / (double)(tx_weight ? tx_weight : 1), receive_time);
           lock.commit();
         }
         catch (const std::exception &e)
@@ -368,7 +440,9 @@ namespace cryptonote
 
           m_blockchain.remove_txpool_tx(id);
           m_blockchain.add_txpool_tx(id, blob, meta);
-          add_tx_to_transient_lists(id, meta.fee / (double)(tx_weight ? tx_weight : 1), receive_time);
+
+          uint64_t total_fee = meta.fee;
+          add_tx_to_transient_lists(id, total_fee / (double)(tx_weight ? tx_weight : 1), receive_time);
         }
         lock.commit();
       }
@@ -390,7 +464,6 @@ namespace cryptonote
     ++m_cookie;
 
     MINFO("Transaction added to pool: txid " << id << " weight: " << tx_weight << " fee/byte: " << (fee / (double)(tx_weight ? tx_weight : 1)) << ", count: " << m_added_txs_by_id.size());
-
     prune(m_txpool_max_weight);
 
     return true;
@@ -501,7 +574,7 @@ namespace cryptonote
   {
     for(const auto& in: tx.vin)
     {
-      CHECKED_GET_SPECIFIC_VARIANT(in, const txin_to_key, txin, false);
+      CHECKED_GET_SPECIFIC_VARIANT(in, const txin_zephyr_key, txin, false);
       std::unordered_set<crypto::hash>& kei_image_set = m_spent_key_images[txin.k_image];
 
       // Only allow multiple txes per key-image if kept-by-block. Only allow
@@ -535,7 +608,7 @@ namespace cryptonote
     // ND: Speedup
     for(const txin_v& vi: tx.vin)
     {
-      CHECKED_GET_SPECIFIC_VARIANT(vi, const txin_to_key, txin, false);
+      CHECKED_GET_SPECIFIC_VARIANT(vi, const txin_zephyr_key, txin, false);
       auto it = m_spent_key_images.find(txin.k_image);
       CHECK_AND_ASSERT_MES(it != m_spent_key_images.end(), false, "failed to find transaction input in key images. img=" << txin.k_image << ENDL
                                     << "transaction id = " << actual_hash);
@@ -558,7 +631,7 @@ namespace cryptonote
     return true;
   }
   //---------------------------------------------------------------------------------
-  bool tx_memory_pool::take_tx(const crypto::hash &id, transaction &tx, cryptonote::blobdata &txblob, size_t& tx_weight, uint64_t& fee, bool &relayed, bool &do_not_relay, bool &double_spend_seen, bool &pruned)
+  bool tx_memory_pool::take_tx(const crypto::hash &id, transaction &tx, cryptonote::blobdata &txblob, size_t& tx_weight, uint64_t& fee, std::string& fee_asset_type, bool &relayed, bool &do_not_relay, bool &double_spend_seen, bool &pruned)
   {
     CRITICAL_REGION_LOCAL(m_transactions_lock);
     CRITICAL_REGION_LOCAL1(m_blockchain);
@@ -590,6 +663,7 @@ namespace cryptonote
       }
       tx_weight = meta.weight;
       fee = meta.fee;
+      fee_asset_type = meta.fee_asset_type;
       relayed = meta.relayed;
       do_not_relay = meta.do_not_relay;
       double_spend_seen = meta.double_spend_seen;
@@ -745,11 +819,33 @@ namespace cryptonote
     CRITICAL_REGION_LOCAL(m_transactions_lock);
     CRITICAL_REGION_LOCAL1(m_blockchain);
     std::list<std::pair<crypto::hash, uint64_t>> remove;
-    m_blockchain.for_all_txpool_txes([this, &remove](const crypto::hash &txid, const txpool_tx_meta_t &meta, const cryptonote::blobdata_ref*) {
+
+    const uint64_t bc_height = m_blockchain.get_current_blockchain_height();
+
+    m_blockchain.for_all_txpool_txes([this, &remove, &bc_height](const crypto::hash &txid, const txpool_tx_meta_t &meta, const cryptonote::blobdata_ref* bd) {
       uint64_t tx_age = time(nullptr) - meta.receive_time;
 
+      // Remove the conversion transactions with a pr that is more than 10 block old.
+      // Those transaction won't be mined anyways since their pricing record should be pointing to a block that is older than 10 block.
+      // Users doesn't need to wait 24 hours for it to passt the pool tx life time, especially if they want to convert their assets.
+      bool invalid_pr = false;
+      cryptonote::transaction tx;
+      if (!parse_and_validate_tx_from_blob(*bd, tx))
+      {
+        MERROR("Failed to parse tx from txpool");
+        invalid_pr = true;
+      }
+      else
+      {
+        // give 1 block buffer
+        if (tx.pricing_record_height > 0 && (bc_height - tx.pricing_record_height + 1) > PRICING_RECORD_VALID_BLOCKS) {
+          invalid_pr = true;
+        }
+      }
+
       if((tx_age > CRYPTONOTE_MEMPOOL_TX_LIVETIME && !meta.kept_by_block) ||
-         (tx_age > CRYPTONOTE_MEMPOOL_TX_FROM_ALT_BLOCK_LIVETIME && meta.kept_by_block) )
+         (tx_age > CRYPTONOTE_MEMPOOL_TX_FROM_ALT_BLOCK_LIVETIME && meta.kept_by_block) ||
+         invalid_pr)
       {
         LOG_PRINT_L1("Tx " << txid << " removed from tx pool due to outdated, age: " << tx_age );
         remove_tx_from_transient_lists(find_tx_in_sorted_container(txid), txid, !meta.matches(relay_category::broadcasted));
@@ -1371,7 +1467,7 @@ namespace cryptonote
     CRITICAL_REGION_LOCAL1(m_blockchain);
     for(const auto& in: tx.vin)
     {
-      CHECKED_GET_SPECIFIC_VARIANT(in, const txin_to_key, tokey_in, true);//should never fail
+      CHECKED_GET_SPECIFIC_VARIANT(in, const txin_zephyr_key, tokey_in, true);//should never fail
       if(have_tx_keyimg_as_spent(tokey_in.k_image, txid))
          return true;
     }
@@ -1498,7 +1594,7 @@ namespace cryptonote
   {
     for(size_t i = 0; i!= tx.vin.size(); i++)
     {
-      CHECKED_GET_SPECIFIC_VARIANT(tx.vin[i], const txin_to_key, itk, false);
+      CHECKED_GET_SPECIFIC_VARIANT(tx.vin[i], const txin_zephyr_key, itk, false);
       if(k_images.count(itk.k_image))
         return true;
     }
@@ -1509,7 +1605,7 @@ namespace cryptonote
   {
     for(size_t i = 0; i!= tx.vin.size(); i++)
     {
-      CHECKED_GET_SPECIFIC_VARIANT(tx.vin[i], const txin_to_key, itk, false);
+      CHECKED_GET_SPECIFIC_VARIANT(tx.vin[i], const txin_zephyr_key, itk, false);
       auto i_res = k_images.insert(itk.k_image);
       CHECK_AND_ASSERT_MES(i_res.second, false, "internal error: key images pool cache - inserted duplicate image in set: " << itk.k_image);
     }
@@ -1524,7 +1620,7 @@ namespace cryptonote
     LockedTXN lock(m_blockchain.get_db());
     for(size_t i = 0; i!= tx.vin.size(); i++)
     {
-      CHECKED_GET_SPECIFIC_VARIANT(tx.vin[i], const txin_to_key, itk, void());
+      CHECKED_GET_SPECIFIC_VARIANT(tx.vin[i], const txin_zephyr_key, itk, void());
       const key_images_container::const_iterator it = m_spent_key_images.find(itk.k_image);
       if (it != m_spent_key_images.end())
       {
@@ -1593,14 +1689,21 @@ namespace cryptonote
   }
   //---------------------------------------------------------------------------------
   //TODO: investigate whether boolean return is appropriate
-  bool tx_memory_pool::fill_block_template(block &bl, size_t median_weight, uint64_t already_generated_coins, size_t &total_weight, uint64_t &fee, uint64_t &expected_reward, uint8_t version)
-  {
+  bool tx_memory_pool::fill_block_template(
+    block &bl,
+    size_t median_weight,
+    uint64_t already_generated_coins,
+    size_t &total_weight,
+    std::map<std::string, uint64_t> &fee_map,
+    uint64_t &expected_reward,
+    uint8_t version
+  ){
     CRITICAL_REGION_LOCAL(m_transactions_lock);
     CRITICAL_REGION_LOCAL1(m_blockchain);
+    using tt = cryptonote::transaction_type;
 
     uint64_t best_coinbase = 0, coinbase = 0;
     total_weight = 0;
-    fee = 0;
     
     //baseline empty block
     if (!get_block_reward(median_weight, total_weight, already_generated_coins, best_coinbase, version))
@@ -1612,12 +1715,20 @@ namespace cryptonote
 
     size_t max_total_weight_pre_v5 = (130 * median_weight) / 100 - CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE;
     size_t max_total_weight_v5 = 2 * median_weight - CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE;
-    size_t max_total_weight = version >= 5 ? max_total_weight_v5 : max_total_weight_pre_v5;
+    size_t max_total_weight = max_total_weight_v5;
     std::unordered_set<crypto::key_image> k_images;
 
     LOG_PRINT_L2("Filling block template, median weight " << median_weight << ", " << m_txs_by_fee_and_receive_time.size() << " txes in the pool");
 
     LockedTXN lock(m_blockchain.get_db());
+
+    std::vector<std::pair<std::string, std::string>> circ_supply = m_blockchain.get_db().get_circulating_supply();
+
+    // uint64_t max_mintable_stables = get_max_mintable_stables(circ_supply, latest_pr);
+    // uint64_t max_mintable_reserves = get_max_mintable_reserves(circ_supply, latest_pr);
+    int64_t total_conversion_zeph = 0;
+    int64_t total_conversion_stables = 0;
+    int64_t total_conversion_reserves = 0;
 
     auto sorted_it = m_txs_by_fee_and_receive_time.begin();
     for (; sorted_it != m_txs_by_fee_and_receive_time.end(); ++sorted_it)
@@ -1631,12 +1742,14 @@ namespace cryptonote
         warned = true;
         continue;
       }
+
+      // MADNESS: RIGHT HERE CASUE OF STUCK PENDING 
       LOG_PRINT_L2("Considering " << sorted_it->second << ", weight " << meta.weight << ", current block weight " << total_weight << "/" << max_total_weight << ", current coinbase " << print_money(best_coinbase) << ", relay method " << (unsigned)meta.get_relay_method());
 
       if (!meta.matches(relay_category::legacy) && !(m_mine_stem_txes && meta.get_relay_method() == relay_method::stem))
       {
         LOG_PRINT_L2("  tx relay method is " << (unsigned)meta.get_relay_method());
-        continue;
+        // continue;
       }
       if (meta.pruned)
       {
@@ -1651,33 +1764,21 @@ namespace cryptonote
         continue;
       }
 
-      // start using the optimal filling algorithm from v5
-      if (version >= 5)
+      // If we're getting lower coinbase tx,
+      // stop including more tx
+      uint64_t block_reward;
+      if(!get_block_reward(median_weight, total_weight + meta.weight, already_generated_coins, block_reward, version))
       {
-        // If we're getting lower coinbase tx,
-        // stop including more tx
-        uint64_t block_reward;
-        if(!get_block_reward(median_weight, total_weight + meta.weight, already_generated_coins, block_reward, version))
-        {
-          LOG_PRINT_L2("  would exceed maximum block weight");
-          continue;
-        }
-        coinbase = block_reward + fee + meta.fee;
-        if (coinbase < template_accept_threshold(best_coinbase))
-        {
-          LOG_PRINT_L2("  would decrease coinbase to " << print_money(coinbase));
-          continue;
-        }
+        LOG_PRINT_L2("  would exceed maximum block weight");
+        continue;
       }
-      else
+
+
+      coinbase = block_reward + fee_map["ZEPH"] + meta.fee;
+      if (coinbase < template_accept_threshold(best_coinbase))
       {
-        // If we've exceeded the penalty free weight,
-        // stop including more tx
-        if (total_weight > median_weight)
-        {
-          LOG_PRINT_L2("  would exceed median block weight");
-          break;
-        }
+        LOG_PRINT_L2("  would decrease coinbase to " << print_money(coinbase));
+        continue;
       }
 
       // "local" and "stem" txes are filtered above
@@ -1722,9 +1823,91 @@ namespace cryptonote
         continue;
       }
 
+      bool have_valid_pr = true;
+      oracle::pricing_record latest_pr;
+      if (!m_blockchain.get_latest_acceptable_pr(latest_pr)) {
+        MWARNING("Failed to find a pricing record in last 10 block.");
+        MWARNING("Tx/conversion fees wont be converted. Cant calculuate block cap. Conversion txs wont be included in the block.");
+        have_valid_pr = false;
+      }
+
+      // get the asset types
+      std::string source;
+      std::string dest;
+      tt tx_type;
+      if (!get_tx_asset_types(tx, sorted_it->second, source, dest, false)) {
+        LOG_PRINT_L2("At least 1 input or 1 output of the tx was invalid.");
+        continue;
+      }
+      if (!get_tx_type(source, dest, tx_type)) {
+        LOG_PRINT_L2(" transaction has invalid tx type " << sorted_it->second);
+        continue;
+      }
+
+      int64_t conversion_this_tx_zeph = 0;
+      int64_t conversion_this_tx_stables = 0;
+      int64_t conversion_this_tx_reserves = 0;
+      if (source != dest)
+      {
+        // Validate that pricing record has not grown too old since it was first included in the pool
+        if (!tx_pr_height_valid(m_blockchain.get_current_blockchain_height(), tx.pricing_record_height, sorted_it->second)) {
+          LOG_PRINT_L2("error : oracle/xAsset transaction references a pricing record that is too old (height " << tx.pricing_record_height << ")");
+          continue;
+        }
+        // get pricing record
+        block bl;
+        if (!m_blockchain.get_block_by_hash(m_blockchain.get_block_id_by_height(tx.pricing_record_height), bl)) {
+          LOG_PRINT_L2("error: failed to get block containing pricing record");
+          continue;
+        }
+
+        if (!have_valid_pr) {
+          continue;
+        }
+
+        if (tx_type == tt::MINT_STABLE) {
+          conversion_this_tx_zeph += tx.amount_burnt; // Added to the reserve
+          conversion_this_tx_stables += tx.amount_minted;
+        }
+        if (tx_type == tt::REDEEM_STABLE) {
+          conversion_this_tx_stables -= tx.amount_burnt;
+          conversion_this_tx_zeph -= tx.amount_minted; // Deducted from the reserve
+        }
+        if (tx_type == tt::MINT_RESERVE) {
+          conversion_this_tx_zeph += tx.amount_burnt;
+          conversion_this_tx_reserves += tx.amount_minted;
+        }
+        if (tx_type == tt::REDEEM_RESERVE) {
+          conversion_this_tx_reserves -= tx.amount_burnt;
+          conversion_this_tx_zeph -= tx.amount_minted;
+        }
+
+        int64_t tally_zeph = total_conversion_zeph + conversion_this_tx_zeph;
+        int64_t tally_stables = total_conversion_stables + conversion_this_tx_stables;
+        int64_t tally_reserves = total_conversion_reserves + conversion_this_tx_reserves;
+
+        if (!reserve_ratio_satisfied(circ_supply, bl.pricing_record, tx_type, tally_zeph, tally_stables, tally_reserves)) {
+          LOG_PRINT_L2(" transaction ignored: reserve ratio would be invalid " << sorted_it->second);
+          continue;
+        }
+
+        // make sure proof-of-value still holds
+        if (!rct::verRctSemanticsSimple2(tx.rct_signatures, bl.pricing_record, circ_supply, tx_type, source, dest, tx.amount_burnt, tx.vout, tx.vin, version))
+        {
+          LOG_PRINT_L2(" transaction proof-of-value is now invalid for tx " << sorted_it->second);
+          continue;
+        } 
+      }
+
+
       bl.tx_hashes.push_back(sorted_it->second);
       total_weight += meta.weight;
-      fee += meta.fee;
+
+      fee_map[meta.fee_asset_type] += meta.fee;
+      total_conversion_zeph += conversion_this_tx_zeph;
+      total_conversion_stables += conversion_this_tx_stables;
+      total_conversion_reserves += conversion_this_tx_reserves;
+
       best_coinbase = coinbase;
       append_key_images(k_images, tx);
       LOG_PRINT_L2("  added, new block weight " << total_weight << "/" << max_total_weight << ", coinbase " << print_money(best_coinbase));
@@ -1734,7 +1917,9 @@ namespace cryptonote
     expected_reward = best_coinbase;
     LOG_PRINT_L2("Block template filled with " << bl.tx_hashes.size() << " txes, weight "
         << total_weight << "/" << max_total_weight << ", coinbase " << print_money(best_coinbase)
-        << " (including " << print_money(fee) << " in fees)");
+        << " (including " << print_money(fee_map["ZEPH"]) << " ZEPH in fees | "
+        << print_money(fee_map["ZEPHUSD"]) << " ZEPHUSD in fees | "
+        << print_money(fee_map["ZEPHRSV"]) << " ZEPHRSV in fees)");
     return true;
   }
   //---------------------------------------------------------------------------------
@@ -1775,10 +1960,11 @@ namespace cryptonote
       {
         size_t weight;
         uint64_t fee;
+        std::string fee_asset_type;
         cryptonote::transaction tx;
         cryptonote::blobdata blob;
         bool relayed, do_not_relay, double_spend_seen, pruned;
-        if (!take_tx(e.txid, tx, blob, weight, fee, relayed, do_not_relay, double_spend_seen, pruned))
+        if (!take_tx(e.txid, tx, blob, weight, fee, fee_asset_type, relayed, do_not_relay, double_spend_seen, pruned))
           MERROR("Failed to get tx " << e.txid << " from txpool for re-validation");
 
         cryptonote::tx_verification_context tvc{};

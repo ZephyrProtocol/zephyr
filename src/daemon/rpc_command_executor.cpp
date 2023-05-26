@@ -1459,10 +1459,10 @@ bool t_rpc_command_executor::print_status()
   bool daemon_is_alive = m_rpc_client->check_connection();
 
   if(daemon_is_alive) {
-    tools::success_msg_writer() << "monerod is running";
+    tools::success_msg_writer() << "zephyrd is running";
   }
   else {
-    tools::fail_msg_writer() << "monerod is NOT running";
+    tools::fail_msg_writer() << "zephyrd is NOT running";
   }
 
   return true;
@@ -2059,7 +2059,7 @@ bool t_rpc_command_executor::print_blockchain_dynamic_stats(uint64_t nblocks)
   std::string fail_message = "Problem fetching info";
 
   fereq.grace_blocks = 0;
-  hfreq.version = HF_VERSION_PER_BYTE_FEE;
+  hfreq.version = 1;
   if (m_is_rpc)
   {
     if (!m_rpc_client->rpc_request(ireq, ires, "/getinfo", fail_message.c_str()))

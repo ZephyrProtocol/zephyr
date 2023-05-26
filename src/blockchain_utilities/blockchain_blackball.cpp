@@ -1219,12 +1219,12 @@ int main(int argc, char* argv[])
 
   if (command_line::get_arg(vm, command_line::arg_help))
   {
-    std::cout << "Monero '" << MONERO_RELEASE_NAME << "' (v" << MONERO_VERSION_FULL << ")" << ENDL << ENDL;
+    std::cout << "Zephyr '" << MONERO_RELEASE_NAME << "' (v" << MONERO_VERSION_FULL << ")" << ENDL << ENDL;
     std::cout << desc_options << std::endl;
     return 1;
   }
 
-  mlog_configure(mlog_get_default_log_path("monero-blockchain-mark-spent-outputs.log"), true);
+  mlog_configure(mlog_get_default_log_path("zephyr-blockchain-mark-spent-outputs.log"), true);
   if (!command_line::is_arg_defaulted(vm, arg_log_level))
     mlog_set_log(command_line::get_arg(vm, arg_log_level).c_str());
   else
@@ -1320,7 +1320,7 @@ int main(int argc, char* argv[])
       for (const auto &out: tx.vout)
       {
         ++outs_total;
-        CHECK_AND_ASSERT_THROW_MES(out.target.type() == typeid(txout_to_key), "Out target type is not txout_to_key: height=" + std::to_string(height));
+        CHECK_AND_ASSERT_THROW_MES(out.target.type() == typeid(txout_zephyr_tagged_key), "Out target type is not txout_zephyr_tagged_key: height=" + std::to_string(height));
         uint64_t out_global_index = outs_per_amount[out.amount]++;
         if (is_output_spent(cur, output_data(out.amount, out_global_index)))
           ++outs_spent;
@@ -1400,9 +1400,9 @@ int main(int argc, char* argv[])
       const bool miner_tx = tx.vin.size() == 1 && tx.vin[0].type() == typeid(txin_gen);
       for (const auto &in: tx.vin)
       {
-        if (in.type() != typeid(txin_to_key))
+        if (in.type() != typeid(txin_zephyr_key))
           continue;
-        const auto &txin = boost::get<txin_to_key>(in);
+        const auto &txin = boost::get<txin_zephyr_key>(in);
         if (opt_rct_only && txin.amount != 0)
           continue;
 
@@ -1539,7 +1539,7 @@ int main(int argc, char* argv[])
 
           if (opt_rct_only && amount != 0)
             continue;
-          if (out.target.type() != typeid(txout_to_key))
+          if (out.target.type() != typeid(txout_zephyr_tagged_key))
             continue;
           inc_per_amount_outputs(txn, amount, 1, 0);
         }

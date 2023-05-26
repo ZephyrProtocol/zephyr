@@ -105,7 +105,7 @@ bool gen_rct2_tx_validation_base::generate_with(std::vector<test_event_entry>& e
         if (blocks[m].miner_tx.vout[i].amount == needed_amount)
           index_in_tx = i;
       CHECK_AND_ASSERT_MES(blocks[m].miner_tx.vout[index_in_tx].amount == needed_amount, false, "Expected amount not found");
-      src.push_output(m, boost::get<txout_to_key>(blocks[m].miner_tx.vout[index_in_tx].target).key, src.amount);
+      src.push_output(m, boost::get<txout_zephyr_tagged_key>(blocks[m].miner_tx.vout[index_in_tx].target).key, src.amount);
       if (m == n)
         real_index_in_tx = index_in_tx;
     }
@@ -212,7 +212,7 @@ bool gen_rct2_tx_clsag_malleability::generate(std::vector<test_event_entry>& eve
   const int mixin = 10;
   const uint64_t amounts_paid[] = {5000, 5000, (uint64_t)-1};
   const rct::RCTConfig rct_config[] = { { rct::RangeProofPaddedBulletproof, 3 } };
-  return generate_with(events, mixin, 1, amounts_paid, false, rct_config, HF_VERSION_CLSAG + 1, NULL, [&](cryptonote::transaction &tx, size_t tx_idx) {
+  return generate_with(events, mixin, 1, amounts_paid, false, rct_config, 1 + 1, NULL, [&](cryptonote::transaction &tx, size_t tx_idx) {
     CHECK_TEST_CONDITION(tx.version == 2);
     CHECK_TEST_CONDITION(tx.rct_signatures.type == rct::RCTTypeCLSAG);
     CHECK_TEST_CONDITION(!tx.rct_signatures.p.CLSAGs.empty());

@@ -58,7 +58,7 @@ public:
       if (!construct_miner_tx(0, 0, 0, 2, 0, m_miners[i].get_keys().m_account_address, m_miner_txs[i]))
         return false;
 
-      txout_to_key tx_out = boost::get<txout_to_key>(m_miner_txs[i].vout[0].target);
+      txout_zephyr_tagged_key tx_out = boost::get<txout_zephyr_tagged_key>(m_miner_txs[i].vout[0].target);
       output_entries.push_back(std::make_pair(i, rct::ctkey({rct::pk2rct(tx_out.key), rct::zeroCommit(m_miner_txs[i].vout[0].amount)})));
       m_public_keys[i] = tx_out.key;
       m_public_key_ptrs[i] = &m_public_keys[i];

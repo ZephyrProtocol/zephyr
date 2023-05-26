@@ -113,4 +113,4 @@ struct gen_rct2_tx_clsag_malleability : public gen_rct2_tx_validation_base
 {
   bool generate(std::vector<test_event_entry>& events) const;
 };
-template<> struct get_test_options<gen_rct2_tx_clsag_malleability>: public get_rct2_versioned_test_options<HF_VERSION_CLSAG + 1> {};
+template<> struct get_test_options<gen_rct2_tx_clsag_malleability>: public get_rct2_versioned_test_options<1 + 1> {};

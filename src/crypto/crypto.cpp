@@ -600,7 +600,7 @@ namespace crypto {
 
     // Hash depends on version
     if (version == 1) hash_to_scalar(&buf, sizeof(s_comm_2) - 3*sizeof(ec_point) - sizeof(hash), c2);
-    else if (version == 2) hash_to_scalar(&buf, sizeof(s_comm_2), c2);
+    else if (version >= 2) hash_to_scalar(&buf, sizeof(s_comm_2), c2);
     else return false;
 
     // test if c2 == sig.c

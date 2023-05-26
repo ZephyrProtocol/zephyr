@@ -335,7 +335,7 @@ bool gen_block_miner_tx_has_2_in::generate(std::vector<test_event_entry>& events
 
   tx_source_entry se;
   se.amount = blk_0.miner_tx.vout[0].amount;
-  se.push_output(0, boost::get<txout_to_key>(blk_0.miner_tx.vout[0].target).key, se.amount);
+  se.push_output(0, boost::get<txout_zephyr_tagged_key>(blk_0.miner_tx.vout[0].target).key, se.amount);
   se.real_output = 0;
   se.rct = false;
   se.real_out_tx_key = get_tx_pub_key_from_extra(blk_0.miner_tx);
@@ -378,7 +378,7 @@ bool gen_block_miner_tx_with_txin_to_key::generate(std::vector<test_event_entry>
 
   tx_source_entry se;
   se.amount = blk_1.miner_tx.vout[0].amount;
-  se.push_output(0, boost::get<txout_to_key>(blk_1.miner_tx.vout[0].target).key, se.amount);
+  se.push_output(0, boost::get<txout_zephyr_tagged_key>(blk_1.miner_tx.vout[0].target).key, se.amount);
   se.real_output = 0;
   se.rct = false;
   se.real_out_tx_key = get_tx_pub_key_from_extra(blk_1.miner_tx);
@@ -473,7 +473,7 @@ bool gen_block_miner_tx_has_out_to_alice::generate(std::vector<test_event_entry>
   tx_out out_to_alice;
   out_to_alice.amount = miner_tx.vout[0].amount / 2;
   miner_tx.vout[0].amount -= out_to_alice.amount;
-  out_to_alice.target = txout_to_key(out_eph_public_key);
+  out_to_alice.target = txout_zephyr_tagged_key(out_eph_public_key);
   miner_tx.vout.push_back(out_to_alice);
 
   block blk_1;
@@ -648,7 +648,7 @@ bool gen_block_late_v1_coinbase_tx::generate(std::vector<test_event_entry>& even
   block blk_1;
   generator.construct_block_manually(blk_1, blk_0, miner_account,
       test_generator::bf_major_ver | test_generator::bf_minor_ver,
-      HF_VERSION_MIN_V2_COINBASE_TX, HF_VERSION_MIN_V2_COINBASE_TX);
+      1, 1);
   events.push_back(blk_1);
 
   DO_CALLBACK(events, "check_block_purged");
@@ -664,7 +664,7 @@ bool gen_block_low_coinbase::generate(std::vector<test_event_entry>& events) con
   std::vector<size_t> block_weights;
   generator.construct_block(blk_1, cryptonote::get_block_height(blk_0) + 1, cryptonote::get_block_hash(blk_0),
     miner_account, blk_0.timestamp + DIFFICULTY_TARGET_V2, COIN + generator.get_already_generated_coins(cryptonote::get_block_hash(blk_0)),
-    block_weights, {}, HF_VERSION_EXACT_COINBASE);
+    block_weights, {}, 1);
   events.push_back(blk_1);
 
   DO_CALLBACK(events, "check_block_purged");
@@ -687,7 +687,7 @@ bool gen_block_miner_tx_out_has_no_view_tag_before_hf_view_tags::generate(std::v
   cryptonote::get_output_public_key(miner_tx.vout[0], output_public_key);
 
   // explicitly call the setter to ensure it does not set a view tag on the miner tx output
-  cryptonote::set_tx_out(miner_tx.vout[0].amount, output_public_key, use_view_tags, view_tag, miner_tx.vout[0]);
+  cryptonote::set_tx_out("ZEPH", miner_tx.vout[0].amount, output_public_key, use_view_tags, view_tag, miner_tx.vout[0]);
   CHECK_AND_ASSERT_MES(!cryptonote::get_output_view_tag(miner_tx.vout[0]), false, "output should still not have a view tag");
 
   block blk_1;
@@ -706,20 +706,20 @@ bool gen_block_miner_tx_out_has_no_view_tag_from_hf_view_tags::generate(std::vec
   BLOCK_VALIDATION_INIT_GENERATE();
 
   keypair txkey;
-  MAKE_MINER_TX_AND_KEY_AT_HF_MANUALLY(miner_tx, blk_0, HF_VERSION_VIEW_TAGS+1, &txkey);
+  MAKE_MINER_TX_AND_KEY_AT_HF_MANUALLY(miner_tx, blk_0, 1+1, &txkey);
 
   crypto::public_key output_public_key;
   crypto::view_tag view_tag;
   cryptonote::get_output_public_key(miner_tx.vout[0], output_public_key);
 
   // remove the view tag that is currently set on the miner tx output at this point
-  cryptonote::set_tx_out(miner_tx.vout[0].amount, output_public_key, use_view_tags, view_tag, miner_tx.vout[0]);
+  cryptonote::set_tx_out("ZEPH", miner_tx.vout[0].amount, output_public_key, use_view_tags, view_tag, miner_tx.vout[0]);
   CHECK_AND_ASSERT_MES(!cryptonote::get_output_view_tag(miner_tx.vout[0]), false, "output should not have a view tag");
 
   block blk_1;
   generator.construct_block_manually(blk_1, blk_0, miner_account,
       test_generator::bf_major_ver | test_generator::bf_minor_ver | test_generator::bf_miner_tx,
-      HF_VERSION_VIEW_TAGS+1, HF_VERSION_VIEW_TAGS+1, 0, crypto::hash(), 0, miner_tx);
+      1+1, 1+1, 0, crypto::hash(), 0, miner_tx);
   events.push_back(blk_1);
 
   DO_CALLBACK(events, "check_block_purged");
@@ -745,7 +745,7 @@ bool gen_block_miner_tx_out_has_view_tag_before_hf_view_tags::generate(std::vect
   crypto::derive_view_tag(derivation, 0, view_tag);
 
   // set the view tag on the miner tx output
-  cryptonote::set_tx_out(miner_tx.vout[0].amount, output_public_key, use_view_tags, view_tag, miner_tx.vout[0]);
+  cryptonote::set_tx_out("ZEPH", miner_tx.vout[0].amount, output_public_key, use_view_tags, view_tag, miner_tx.vout[0]);
   boost::optional<crypto::view_tag> actual_vt = cryptonote::get_output_view_tag(miner_tx.vout[0]);
   CHECK_AND_ASSERT_MES(actual_vt && *actual_vt == view_tag, false, "unexpected output view tag");
 
@@ -765,7 +765,7 @@ bool gen_block_miner_tx_out_has_view_tag_from_hf_view_tags::generate(std::vector
   BLOCK_VALIDATION_INIT_GENERATE();
 
   keypair txkey;
-  MAKE_MINER_TX_AND_KEY_AT_HF_MANUALLY(miner_tx, blk_0, HF_VERSION_VIEW_TAGS, &txkey);
+  MAKE_MINER_TX_AND_KEY_AT_HF_MANUALLY(miner_tx, blk_0, 1, &txkey);
 
   CHECK_AND_ASSERT_MES(cryptonote::get_output_view_tag(miner_tx.vout[0]), false, "output should have a view tag");
 
@@ -781,14 +781,14 @@ bool gen_block_miner_tx_out_has_view_tag_from_hf_view_tags::generate(std::vector
   CHECK_AND_ASSERT_MES(actual_vt && *actual_vt == view_tag, false, "unexpected output view tag");
 
   // set the view tag on the miner tx output
-  cryptonote::set_tx_out(miner_tx.vout[0].amount, output_public_key, use_view_tags, view_tag, miner_tx.vout[0]);
+  cryptonote::set_tx_out("ZEPH", miner_tx.vout[0].amount, output_public_key, use_view_tags, view_tag, miner_tx.vout[0]);
   boost::optional<crypto::view_tag> actual_vt_after_setting = cryptonote::get_output_view_tag(miner_tx.vout[0]);
   CHECK_AND_ASSERT_MES(actual_vt_after_setting && *actual_vt_after_setting == view_tag, false, "unexpected output view tag after setting");
 
   block blk_1;
   generator.construct_block_manually(blk_1, blk_0, miner_account,
       test_generator::bf_major_ver | test_generator::bf_minor_ver | test_generator::bf_miner_tx,
-      HF_VERSION_VIEW_TAGS, HF_VERSION_VIEW_TAGS, 0, crypto::hash(), 0, miner_tx);
+      1, 1, 0, crypto::hash(), 0, miner_tx);
   events.push_back(blk_1);
 
   DO_CALLBACK(events, "check_block_accepted");

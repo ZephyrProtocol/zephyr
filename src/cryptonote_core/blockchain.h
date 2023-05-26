@@ -63,6 +63,7 @@
 #include "checkpoints/checkpoints.h"
 #include "cryptonote_basic/hardfork.h"
 #include "blockchain_db/blockchain_db.h"
+#include "oracle/asset_types.h"
 
 namespace tools { class Notify; }
 
@@ -262,6 +263,21 @@ namespace cryptonote
      * @return true
      */
     bool cleanup_handle_incoming_blocks(bool force_sync = false);
+
+    /**
+     * @brief gets the pricing record for the specified timestamp
+     *
+     * @return false if method failed to obtain pricing record from oracle, otherwise true
+     */
+    bool get_pricing_record(oracle::pricing_record& pr, uint64_t timestamp);
+
+    /**
+     * @brief gets the latest pricing record that was in the last 10 block.
+     * If no pricing record found in the past 10 block, fails.
+     *
+     * @return false if method failed to obtain pricing, otherwise true
+     */
+    bool get_latest_acceptable_pr(oracle::pricing_record& pr) const;
 
     /**
      * @brief search the blockchain for a transaction by hash
@@ -570,7 +586,7 @@ namespace cryptonote
      * @param return-by-reference distribution the start offset of the first rct output in this block (same as previous if none)
      * @param return-by-reference base how many outputs of that amount are before the stated distribution
      */
-    bool get_output_distribution(uint64_t amount, uint64_t from_height, uint64_t to_height, uint64_t &start_height, std::vector<uint64_t> &distribution, uint64_t &base) const;
+    bool get_output_distribution(uint64_t amount, std::string asset_type, uint64_t from_height, uint64_t to_height, uint64_t &start_height, std::vector<uint64_t> &distribution, uint64_t &base, uint64_t &num_spendable_global_outs) const;
 
     /**
      * @brief gets the global indices for outputs from a given transaction
@@ -584,8 +600,8 @@ namespace cryptonote
      *
      * @return false if the transaction does not exist, or if no indices are found, otherwise true
      */
-    bool get_tx_outputs_gindexs(const crypto::hash& tx_id, std::vector<uint64_t>& indexs) const;
-    bool get_tx_outputs_gindexs(const crypto::hash& tx_id, size_t n_txes, std::vector<std::vector<uint64_t>>& indexs) const;
+    bool get_tx_outputs_gindexs(const crypto::hash& tx_id, std::vector<std::pair<uint64_t, uint64_t>>& indexs) const;
+    bool get_tx_outputs_gindexs(const crypto::hash& tx_id, size_t n_txes, std::vector<std::vector<std::pair<uint64_t, uint64_t>>>& indexs) const;
 
     /**
      * @brief stores the blockchain
@@ -604,7 +620,7 @@ namespace cryptonote
      * can be reconstituted by the receiver. This function expands
      * that implicit data.
      */
-    static bool expand_transaction_2(transaction &tx, const crypto::hash &tx_prefix_hash, const std::vector<std::vector<rct::ctkey>> &pubkeys);
+    static bool expand_transaction_2(transaction &tx, const crypto::hash &tx_prefix_hash, const std::vector<std::vector<rct::ctkey>> &pubkeys, uint8_t hf_version);
 
     /**
      * @brief validates a transaction's inputs
@@ -1255,7 +1271,7 @@ namespace cryptonote
      * @return false if any keys are not found or any inputs are not unlocked, otherwise true
      */
     template<class visitor_t>
-    inline bool scan_outputkeys_for_indexes(size_t tx_version, const txin_to_key& tx_in_to_key, visitor_t &vis, const crypto::hash &tx_prefix_hash, uint64_t* pmax_related_block_height = NULL) const;
+    inline bool scan_outputkeys_for_indexes(size_t tx_version, const txin_zephyr_key& tx_in_to_key, visitor_t &vis, const crypto::hash &tx_prefix_hash, uint64_t* pmax_related_block_height = NULL) const;
 
     /**
      * @brief collect output public keys of a transaction input set
@@ -1278,7 +1294,7 @@ namespace cryptonote
      *
      * @return false if any output is not yet unlocked, or is missing, otherwise true
      */
-    bool check_tx_input(size_t tx_version,const txin_to_key& txin, const crypto::hash& tx_prefix_hash, const std::vector<crypto::signature>& sig, const rct::rctSig &rct_signatures, std::vector<rct::ctkey> &output_keys, uint64_t* pmax_related_block_height, uint8_t hf_version) const;
+    bool check_tx_input(size_t tx_version,const txin_zephyr_key& txin, const crypto::hash& tx_prefix_hash, const std::vector<crypto::signature>& sig, const rct::rctSig &rct_signatures, std::vector<rct::ctkey> &output_keys, uint64_t* pmax_related_block_height, uint8_t hf_version) const;
 
     /**
      * @brief validate a transaction's inputs and their keys
@@ -1421,7 +1437,7 @@ namespace cryptonote
      *
      * @return false if anything is found wrong with the miner transaction, otherwise true
      */
-    bool validate_miner_transaction(const block& b, size_t cumulative_block_weight, uint64_t fee, uint64_t& base_reward, uint64_t already_generated_coins, bool &partial_block_reward, uint8_t version);
+    bool validate_miner_transaction(const block& b, size_t cumulative_block_weight, std::map<std::string, uint64_t>& fee_map, uint64_t& base_reward, uint64_t already_generated_coins, bool &partial_block_reward, uint8_t version);
 
     /**
      * @brief reverts the blockchain to its previous state following a failed switch

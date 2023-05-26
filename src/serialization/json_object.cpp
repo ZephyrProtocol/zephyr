@@ -313,6 +313,7 @@ void toJsonValue(rapidjson::Writer<epee::byte_stream>& dest, const cryptonote::b
   INSERT_INTO_JSON_OBJECT(dest, timestamp, b.timestamp);
   INSERT_INTO_JSON_OBJECT(dest, prev_id, b.prev_id);
   INSERT_INTO_JSON_OBJECT(dest, nonce, b.nonce);
+  INSERT_INTO_JSON_OBJECT(dest, pricing_record, b.pricing_record);
   INSERT_INTO_JSON_OBJECT(dest, miner_tx, b.miner_tx);
   INSERT_INTO_JSON_OBJECT(dest, tx_hashes, b.tx_hashes);
 
@@ -332,6 +333,7 @@ void fromJsonValue(const rapidjson::Value& val, cryptonote::block& b)
   GET_FROM_JSON_OBJECT(val, b.timestamp, timestamp);
   GET_FROM_JSON_OBJECT(val, b.prev_id, prev_id);
   GET_FROM_JSON_OBJECT(val, b.nonce, nonce);
+  GET_FROM_JSON_OBJECT(val, b.pricing_record, pricing_record);
   GET_FROM_JSON_OBJECT(val, b.miner_tx, miner_tx);
   GET_FROM_JSON_OBJECT(val, b.tx_hashes, tx_hashes);
 }
@@ -345,7 +347,7 @@ void toJsonValue(rapidjson::Writer<epee::byte_stream>& dest, const cryptonote::t
 
     rapidjson::Writer<epee::byte_stream>& dest;
 
-    void operator()(cryptonote::txin_to_key const& input) const
+    void operator()(cryptonote::txin_zephyr_key const& input) const
     {
       INSERT_INTO_JSON_OBJECT(dest, to_key, input);
     }
@@ -383,7 +385,7 @@ void fromJsonValue(const rapidjson::Value& val, cryptonote::txin_v& txin)
   {
     if (elem.name == "to_key")
     {
-      cryptonote::txin_to_key tmpVal;
+      cryptonote::txin_zephyr_key tmpVal;
       fromJsonValue(elem.value, tmpVal);
       txin = std::move(tmpVal);
     }
@@ -478,18 +480,19 @@ void fromJsonValue(const rapidjson::Value& val, cryptonote::txin_to_scripthash& 
   GET_FROM_JSON_OBJECT(val, txin.sigset, sigset);
 }
 
-void toJsonValue(rapidjson::Writer<epee::byte_stream>& dest, const cryptonote::txin_to_key& txin)
+void toJsonValue(rapidjson::Writer<epee::byte_stream>& dest, const cryptonote::txin_zephyr_key& txin)
 {
   dest.StartObject();
 
   INSERT_INTO_JSON_OBJECT(dest, amount, txin.amount);
+  INSERT_INTO_JSON_OBJECT(dest, asset_type, txin.asset_type);
   INSERT_INTO_JSON_OBJECT(dest, key_offsets, txin.key_offsets);
   INSERT_INTO_JSON_OBJECT(dest, key_image, txin.k_image);
 
   dest.EndObject();
 }
 
-void fromJsonValue(const rapidjson::Value& val, cryptonote::txin_to_key& txin)
+void fromJsonValue(const rapidjson::Value& val, cryptonote::txin_zephyr_key& txin)
 {
   if (!val.IsObject())
   {
@@ -497,6 +500,7 @@ void fromJsonValue(const rapidjson::Value& val, cryptonote::txin_to_key& txin)
   }
 
   GET_FROM_JSON_OBJECT(val, txin.amount, amount);
+  GET_FROM_JSON_OBJECT(val, txin.asset_type, asset_type);
   GET_FROM_JSON_OBJECT(val, txin.key_offsets, key_offsets);
   GET_FROM_JSON_OBJECT(val, txin.k_image, key_image);
 }
@@ -543,37 +547,18 @@ void fromJsonValue(const rapidjson::Value& val, cryptonote::txout_to_scripthash&
   GET_FROM_JSON_OBJECT(val, txout.hash, hash);
 }
 
-
-void toJsonValue(rapidjson::Writer<epee::byte_stream>& dest, const cryptonote::txout_to_key& txout)
+void toJsonValue(rapidjson::Writer<epee::byte_stream>& dest, const cryptonote::txout_zephyr_tagged_key& txout)
 {
   dest.StartObject();
 
   INSERT_INTO_JSON_OBJECT(dest, key, txout.key);
-
-  dest.EndObject();
-}
-
-void fromJsonValue(const rapidjson::Value& val, cryptonote::txout_to_key& txout)
-{
-  if (!val.IsObject())
-  {
-    throw WRONG_TYPE("json object");
-  }
-
-  GET_FROM_JSON_OBJECT(val, txout.key, key);
-}
-
-void toJsonValue(rapidjson::Writer<epee::byte_stream>& dest, const cryptonote::txout_to_tagged_key& txout)
-{
-  dest.StartObject();
-
-  INSERT_INTO_JSON_OBJECT(dest, key, txout.key);
+  INSERT_INTO_JSON_OBJECT(dest, asset_type, txout.asset_type);
   INSERT_INTO_JSON_OBJECT(dest, view_tag, txout.view_tag);
 
   dest.EndObject();
 }
 
-void fromJsonValue(const rapidjson::Value& val, cryptonote::txout_to_tagged_key& txout)
+void fromJsonValue(const rapidjson::Value& val, cryptonote::txout_zephyr_tagged_key& txout)
 {
   if (!val.IsObject())
   {
@@ -581,6 +566,7 @@ void fromJsonValue(const rapidjson::Value& val, cryptonote::txout_to_tagged_key&
   }
 
   GET_FROM_JSON_OBJECT(val, txout.key, key);
+  GET_FROM_JSON_OBJECT(val, txout.asset_type, asset_type);
   GET_FROM_JSON_OBJECT(val, txout.view_tag, view_tag);
 }
 
@@ -595,13 +581,9 @@ void toJsonValue(rapidjson::Writer<epee::byte_stream>& dest, const cryptonote::t
 
     rapidjson::Writer<epee::byte_stream>& dest;
 
-    void operator()(cryptonote::txout_to_key const& output) const
+    void operator()(cryptonote::txout_zephyr_tagged_key const& output) const
     {
-      INSERT_INTO_JSON_OBJECT(dest, to_key, output);
-    }
-    void operator()(cryptonote::txout_to_tagged_key const& output) const
-    {
-      INSERT_INTO_JSON_OBJECT(dest, to_tagged_key, output);
+      INSERT_INTO_JSON_OBJECT(dest, tagged_key, output);
     }
     void operator()(cryptonote::txout_to_script const& output) const
     {
@@ -635,15 +617,10 @@ void fromJsonValue(const rapidjson::Value& val, cryptonote::tx_out& txout)
       fromJsonValue(elem.value, txout.amount);
     }
 
-    if (elem.name == "to_key")
+
+    if (elem.name == "tagged_key")
     {
-      cryptonote::txout_to_key tmpVal;
-      fromJsonValue(elem.value, tmpVal);
-      txout.target = std::move(tmpVal);
-    }
-    else if (elem.name == "to_tagged_key")
-    {
-      cryptonote::txout_to_tagged_key tmpVal;
+      cryptonote::txout_zephyr_tagged_key tmpVal;
       fromJsonValue(elem.value, tmpVal);
       txout.target = std::move(tmpVal);
     }
@@ -1074,6 +1051,31 @@ void fromJsonValue(const rapidjson::Value& val, cryptonote::rpc::error& error)
   GET_FROM_JSON_OBJECT(val, error.message, message);
 }
 
+void toJsonValue(rapidjson::Writer<epee::byte_stream>& dest, const oracle::pricing_record& pricing_record)
+{
+  dest.StartObject();
+
+
+  INSERT_INTO_JSON_OBJECT(dest, zEPHUSD, pricing_record.zEPHUSD);
+  INSERT_INTO_JSON_OBJECT(dest, zEPHRSV, pricing_record.zEPHRSV);
+  INSERT_INTO_JSON_OBJECT(dest, timestamp, pricing_record.timestamp);
+
+  dest.EndObject();
+}
+
+void fromJsonValue(const rapidjson::Value& val, oracle::pricing_record& pricing_record)
+{  
+  if (!val.IsObject())
+  {
+    throw WRONG_TYPE("json object");
+  }
+
+  
+  GET_FROM_JSON_OBJECT(val, pricing_record.zEPHUSD, zEPHUSD);
+  GET_FROM_JSON_OBJECT(val, pricing_record.zEPHRSV, zEPHRSV);
+  GET_FROM_JSON_OBJECT(val, pricing_record.timestamp, timestamp);
+}
+
 void toJsonValue(rapidjson::Writer<epee::byte_stream>& dest, const cryptonote::rpc::BlockHeaderResponse& response)
 {
   dest.StartObject();
@@ -1083,6 +1085,7 @@ void toJsonValue(rapidjson::Writer<epee::byte_stream>& dest, const cryptonote::r
   INSERT_INTO_JSON_OBJECT(dest, timestamp, response.timestamp);
   INSERT_INTO_JSON_OBJECT(dest, prev_id, response.prev_id);
   INSERT_INTO_JSON_OBJECT(dest, nonce, response.nonce);
+  INSERT_INTO_JSON_OBJECT(dest, pricing_record, response.pricing_record);
   INSERT_INTO_JSON_OBJECT(dest, height, response.height);
   INSERT_INTO_JSON_OBJECT(dest, depth, response.depth);
   INSERT_INTO_JSON_OBJECT(dest, hash, response.hash);
@@ -1104,6 +1107,7 @@ void fromJsonValue(const rapidjson::Value& val, cryptonote::rpc::BlockHeaderResp
   GET_FROM_JSON_OBJECT(val, response.timestamp, timestamp);
   GET_FROM_JSON_OBJECT(val, response.prev_id, prev_id);
   GET_FROM_JSON_OBJECT(val, response.nonce, nonce);
+  GET_FROM_JSON_OBJECT(val, response.pricing_record, pricing_record);
   GET_FROM_JSON_OBJECT(val, response.height, height);
   GET_FROM_JSON_OBJECT(val, response.depth, depth);
   GET_FROM_JSON_OBJECT(val, response.hash, hash);

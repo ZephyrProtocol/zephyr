@@ -54,7 +54,7 @@ namespace test
             for (auto const input : boost::adaptors::index(source.vout))
             {
                 source_amount += input.value().amount;
-                auto const& key = boost::get<cryptonote::txout_to_key>(input.value().target);
+                auto const& key = boost::get<cryptonote::txout_zephyr_tagged_key>(input.value().target);
 
                 actual_sources.push_back(
                     {{}, 0, key_field.pub_key, {}, std::size_t(input.index()), input.value().amount, rct, rct::identity()}

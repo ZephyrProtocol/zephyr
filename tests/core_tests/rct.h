@@ -277,7 +277,7 @@ struct gen_rct_tx_pre_rct_has_no_view_tag_from_hf_view_tags : public gen_rct_tx_
   bool generate(std::vector<test_event_entry>& events) const;
 };
 template<> struct get_test_options<gen_rct_tx_pre_rct_has_no_view_tag_from_hf_view_tags> {
-  const std::pair<uint8_t, uint64_t> hard_forks[5] = {std::make_pair(1, 0), std::make_pair(2, 1), std::make_pair(4, 65), std::make_pair(HF_VERSION_VIEW_TAGS, 69), std::make_pair(0, 0)};
+  const std::pair<uint8_t, uint64_t> hard_forks[5] = {std::make_pair(1, 0), std::make_pair(2, 1), std::make_pair(4, 65), std::make_pair(1, 69), std::make_pair(0, 0)};
   const cryptonote::test_options test_options = {
     hard_forks, 0
   };
@@ -294,7 +294,7 @@ struct gen_rct_tx_pre_rct_has_view_tag_from_hf_view_tags : public gen_rct_tx_val
   bool generate(std::vector<test_event_entry>& events) const;
 };
 template<> struct get_test_options<gen_rct_tx_pre_rct_has_view_tag_from_hf_view_tags> {
-  const std::pair<uint8_t, uint64_t> hard_forks[5] = {std::make_pair(1, 0), std::make_pair(2, 1), std::make_pair(4, 65), std::make_pair(HF_VERSION_VIEW_TAGS, 69), std::make_pair(0, 0)};
+  const std::pair<uint8_t, uint64_t> hard_forks[5] = {std::make_pair(1, 0), std::make_pair(2, 1), std::make_pair(4, 65), std::make_pair(1, 69), std::make_pair(0, 0)};
   const cryptonote::test_options test_options = {
     hard_forks, 0
   };
@@ -311,7 +311,7 @@ struct gen_rct_tx_rct_has_no_view_tag_from_hf_view_tags : public gen_rct_tx_vali
   bool generate(std::vector<test_event_entry>& events) const;
 };
 template<> struct get_test_options<gen_rct_tx_rct_has_no_view_tag_from_hf_view_tags> {
-  const std::pair<uint8_t, uint64_t> hard_forks[5] = {std::make_pair(1, 0), std::make_pair(2, 1), std::make_pair(4, 65), std::make_pair(HF_VERSION_VIEW_TAGS+1, 69), std::make_pair(0, 0)};
+  const std::pair<uint8_t, uint64_t> hard_forks[5] = {std::make_pair(1, 0), std::make_pair(2, 1), std::make_pair(4, 65), std::make_pair(1+1, 69), std::make_pair(0, 0)};
   const cryptonote::test_options test_options = {
     hard_forks, 0
   };
@@ -328,7 +328,7 @@ struct gen_rct_tx_rct_has_view_tag_from_hf_view_tags : public gen_rct_tx_validat
   bool generate(std::vector<test_event_entry>& events) const;
 };
 template<> struct get_test_options<gen_rct_tx_rct_has_view_tag_from_hf_view_tags> {
-  const std::pair<uint8_t, uint64_t> hard_forks[5] = {std::make_pair(1, 0), std::make_pair(2, 1), std::make_pair(4, 65), std::make_pair(HF_VERSION_VIEW_TAGS, 69), std::make_pair(0, 0)};
+  const std::pair<uint8_t, uint64_t> hard_forks[5] = {std::make_pair(1, 0), std::make_pair(2, 1), std::make_pair(4, 65), std::make_pair(1, 69), std::make_pair(0, 0)};
   const cryptonote::test_options test_options = {
     hard_forks, 0
   };

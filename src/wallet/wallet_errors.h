@@ -860,7 +860,7 @@ namespace tools
     struct get_output_distribution : public wallet_rpc_error
     {
       explicit get_output_distribution(std::string&& loc, const std::string& request)
-        : wallet_rpc_error(std::move(loc), "failed to get output distribution", request)
+        : wallet_rpc_error(std::move(loc), "failed to get output distribution 1", request)
       {
       }
     };

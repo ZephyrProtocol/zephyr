@@ -95,9 +95,9 @@ struct tx_data_t
       vin.reserve(tx.vin.size());
       for (size_t ring = 0; ring < tx.vin.size(); ++ring)
       {
-        if (tx.vin[ring].type() == typeid(cryptonote::txin_to_key))
+        if (tx.vin[ring].type() == typeid(cryptonote::txin_zephyr_key))
         {
-          const cryptonote::txin_to_key &txin = boost::get<cryptonote::txin_to_key>(tx.vin[ring]);
+          const cryptonote::txin_zephyr_key &txin = boost::get<cryptonote::txin_zephyr_key>(tx.vin[ring]);
           vin.push_back(std::make_pair(txin.amount, cryptonote::relative_output_offsets_to_absolute(txin.key_offsets)));
         }
         else
@@ -110,9 +110,9 @@ struct tx_data_t
     vout.reserve(tx.vout.size());
     for (size_t out = 0; out < tx.vout.size(); ++out)
     {
-      if (tx.vout[out].target.type() == typeid(cryptonote::txout_to_key))
+      if (tx.vout[out].target.type() == typeid(cryptonote::txout_zephyr_tagged_key))
       {
-        const auto &txout = boost::get<cryptonote::txout_to_key>(tx.vout[out].target);
+        const auto &txout = boost::get<cryptonote::txout_zephyr_tagged_key>(tx.vout[out].target);
         vout.push_back(txout.key);
       }
       else
@@ -293,9 +293,9 @@ static bool get_output_txid(ancestry_state_t &state, BlockchainDB *db, uint64_t 
 
   for (size_t out = 0; out < b.miner_tx.vout.size(); ++out)
   {
-    if (b.miner_tx.vout[out].target.type() == typeid(cryptonote::txout_to_key))
+    if (b.miner_tx.vout[out].target.type() == typeid(cryptonote::txout_zephyr_tagged_key))
     {
-      const auto &txout = boost::get<cryptonote::txout_to_key>(b.miner_tx.vout[out].target);
+      const auto &txout = boost::get<cryptonote::txout_zephyr_tagged_key>(b.miner_tx.vout[out].target);
       if (txout.key == od.pubkey)
       {
         txid = cryptonote::get_transaction_hash(b.miner_tx);
@@ -386,12 +386,12 @@ int main(int argc, char* argv[])
 
   if (command_line::get_arg(vm, command_line::arg_help))
   {
-    std::cout << "Monero '" << MONERO_RELEASE_NAME << "' (v" << MONERO_VERSION_FULL << ")" << ENDL << ENDL;
+    std::cout << "Zephyr '" << MONERO_RELEASE_NAME << "' (v" << MONERO_VERSION_FULL << ")" << ENDL << ENDL;
     std::cout << desc_options << std::endl;
     return 1;
   }
 
-  mlog_configure(mlog_get_default_log_path("monero-blockchain-ancestry.log"), true);
+  mlog_configure(mlog_get_default_log_path("zephyr-blockchain-ancestry.log"), true);
   if (!command_line::is_arg_defaulted(vm, arg_log_level))
     mlog_set_log(command_line::get_arg(vm, arg_log_level).c_str());
   else

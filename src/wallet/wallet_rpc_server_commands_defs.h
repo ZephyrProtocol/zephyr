@@ -63,12 +63,16 @@ namespace wallet_rpc
     {
       uint32_t account_index;
       std::set<uint32_t> address_indices;
+      std::string asset_type;
       bool all_accounts;
+      bool all_assets;
       bool strict;
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(account_index)
         KV_SERIALIZE(address_indices)
+        KV_SERIALIZE(asset_type)
         KV_SERIALIZE_OPT(all_accounts, false);
+        KV_SERIALIZE_OPT(all_assets, false);
         KV_SERIALIZE_OPT(strict, false);
       END_KV_SERIALIZE_MAP()
     };
@@ -99,14 +103,14 @@ namespace wallet_rpc
       END_KV_SERIALIZE_MAP()
     };
 
-    struct response_t
-    {
+      struct balance_info {
       uint64_t 	 balance;
       uint64_t 	 unlocked_balance;
       bool       multisig_import_needed;
       std::vector<per_subaddress_info> per_subaddress;
       uint64_t   blocks_to_unlock;
       uint64_t   time_to_unlock;
+      std::string asset_type;
 
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(balance)
@@ -115,6 +119,15 @@ namespace wallet_rpc
         KV_SERIALIZE(per_subaddress)
         KV_SERIALIZE(blocks_to_unlock)
         KV_SERIALIZE(time_to_unlock)
+        KV_SERIALIZE(asset_type)
+      END_KV_SERIALIZE_MAP()
+    };
+
+    struct response_t
+    {
+      std::vector<balance_info> balances;
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(balances)
       END_KV_SERIALIZE_MAP()
     };
     typedef epee::misc_utils::struct_init<response_t> response;
@@ -541,6 +554,8 @@ namespace wallet_rpc
       uint64_t ring_size;
       uint64_t unlock_time;
       std::string payment_id;
+      std::string source_asset;
+      std::string destination_asset;
       bool get_tx_key;
       bool do_not_relay;
       bool get_tx_hex;
@@ -555,6 +570,8 @@ namespace wallet_rpc
         KV_SERIALIZE(unlock_time)
         KV_SERIALIZE(payment_id)
         KV_SERIALIZE(get_tx_key)
+        KV_SERIALIZE(source_asset)
+        KV_SERIALIZE(destination_asset)
         KV_SERIALIZE_OPT(do_not_relay, false)
         KV_SERIALIZE_OPT(get_tx_hex, false)
         KV_SERIALIZE_OPT(get_tx_metadata, false)
@@ -602,6 +619,8 @@ namespace wallet_rpc
       uint64_t ring_size;
       uint64_t unlock_time;
       std::string payment_id;
+      std::string source_asset;
+      std::string destination_asset;
       bool get_tx_keys;
       bool do_not_relay;
       bool get_tx_hex;
@@ -616,6 +635,8 @@ namespace wallet_rpc
         KV_SERIALIZE(unlock_time)
         KV_SERIALIZE(payment_id)
         KV_SERIALIZE(get_tx_keys)
+        KV_SERIALIZE(source_asset)
+        KV_SERIALIZE(destination_asset)
         KV_SERIALIZE_OPT(do_not_relay, false)
         KV_SERIALIZE_OPT(get_tx_hex, false)
         KV_SERIALIZE_OPT(get_tx_metadata, false)
@@ -1040,6 +1061,7 @@ namespace wallet_rpc
   {
     std::string payment_id;
     std::string tx_hash;
+    std::string asset_type;
     uint64_t amount;
     uint64_t block_height;
     uint64_t unlock_time;
@@ -1050,6 +1072,7 @@ namespace wallet_rpc
     BEGIN_KV_SERIALIZE_MAP()
       KV_SERIALIZE(payment_id)
       KV_SERIALIZE(tx_hash)
+      KV_SERIALIZE(asset_type)
       KV_SERIALIZE(amount)
       KV_SERIALIZE(block_height)
       KV_SERIALIZE(unlock_time)
@@ -1113,6 +1136,7 @@ namespace wallet_rpc
     bool spent;
     uint64_t global_index;
     std::string tx_hash;
+    std::string asset_type;
     cryptonote::subaddress_index subaddr_index;
     std::string key_image;
     std::string pubkey; // owned output public key found
@@ -1125,6 +1149,7 @@ namespace wallet_rpc
       KV_SERIALIZE(spent)
       KV_SERIALIZE(global_index)
       KV_SERIALIZE(tx_hash)
+      KV_SERIALIZE(asset_type)
       KV_SERIALIZE(subaddr_index)
       KV_SERIALIZE(key_image)
       KV_SERIALIZE(pubkey);
@@ -1408,12 +1433,14 @@ namespace wallet_rpc
 
     struct response_t
     {
-      uint64_t received;
+      std::vector<std::string> received_assets;
+      std::vector<uint64_t> received_amounts;
       bool in_pool;
       uint64_t confirmations;
 
       BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE(received)
+        KV_SERIALIZE(received_assets)
+        KV_SERIALIZE(received_amounts)
         KV_SERIALIZE(in_pool)
         KV_SERIALIZE(confirmations)
       END_KV_SERIALIZE_MAP()
@@ -1469,13 +1496,15 @@ namespace wallet_rpc
     struct response_t
     {
       bool good;
-      uint64_t received;
+      std::vector<std::string> received_assets;
+      std::vector<uint64_t> received_amounts;
       bool in_pool;
       uint64_t confirmations;
 
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(good)
-        KV_SERIALIZE(received)
+        KV_SERIALIZE(received_assets)
+        KV_SERIALIZE(received_amounts)
         KV_SERIALIZE(in_pool)
         KV_SERIALIZE(confirmations)
       END_KV_SERIALIZE_MAP()
@@ -1488,6 +1517,7 @@ namespace wallet_rpc
   {
     std::string txid;
     std::string payment_id;
+    std::string asset_type;
     uint64_t height;
     uint64_t timestamp;
     uint64_t amount;
@@ -1506,21 +1536,22 @@ namespace wallet_rpc
     uint64_t suggested_confirmations_threshold;
 
     BEGIN_KV_SERIALIZE_MAP()
-      KV_SERIALIZE(txid);
-      KV_SERIALIZE(payment_id);
-      KV_SERIALIZE(height);
-      KV_SERIALIZE(timestamp);
-      KV_SERIALIZE(amount);
-      KV_SERIALIZE(amounts);
-      KV_SERIALIZE(fee);
-      KV_SERIALIZE(note);
-      KV_SERIALIZE(destinations);
-      KV_SERIALIZE(type);
+      KV_SERIALIZE(txid)
+      KV_SERIALIZE(payment_id)
+      KV_SERIALIZE(asset_type)
+      KV_SERIALIZE(height)
+      KV_SERIALIZE(timestamp)
+      KV_SERIALIZE(amount)
+      KV_SERIALIZE(amounts)
+      KV_SERIALIZE(fee)
+      KV_SERIALIZE(note)
+      KV_SERIALIZE(destinations)
+      KV_SERIALIZE(type)
       KV_SERIALIZE(unlock_time)
       KV_SERIALIZE(locked)
-      KV_SERIALIZE(subaddr_index);
-      KV_SERIALIZE(subaddr_indices);
-      KV_SERIALIZE(address);
+      KV_SERIALIZE(subaddr_index)
+      KV_SERIALIZE(subaddr_indices)
+      KV_SERIALIZE(address)
       KV_SERIALIZE(double_spend_seen)
       KV_SERIALIZE_OPT(confirmations, (uint64_t)0)
       KV_SERIALIZE_OPT(suggested_confirmations_threshold, (uint64_t)0)

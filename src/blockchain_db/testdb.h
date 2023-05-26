@@ -76,7 +76,7 @@ public:
   virtual uint64_t get_block_height(const crypto::hash& h) const override { return 0; }
   virtual cryptonote::block_header get_block_header(const crypto::hash& h) const override { return cryptonote::block_header(); }
   virtual uint64_t get_block_timestamp(const uint64_t& height) const override { return 0; }
-  virtual std::vector<uint64_t> get_block_cumulative_rct_outputs(const std::vector<uint64_t> &heights) const override { return {}; }
+  virtual std::pair<std::vector<uint64_t>, uint64_t> get_block_cumulative_rct_outputs(const std::vector<uint64_t> &heights, const std::string asset_type, const uint64_t default_tx_spendable_age) const override { return std::pair<std::vector<uint64_t>, uint64_t>(); }
   virtual uint64_t get_top_block_timestamp() const override { return 0; }
   virtual size_t get_block_weight(const uint64_t& height) const override { return 128; }
   virtual std::vector<uint64_t> get_block_weights(uint64_t start_height, size_t count) const override { return {}; }
@@ -108,13 +108,13 @@ public:
   virtual void get_output_tx_and_index(const uint64_t& amount, const std::vector<uint64_t> &offsets, std::vector<cryptonote::tx_out_index> &indices) const override {}
   virtual void get_output_key(const epee::span<const uint64_t> &amounts, const std::vector<uint64_t> &offsets, std::vector<cryptonote::output_data_t> &outputs, bool allow_partial = false) const override {}
   virtual bool can_thread_bulk_indices() const override { return false; }
-  virtual std::vector<std::vector<uint64_t>> get_tx_amount_output_indices(const uint64_t tx_index, size_t n_txes) const override { return std::vector<std::vector<uint64_t>>(); }
+  virtual std::vector<std::vector<std::pair<uint64_t, uint64_t>>> get_tx_amount_output_indices(const uint64_t tx_index, size_t n_txes) const override { return std::vector<std::vector<uint64_t>>(); }
   virtual bool has_key_image(const crypto::key_image& img) const override { return false; }
   virtual void remove_block() override { }
-  virtual uint64_t add_transaction_data(const crypto::hash& blk_hash, const std::pair<cryptonote::transaction, cryptonote::blobdata_ref>& tx, const crypto::hash& tx_hash, const crypto::hash& tx_prunable_hash) override {return 0;}
-  virtual void remove_transaction_data(const crypto::hash& tx_hash, const cryptonote::transaction& tx) override {}
-  virtual uint64_t add_output(const crypto::hash& tx_hash, const cryptonote::tx_out& tx_output, const uint64_t& local_index, const uint64_t unlock_time, const rct::key *commitment) override {return 0;}
-  virtual void add_tx_amount_output_indices(const uint64_t tx_index, const std::vector<uint64_t>& amount_output_indices) override {}
+  virtual uint64_t add_transaction_data(const crypto::hash& blk_hash, const std::pair<cryptonote::transaction, cryptonote::blobdata_ref>& tx, const crypto::hash& tx_hash, const crypto::hash& tx_prunable_hash, const bool miner_tx) override {return 0;}
+  virtual void remove_transaction_data(const crypto::hash& tx_hash, const cryptonote::transaction& tx, const bool miner_tx) override {}
+  virtual std::pair<uint64_t, uint64_t> add_output(const crypto::hash& tx_hash, const cryptonote::tx_out& tx_output, const uint64_t& local_index, const uint64_t unlock_time, const rct::key *commitment) override {return 0;}
+  virtual void add_tx_amount_output_indices(const uint64_t tx_index, const std::vector<std::pair<uint64_t, uint64_t>>& amount_output_indices) override {}
   virtual void add_spent_key(const crypto::key_image& k_image) override {}
   virtual void remove_spent_key(const crypto::key_image& k_image) override {}
 
@@ -145,6 +145,7 @@ public:
                         , const uint64_t& coins_generated
                         , uint64_t num_rct_outs
                         , const crypto::hash& blk_hash
+                        , oracle::asset_type_counts& cum_rct_by_asset_type
                         ) override { }
   virtual cryptonote::block get_block_from_height(const uint64_t& height) const override { return cryptonote::block(); }
   virtual void set_hard_fork_version(uint64_t height, uint8_t version) override {}
@@ -166,6 +167,9 @@ public:
   virtual uint64_t get_alt_block_count() override { return 0; }
   virtual void drop_alt_blocks() override {}
   virtual bool for_all_alt_blocks(std::function<bool(const crypto::hash &blkid, const alt_block_data_t &data, const cryptonote::blobdata_ref *blob)> f, bool include_blob = false) const override { return true; }
+
+  virtual std::vector<std::pair<std::string, std::string>> get_circulating_supply() const override { return std::vector<std::pair<std::string, std::string>>(); }
+  virtual void get_output_id_from_asset_type_output_index(const std::string asset_type, const std::vector<uint64_t> &asset_type_output_indices, std::vector<uint64_t> &output_indices) const override { }
 };
 
 }

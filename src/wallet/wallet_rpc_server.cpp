@@ -56,6 +56,8 @@ using namespace epee;
 #include "rpc/core_rpc_server_commands_defs.h"
 #include "daemonizer/daemonizer.h"
 
+#include "oracle/asset_types.h"
+
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "wallet.rpc"
 
@@ -82,7 +84,7 @@ namespace
   const command_line::arg_descriptor<bool> arg_prompt_for_password = {"prompt-for-password", "Prompts for password when not provided", false};
   const command_line::arg_descriptor<bool> arg_no_initial_sync = {"no-initial-sync", "Skips the initial sync before listening for connections", false};
 
-  constexpr const char default_rpc_username[] = "monero";
+  constexpr const char default_rpc_username[] = "zephyr";
 
   boost::optional<tools::password_container> password_prompter(const char *prompt, bool verify)
   {
@@ -244,7 +246,7 @@ namespace tools
           string_encoding::base64_encode(rand_128bit.data(), rand_128bit.size())
         );
 
-        std::string temp = "monero-wallet-rpc." + bind_port + ".login";
+        std::string temp = "zephyr-wallet-rpc." + bind_port + ".login";
         rpc_login_file = tools::private_file::create(temp);
         if (!rpc_login_file.handle())
         {
@@ -357,6 +359,7 @@ namespace tools
     entry.height = pd.m_block_height;
     entry.timestamp = pd.m_timestamp;
     entry.amount = pd.m_amount;
+    entry.asset_type = pd.m_asset_type;
     entry.amounts = pd.m_amounts;
     entry.unlock_time = pd.m_unlock_time;
     entry.locked = !m_wallet->is_transfer_unlocked(pd.m_unlock_time, pd.m_block_height);
@@ -382,6 +385,7 @@ namespace tools
     entry.fee = pd.m_amount_in - pd.m_amount_out;
     uint64_t change = pd.m_change == (uint64_t)-1 ? 0 : pd.m_change; // change may not be known
     entry.amount = pd.m_amount_in - change - entry.fee;
+    entry.asset_type = pd.m_source_asset;
     entry.note = m_wallet->get_tx_note(txid);
 
     for (const auto &d: pd.m_dests) {
@@ -413,6 +417,7 @@ namespace tools
     entry.unlock_time = pd.m_tx.unlock_time;
     entry.locked = true;
     entry.note = m_wallet->get_tx_note(txid);
+    entry.asset_type = pd.m_source_asset;
 
     for (const auto &d: pd.m_dests) {
       entry.destinations.push_back(wallet_rpc::transfer_destination());
@@ -439,6 +444,7 @@ namespace tools
     entry.height = 0;
     entry.timestamp = pd.m_timestamp;
     entry.amount = pd.m_amount;
+    entry.asset_type = pd.m_asset_type;
     entry.amounts = pd.m_amounts;
     entry.unlock_time = pd.m_unlock_time;
     entry.locked = true;
@@ -455,58 +461,75 @@ namespace tools
   bool wallet_rpc_server::on_getbalance(const wallet_rpc::COMMAND_RPC_GET_BALANCE::request& req, wallet_rpc::COMMAND_RPC_GET_BALANCE::response& res, epee::json_rpc::error& er, const connection_context *ctx)
   {
     if (!m_wallet) return not_open(er);
+
+    std::string asset_type = req.asset_type.empty() ? "ZEPH" : boost::algorithm::to_upper_copy(req.asset_type);
+    // verify that asset is valid
+    if (std::find(oracle::ASSET_TYPES.begin(), oracle::ASSET_TYPES.end(), asset_type) == oracle::ASSET_TYPES.end()) {
+      er.message = std::string("Invalid source asset specified: ") + asset_type; 
+      return false;
+    }
+    std::vector<std::string> assets = req.all_assets ? oracle::ASSET_TYPES : std::vector<std::string>{asset_type};
+
     try
     {
-      res.balance = req.all_accounts ? m_wallet->balance_all(req.strict) : m_wallet->balance(req.account_index, req.strict);
-      res.unlocked_balance = req.all_accounts ? m_wallet->unlocked_balance_all(req.strict, &res.blocks_to_unlock, &res.time_to_unlock) : m_wallet->unlocked_balance(req.account_index, req.strict, &res.blocks_to_unlock, &res.time_to_unlock);
-      res.multisig_import_needed = m_wallet->multisig() && m_wallet->has_multisig_partial_key_images();
-      std::map<uint32_t, std::map<uint32_t, uint64_t>> balance_per_subaddress_per_account;
-      std::map<uint32_t, std::map<uint32_t, std::pair<uint64_t, std::pair<uint64_t, uint64_t>>>> unlocked_balance_per_subaddress_per_account;
-      if (req.all_accounts)
-      {
-        for (uint32_t account_index = 0; account_index < m_wallet->get_num_subaddress_accounts(); ++account_index)
+      for (const auto& asset: assets) {
+        wallet_rpc::COMMAND_RPC_GET_BALANCE::balance_info balance_info;
+        balance_info.balance = req.all_accounts ? m_wallet->balance_all(asset, req.strict) : m_wallet->balance(asset, req.account_index, req.strict);
+        if (!balance_info.balance)
+          continue;
+        balance_info.unlocked_balance = req.all_accounts ? m_wallet->unlocked_balance_all(asset, req.strict, &balance_info.blocks_to_unlock, &balance_info.time_to_unlock) : m_wallet->unlocked_balance(asset, req.account_index, req.strict, &balance_info.blocks_to_unlock, &balance_info.time_to_unlock);
+        balance_info.multisig_import_needed = m_wallet->multisig() && m_wallet->has_multisig_partial_key_images();
+        std::map<uint32_t, std::map<uint32_t, uint64_t>> balance_per_subaddress_per_account;
+        std::map<uint32_t, std::map<uint32_t, std::pair<uint64_t, std::pair<uint64_t, uint64_t>>>> unlocked_balance_per_subaddress_per_account;
+        if (req.all_accounts)
         {
-          balance_per_subaddress_per_account[account_index] = m_wallet->balance_per_subaddress(account_index, req.strict);
-          unlocked_balance_per_subaddress_per_account[account_index] = m_wallet->unlocked_balance_per_subaddress(account_index, req.strict);
-        }
-      }
-      else
-      {
-        balance_per_subaddress_per_account[req.account_index] = m_wallet->balance_per_subaddress(req.account_index, req.strict);
-        unlocked_balance_per_subaddress_per_account[req.account_index] = m_wallet->unlocked_balance_per_subaddress(req.account_index, req.strict);
-      }
-      std::vector<tools::wallet2::transfer_details> transfers;
-      m_wallet->get_transfers(transfers);
-      for (const auto& p : balance_per_subaddress_per_account)
-      {
-        uint32_t account_index = p.first;
-        std::map<uint32_t, uint64_t> balance_per_subaddress = p.second;
-        std::map<uint32_t, std::pair<uint64_t, std::pair<uint64_t, uint64_t>>> unlocked_balance_per_subaddress = unlocked_balance_per_subaddress_per_account[account_index];
-        std::set<uint32_t> address_indices;
-        if (!req.all_accounts && !req.address_indices.empty())
-        {
-          address_indices = req.address_indices;
+          for (uint32_t account_index = 0; account_index < m_wallet->get_num_subaddress_accounts(); ++account_index)
+          {
+            balance_per_subaddress_per_account[account_index] = m_wallet->balance_per_subaddress(asset, account_index, req.strict);
+            unlocked_balance_per_subaddress_per_account[account_index] = m_wallet->unlocked_balance_per_subaddress(asset, account_index, req.strict);
+          }
         }
         else
         {
-          for (const auto& i : balance_per_subaddress)
-            address_indices.insert(i.first);
+          balance_per_subaddress_per_account[req.account_index] = m_wallet->balance_per_subaddress(asset, req.account_index, req.strict);
+          unlocked_balance_per_subaddress_per_account[req.account_index] = m_wallet->unlocked_balance_per_subaddress(asset, req.account_index, req.strict);
         }
-        for (uint32_t i : address_indices)
+
+        tools::wallet2::transfer_container transfers = m_wallet->get_specific_transfers(asset);
+        // m_wallet->get_transfers(transfers);
+        for (const auto& p : balance_per_subaddress_per_account)
         {
-          wallet_rpc::COMMAND_RPC_GET_BALANCE::per_subaddress_info info;
-          info.account_index = account_index;
-          info.address_index = i;
-          cryptonote::subaddress_index index = {info.account_index, info.address_index};
-          info.address = m_wallet->get_subaddress_as_str(index);
-          info.balance = balance_per_subaddress[i];
-          info.unlocked_balance = unlocked_balance_per_subaddress[i].first;
-          info.blocks_to_unlock = unlocked_balance_per_subaddress[i].second.first;
-          info.time_to_unlock = unlocked_balance_per_subaddress[i].second.second;
-          info.label = m_wallet->get_subaddress_label(index);
-          info.num_unspent_outputs = std::count_if(transfers.begin(), transfers.end(), [&](const tools::wallet2::transfer_details& td) { return !td.m_spent && td.m_subaddr_index == index; });
-          res.per_subaddress.emplace_back(std::move(info));
+          uint32_t account_index = p.first;
+          std::map<uint32_t, uint64_t> balance_per_subaddress = p.second;
+          std::map<uint32_t, std::pair<uint64_t, std::pair<uint64_t, uint64_t>>> unlocked_balance_per_subaddress = unlocked_balance_per_subaddress_per_account[account_index];
+          std::set<uint32_t> address_indices;
+          if (!req.all_accounts && !req.address_indices.empty())
+          {
+            address_indices = req.address_indices;
+          }
+          else
+          {
+            for (const auto& i : balance_per_subaddress)
+              address_indices.insert(i.first);
+          }
+          for (uint32_t i : address_indices)
+          {
+            wallet_rpc::COMMAND_RPC_GET_BALANCE::per_subaddress_info info;
+            info.account_index = account_index;
+            info.address_index = i;
+            cryptonote::subaddress_index index = {info.account_index, info.address_index};
+            info.address = m_wallet->get_subaddress_as_str(index);
+            info.balance = balance_per_subaddress[i];
+            info.unlocked_balance = unlocked_balance_per_subaddress[i].first;
+            info.blocks_to_unlock = unlocked_balance_per_subaddress[i].second.first;
+            info.time_to_unlock = unlocked_balance_per_subaddress[i].second.second;
+            info.label = m_wallet->get_subaddress_label(index);
+            info.num_unspent_outputs = std::count_if(transfers.begin(), transfers.end(), [&](const auto& td) { return !td.m_spent && td.m_subaddr_index == index; });
+            balance_info.per_subaddress.emplace_back(std::move(info));
+          }
         }
+        balance_info.asset_type = asset;
+        res.balances.emplace_back(std::move(balance_info));
       }
     }
     catch (const std::exception& e)
@@ -654,8 +677,8 @@ namespace tools
         wallet_rpc::COMMAND_RPC_GET_ACCOUNTS::subaddress_account_info info;
         info.account_index = subaddr_index.major;
         info.base_address = m_wallet->get_subaddress_as_str(subaddr_index);
-        info.balance = m_wallet->balance(subaddr_index.major, req.strict_balances);
-        info.unlocked_balance = m_wallet->unlocked_balance(subaddr_index.major, req.strict_balances);
+        info.balance = m_wallet->balance("ZEPH", subaddr_index.major, req.strict_balances);
+        info.unlocked_balance = m_wallet->unlocked_balance("ZEPH", subaddr_index.major, req.strict_balances);
         info.label = m_wallet->get_subaddress_label(subaddr_index);
         info.tag = account_tags.second[subaddr_index.major];
         res.subaddress_accounts.push_back(info);
@@ -872,8 +895,18 @@ namespace tools
     return true;
   }
   //------------------------------------------------------------------------------------------------------------------------------
-  bool wallet_rpc_server::validate_transfer(const std::list<wallet_rpc::transfer_destination>& destinations, const std::string& payment_id, std::vector<cryptonote::tx_destination_entry>& dsts, std::vector<uint8_t>& extra, bool at_least_one_destination, epee::json_rpc::error& er)
+  bool wallet_rpc_server::validate_transfer(const std::string& source_asset, const std::string& dest_asset, const std::list<wallet_rpc::transfer_destination>& destinations, const std::string& payment_id, std::vector<cryptonote::tx_destination_entry>& dsts, std::vector<uint8_t>& extra, bool at_least_one_destination, epee::json_rpc::error& er)
   {
+    // verify that assets are valid
+    if (std::find(oracle::ASSET_TYPES.begin(), oracle::ASSET_TYPES.end(), source_asset) == oracle::ASSET_TYPES.end()) {
+      er.message = std::string("Invalid source asset specified: ") + source_asset; 
+      return false;
+    }
+    if (std::find(oracle::ASSET_TYPES.begin(), oracle::ASSET_TYPES.end(), dest_asset) == oracle::ASSET_TYPES.end()) {
+      er.message = std::string("Invalid destination asset specified: ") + dest_asset; 
+      return false;
+    }
+
     crypto::hash8 integrated_payment_id = crypto::null_hash8;
     std::string extra_nonce;
     for (auto it = destinations.begin(); it != destinations.end(); it++)
@@ -906,6 +939,7 @@ namespace tools
       de.addr = info.address;
       de.is_subaddress = info.is_subaddress;
       de.amount = it->amount;
+      de.dest_asset_type = dest_asset;
       de.is_integrated = info.has_payment_id;
       dsts.push_back(de);
 
@@ -1010,7 +1044,7 @@ namespace tools
       tools::wallet_rpc::key_image_list key_image_list;
       bool all_are_txin_to_key = std::all_of(ptx.tx.vin.begin(), ptx.tx.vin.end(), [&](const cryptonote::txin_v& s_e) -> bool
       {
-        CHECKED_GET_SPECIFIC_VARIANT(s_e, const cryptonote::txin_to_key, in, false);
+        CHECKED_GET_SPECIFIC_VARIANT(s_e, const cryptonote::txin_zephyr_key, in, false);
         key_image_list.key_images.push_back(epee::string_tools::pod_to_hex(in.k_image));
         return true;
       });
@@ -1076,8 +1110,12 @@ namespace tools
 
     CHECK_MULTISIG_ENABLED();
 
+    // uniform the asset types
+    std::string source_asset = req.source_asset.empty() ? "ZEPH" : boost::algorithm::to_upper_copy(req.source_asset);
+    std::string destination_asset = req.destination_asset.empty() ? "ZEPH" : boost::algorithm::to_upper_copy(req.destination_asset);
+
     // validate the transfer requested and populate dsts & extra
-    if (!validate_transfer(req.destinations, req.payment_id, dsts, extra, true, er))
+    if (!validate_transfer(source_asset, destination_asset, req.destinations, req.payment_id, dsts, extra, true, er))
     {
       return false;
     }
@@ -1086,7 +1124,7 @@ namespace tools
     {
       uint64_t mixin = m_wallet->adjust_mixin(req.ring_size ? req.ring_size - 1 : 0);
       uint32_t priority = m_wallet->adjust_priority(req.priority);
-      std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_2(dsts, mixin, req.unlock_time, priority, extra, req.account_index, req.subaddr_indices);
+      std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_2(dsts, source_asset, mixin, req.unlock_time, priority, extra, req.account_index, req.subaddr_indices);
 
       if (ptx_vector.empty())
       {
@@ -1130,8 +1168,12 @@ namespace tools
 
     CHECK_MULTISIG_ENABLED();
 
+     // uniform the asset types
+    std::string source_asset = req.source_asset.empty() ? "ZEPH" : boost::algorithm::to_upper_copy(req.source_asset);
+    std::string destination_asset = req.destination_asset.empty() ? "ZEPH" : boost::algorithm::to_upper_copy(req.destination_asset);
+
     // validate the transfer requested and populate dsts & extra; RPC_TRANSFER::request and RPC_TRANSFER_SPLIT::request are identical types.
-    if (!validate_transfer(req.destinations, req.payment_id, dsts, extra, true, er))
+    if (!validate_transfer(source_asset, destination_asset, req.destinations, req.payment_id, dsts, extra, true, er))
     {
       return false;
     }
@@ -1141,7 +1183,7 @@ namespace tools
       uint64_t mixin = m_wallet->adjust_mixin(req.ring_size ? req.ring_size - 1 : 0);
       uint32_t priority = m_wallet->adjust_priority(req.priority);
       LOG_PRINT_L2("on_transfer_split calling create_transactions_2");
-      std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_2(dsts, mixin, req.unlock_time, priority, extra, req.account_index, req.subaddr_indices);
+      std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_2(dsts, source_asset, mixin, req.unlock_time, priority, extra, req.account_index, req.subaddr_indices);
       LOG_PRINT_L2("on_transfer_split called create_transactions_2");
 
       if (ptx_vector.empty())
@@ -1571,7 +1613,7 @@ namespace tools
     destination.push_back(wallet_rpc::transfer_destination());
     destination.back().amount = 0;
     destination.back().address = req.address;
-    if (!validate_transfer(destination, req.payment_id, dsts, extra, true, er))
+    if (!validate_transfer("ZEPH", "ZEPH", destination, req.payment_id, dsts, extra, true, er))
     {
       return false;
     }
@@ -1638,7 +1680,7 @@ namespace tools
     destination.push_back(wallet_rpc::transfer_destination());
     destination.back().amount = 0;
     destination.back().address = req.address;
-    if (!validate_transfer(destination, req.payment_id, dsts, extra, true, er))
+    if (!validate_transfer("ZEPH", "ZEPH", destination, req.payment_id, dsts, extra, true, er))
     {
       return false;
     }
@@ -1902,6 +1944,7 @@ namespace tools
       rpc_payment.payment_id   = req.payment_id;
       rpc_payment.tx_hash      = epee::string_tools::pod_to_hex(payment.m_tx_hash);
       rpc_payment.amount       = payment.m_amount;
+      rpc_payment.asset_type   = payment.m_asset_type;
       rpc_payment.block_height = payment.m_block_height;
       rpc_payment.unlock_time  = payment.m_unlock_time;
       rpc_payment.locked       = !m_wallet->is_transfer_unlocked(payment.m_unlock_time, payment.m_block_height);
@@ -1930,6 +1973,7 @@ namespace tools
         rpc_payment.payment_id   = epee::string_tools::pod_to_hex(payment.first);
         rpc_payment.tx_hash      = epee::string_tools::pod_to_hex(payment.second.m_tx_hash);
         rpc_payment.amount       = payment.second.m_amount;
+        rpc_payment.asset_type    = payment.second.m_asset_type;
         rpc_payment.block_height = payment.second.m_block_height;
         rpc_payment.unlock_time  = payment.second.m_unlock_time;
         rpc_payment.subaddr_index = payment.second.m_subaddr_index;
@@ -1985,6 +2029,7 @@ namespace tools
         rpc_payment.payment_id   = payment_id_str;
         rpc_payment.tx_hash      = epee::string_tools::pod_to_hex(payment.m_tx_hash);
         rpc_payment.amount       = payment.m_amount;
+        rpc_payment.asset_type    = payment.m_asset_type;
         rpc_payment.block_height = payment.m_block_height;
         rpc_payment.unlock_time  = payment.m_unlock_time;
         rpc_payment.subaddr_index = payment.m_subaddr_index;
@@ -2031,6 +2076,7 @@ namespace tools
           continue;
         wallet_rpc::transfer_details rpc_transfers;
         rpc_transfers.amount       = td.amount();
+        rpc_transfers.asset_type   = td.asset_type;
         rpc_transfers.spent        = td.m_spent;
         rpc_transfers.global_index = td.m_global_output_index;
         rpc_transfers.tx_hash      = epee::string_tools::pod_to_hex(td.m_txid);
@@ -2423,7 +2469,12 @@ namespace tools
 
     try
     {
-      m_wallet->check_tx_key(txid, tx_key, additional_tx_keys, info.address, res.received, res.in_pool, res.confirmations);
+      std::map<std::string, uint64_t> received; 
+      m_wallet->check_tx_key(txid, tx_key, additional_tx_keys, info.address, received, res.in_pool, res.confirmations);
+      for (const auto& r: received) {
+        res.received_assets.push_back(r.first);
+        res.received_amounts.push_back(r.second);
+      }
     }
     catch (const std::exception &e)
     {
@@ -2489,7 +2540,12 @@ namespace tools
 
     try
     {
-      res.good = m_wallet->check_tx_proof(txid, info.address, info.is_subaddress, req.message, req.signature, res.received, res.in_pool, res.confirmations);
+      std::map<std::string, uint64_t> received; 
+      res.good = m_wallet->check_tx_proof(txid, info.address, info.is_subaddress, req.message, req.signature, received, res.in_pool, res.confirmations);
+      for (const auto& r: received) {
+        res.received_assets.push_back(r.first);
+        res.received_amounts.push_back(r.second);
+      }
     }
     catch (const std::exception &e)
     {
@@ -4702,12 +4758,12 @@ int main(int argc, char** argv) {
   bool should_terminate = false;
   std::tie(vm, should_terminate) = wallet_args::main(
     argc, argv,
-    "monero-wallet-rpc [--wallet-file=<file>|--generate-from-json=<file>|--wallet-dir=<directory>] [--rpc-bind-port=<port>]",
-    tools::wallet_rpc_server::tr("This is the RPC monero wallet. It needs to connect to a monero\ndaemon to work correctly."),
+    "zephyr-wallet-rpc [--wallet-file=<file>|--generate-from-json=<file>|--wallet-dir=<directory>] [--rpc-bind-port=<port>]",
+    tools::wallet_rpc_server::tr("This is the RPC zephyr wallet. It needs to connect to a zephyr\ndaemon to work correctly."),
     desc_params,
     po::positional_options_description(),
     [](const std::string &s, bool emphasis){ tools::scoped_message_writer(emphasis ? epee::console_color_white : epee::console_color_default, true) << s; },
-    "monero-wallet-rpc.log",
+    "zephyr-wallet-rpc.log",
     true
   );
   if (!vm)

@@ -395,7 +395,7 @@ void test_generator::fill_nonce(cryptonote::block& blk, const difficulty_type& d
   const cryptonote::Blockchain *blockchain = nullptr;
   std::unique_ptr<cryptonote::Blockchain> bc;
 
-  if (blk.major_version >= RX_BLOCK_VERSION && diffic > 1)
+  if (diffic > 1)
   {
     if (m_events == nullptr)
     {
@@ -453,7 +453,7 @@ bool init_output_indices(map_output_idx_t& outs, std::map<uint64_t, std::vector<
                 const tx_out &out = tx.vout[j];
 
                 output_index oi(out.target, out.amount, boost::get<txin_gen>(*blk.miner_tx.vin.begin()).height, i, j, &blk, vtx[i]);
-                oi.set_rct(tx.version == 2);
+                oi.set_rct(tx.version >= 2);
                 oi.unlock_time = tx.unlock_time;
                 oi.is_coin_base = i == 0;
 
@@ -484,7 +484,7 @@ bool init_spent_output_indices(map_output_idx_t& outs, map_output_t& outs_mine, 
             // construct key image for this output
             crypto::key_image img;
             keypair in_ephemeral;
-            crypto::public_key out_key = boost::get<txout_to_key>(oi.out).key;
+            crypto::public_key out_key = boost::get<txout_zephyr_tagged_key>(oi.out).key;
             std::unordered_map<crypto::public_key, cryptonote::subaddress_index> subaddresses;
             subaddresses[from.get_keys().m_account_address.m_spend_public_key] = {0,0};
             generate_key_image_helper(from.get_keys(), subaddresses, out_key, get_tx_pub_key_from_extra(*oi.p_tx), get_additional_tx_pub_keys_from_extra(*oi.p_tx), oi.out_no, in_ephemeral, img, hw::get_device(("default")));
@@ -493,8 +493,8 @@ bool init_spent_output_indices(map_output_idx_t& outs, map_output_t& outs_mine, 
             BOOST_FOREACH(auto& tx_pair, mtx) {
                 const transaction& tx = *tx_pair.second;
                 BOOST_FOREACH(const txin_v &in, tx.vin) {
-                    if (typeid(txin_to_key) == in.type()) {
-                        const txin_to_key &itk = boost::get<txin_to_key>(in);
+                    if (typeid(txin_zephyr_key) == in.type()) {
+                        const txin_zephyr_key &itk = boost::get<txin_zephyr_key>(in);
                         if (itk.k_image == img) {
                             oi.spent = true;
                         }
@@ -536,7 +536,7 @@ bool fill_output_entries(std::vector<output_index>& out_indices, size_t sender_o
     if (append)
     {
       rct::key comm = oi.commitment();
-      const txout_to_key& otk = boost::get<txout_to_key>(oi.out);
+      const txout_zephyr_tagged_key& otk = boost::get<txout_zephyr_tagged_key>(oi.out);
       output_entries.push_back(tx_source_entry::output_entry(oi.idx, rct::ctkey({rct::pk2rct(otk.key), comm})));
     }
   }
@@ -661,11 +661,11 @@ void block_tracker::process(const block* blk, const transaction * tx, size_t i)
   for (size_t j = 0; j < tx->vout.size(); ++j) {
     const tx_out &out = tx->vout[j];
 
-    if (typeid(cryptonote::txout_to_key) != out.target.type() && typeid(cryptonote::txout_to_tagged_key) != out.target.type()) {
+    if (typeid(cryptonote::txout_zephyr_tagged_key) != out.target.type()) {
       continue;
     }
 
-    const uint64_t rct_amount = tx->version == 2 ? 0 : out.amount;
+    const uint64_t rct_amount = tx->version >= 2 ? 0 : out.amount;
     const output_hasher hid = std::make_pair(tx->hash, j);
     auto it = find_out(hid);
     if (it != m_map_outs.end()){
@@ -673,7 +673,7 @@ void block_tracker::process(const block* blk, const transaction * tx, size_t i)
     }
 
     output_index oi(out.target, out.amount, boost::get<txin_gen>(blk->miner_tx.vin.front()).height, i, j, blk, tx);
-    oi.set_rct(tx->version == 2);
+    oi.set_rct(tx->version >= 2);
     oi.idx = m_outs[rct_amount].size();
     oi.unlock_time = tx->unlock_time;
     oi.is_coin_base = tx->vin.size() == 1 && tx->vin.back().type() == typeid(cryptonote::txin_gen);
@@ -718,7 +718,7 @@ void block_tracker::get_fake_outs(size_t num_outs, uint64_t amount, uint64_t glo
     auto & oi = vct[oi_idx];
     if (oi.idx == global_index)
       continue;
-    if (oi.out.type() != typeid(cryptonote::txout_to_key))
+    if (oi.out.type() != typeid(cryptonote::txout_zephyr_tagged_key))
       continue;
     if (oi.unlock_time > cur_height)
       continue;
@@ -726,7 +726,7 @@ void block_tracker::get_fake_outs(size_t num_outs, uint64_t amount, uint64_t glo
       continue;
 
     rct::key comm = oi.commitment();
-    auto out = boost::get<txout_to_key>(oi.out);
+    auto out = boost::get<txout_zephyr_tagged_key>(oi.out);
     auto item = std::make_tuple(oi.idx, out.key, comm);
     outs.push_back(item);
     used.insert(oi_idx);
@@ -743,7 +743,7 @@ std::string block_tracker::dump_data()
 
     for (const auto & oi : vct)
     {
-      auto out = boost::get<txout_to_key>(oi.out);
+      auto out = boost::get<txout_zephyr_tagged_key>(oi.out);
 
       ss << "    idx: " << oi.idx
       << ", rct: " << oi.rct
@@ -773,8 +773,8 @@ std::string dump_data(const cryptonote::transaction &tx)
      << ", vin: ";
 
   for(auto & in : tx.vin){
-    if (typeid(txin_to_key) == in.type()){
-      auto tk = boost::get<txin_to_key>(in);
+    if (typeid(txin_zephyr_key) == in.type()){
+      auto tk = boost::get<txin_zephyr_key>(in);
       std::vector<uint64_t> full_off;
       int64_t last = -1;
 
@@ -1001,20 +1001,20 @@ bool construct_miner_tx_manually(size_t height, uint64_t already_generated_coins
   crypto::generate_key_derivation(miner_address.m_view_public_key, txkey.sec, derivation);
   crypto::derive_public_key(derivation, 0, miner_address.m_spend_public_key, out_eph_public_key);
 
-  bool use_view_tags = hf_version >= HF_VERSION_VIEW_TAGS;
+  bool use_view_tags = hf_version >= 1;
   crypto::view_tag view_tag;
   if (use_view_tags)
     crypto::derive_view_tag(derivation, 0, view_tag);
 
   tx_out out;
-  cryptonote::set_tx_out(block_reward, out_eph_public_key, use_view_tags, view_tag, out);
+  cryptonote::set_tx_out("ZEPH", block_reward, out_eph_public_key, use_view_tags, view_tag, out);
 
   tx.vout.push_back(out);
 
-  if (hf_version >= HF_VERSION_DYNAMIC_FEE)
+  // if (hf_version >= HF_VERSION_DYNAMIC_FEE)
     tx.version = 2;
-  else
-    tx.version = 1;
+  // else
+  //   tx.version = 1;
   tx.unlock_time = height + CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW;
 
   return true;

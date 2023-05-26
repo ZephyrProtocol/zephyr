@@ -556,12 +556,12 @@ namespace trezor {
         std::string key_images;
         bool all_are_txin_to_key = std::all_of(cdata.tx.vin.begin(), cdata.tx.vin.end(), [&](const cryptonote::txin_v& s_e) -> bool
         {
-          CHECKED_GET_SPECIFIC_VARIANT(s_e, const cryptonote::txin_to_key, in, false);
+          CHECKED_GET_SPECIFIC_VARIANT(s_e, const cryptonote::txin_zephyr_key, in, false);
           key_images += boost::to_string(in.k_image) + " ";
           return true;
         });
         if(!all_are_txin_to_key) {
-          throw std::invalid_argument("Not all are txin_to_key");
+          throw std::invalid_argument("Not all are txin_zephyr_key");
         }
         cpend.key_images = key_images;
 
@@ -584,7 +584,7 @@ namespace trezor {
           idx_map_src -= std::get<0>(unsigned_tx.transfers);
           CHECK_AND_ASSERT_THROW_MES(idx_map_src < signed_tx.key_images.size(), "Invalid key image index");
 
-          const auto vini = boost::get<cryptonote::txin_to_key>(cdata.tx.vin[src_idx]);
+          const auto vini = boost::get<cryptonote::txin_zephyr_key>(cdata.tx.vin[src_idx]);
           signed_tx.key_images[idx_map_src] = vini.k_image;
         }
       }

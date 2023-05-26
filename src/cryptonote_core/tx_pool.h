@@ -113,6 +113,7 @@ namespace cryptonote
      * @param tx_weight the transaction's weight
      */
     bool add_tx(transaction &tx, const crypto::hash &id, const cryptonote::blobdata &blob, size_t tx_weight, tx_verification_context& tvc, relay_method tx_relay, bool relayed, uint8_t version);
+    uint64_t get_zeph_fee_amount(const std::string& fee_asset, uint64_t fee_amount, const cryptonote::transaction_type tt, const oracle::pricing_record& pr, const uint16_t hf_version);
 
     /**
      * @brief add a transaction to the transaction pool
@@ -147,7 +148,7 @@ namespace cryptonote
      *
      * @return true unless the transaction cannot be found in the pool
      */
-    bool take_tx(const crypto::hash &id, transaction &tx, cryptonote::blobdata &txblob, size_t& tx_weight, uint64_t& fee, bool &relayed, bool &do_not_relay, bool &double_spend_seen, bool &pruned);
+    bool take_tx(const crypto::hash &id, transaction &tx, cryptonote::blobdata &txblob, size_t& tx_weight, uint64_t& fee, std::string& fee_asset_type, bool &relayed, bool &do_not_relay, bool &double_spend_seen, bool &pruned);
 
     /**
      * @brief checks if the pool has a transaction with the given hash
@@ -236,7 +237,7 @@ namespace cryptonote
      *
      * @return true
      */
-    bool fill_block_template(block &bl, size_t median_weight, uint64_t already_generated_coins, size_t &total_weight, uint64_t &fee, uint64_t &expected_reward, uint8_t version);
+    bool fill_block_template(block &bl, size_t median_weight, uint64_t already_generated_coins, size_t &total_weight, std::map<std::string, uint64_t> &fee_map, uint64_t &expected_reward, uint8_t version);
 
     /**
      * @brief get a list of all transactions in the pool

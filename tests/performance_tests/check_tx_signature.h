@@ -91,7 +91,7 @@ public:
     }
     else
     {
-      const cryptonote::txin_to_key& txin = boost::get<cryptonote::txin_to_key>(m_tx.vin[0]);
+      const cryptonote::txin_zephyr_key& txin = boost::get<cryptonote::txin_zephyr_key>(m_tx.vin[0]);
       return crypto::check_ring_signature(m_tx_prefix_hash, txin.k_image, this->m_public_key_ptrs, ring_size, m_tx.signatures[0].data());
     }
   }

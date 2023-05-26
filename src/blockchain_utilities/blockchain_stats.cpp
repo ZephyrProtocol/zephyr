@@ -175,12 +175,12 @@ int main(int argc, char* argv[])
 
   if (command_line::get_arg(vm, command_line::arg_help))
   {
-    std::cout << "Monero '" << MONERO_RELEASE_NAME << "' (v" << MONERO_VERSION_FULL << ")" << ENDL << ENDL;
+    std::cout << "Zephyr '" << MONERO_RELEASE_NAME << "' (v" << MONERO_VERSION_FULL << ")" << ENDL << ENDL;
     std::cout << desc_options << std::endl;
     return 1;
   }
 
-  mlog_configure(mlog_get_default_log_path("monero-blockchain-stats.log"), true);
+  mlog_configure(mlog_get_default_log_path("zephyr-blockchain-stats.log"), true);
   if (!command_line::is_arg_defaulted(vm, arg_log_level))
     mlog_set_log(command_line::get_arg(vm, arg_log_level).c_str());
   else
@@ -242,7 +242,7 @@ int main(int argc, char* argv[])
 /*
  * The default output can be plotted with GnuPlot using these commands:
 set key autotitle columnhead
-set title "Monero Blockchain Growth"
+set title "Zephyr Blockchain Growth"
 set timefmt "%Y-%m-%d"
 set xdata time
 set xrange ["2014-04-17":*]
@@ -339,8 +339,8 @@ plot 'stats.csv' index "DATA" using (timecolumn(1,"%Y-%m-%d")):4 with lines, '' 
         totins += io;
       }
       if (do_ringsize) {
-        const cryptonote::txin_to_key& tx_in_to_key
-                       = boost::get<cryptonote::txin_to_key>(tx.vin[0]);
+        const cryptonote::txin_zephyr_key& tx_in_to_key
+                       = boost::get<cryptonote::txin_zephyr_key>(tx.vin[0]);
         io = tx_in_to_key.key_offsets.size();
         if (io < minrings)
           minrings = io;

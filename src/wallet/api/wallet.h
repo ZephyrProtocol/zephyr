@@ -192,9 +192,9 @@ public:
     virtual bool setUserNote(const std::string &txid, const std::string &note) override;
     virtual std::string getUserNote(const std::string &txid) const override;
     virtual std::string getTxKey(const std::string &txid) const override;
-    virtual bool checkTxKey(const std::string &txid, std::string tx_key, const std::string &address, uint64_t &received, bool &in_pool, uint64_t &confirmations) override;
+    virtual bool checkTxKey(const std::string &txid, std::string tx_key, const std::string &address, std::map<std::string, uint64_t> &received, bool &in_pool, uint64_t &confirmations) override;
     virtual std::string getTxProof(const std::string &txid, const std::string &address, const std::string &message) const override;
-    virtual bool checkTxProof(const std::string &txid, const std::string &address, const std::string &message, const std::string &signature, bool &good, uint64_t &received, bool &in_pool, uint64_t &confirmations) override;
+    virtual bool checkTxProof(const std::string &txid, const std::string &address, const std::string &message, const std::string &signature, bool &good, std::map<std::string, uint64_t> &received, bool &in_pool, uint64_t &confirmations) override;
     virtual std::string getSpendProof(const std::string &txid, const std::string &message) const override;
     virtual bool checkSpendProof(const std::string &txid, const std::string &message, const std::string &signature, bool &good) const override;
     virtual std::string getReserveProof(bool all, uint32_t account_index, uint64_t amount, const std::string &message) const override;

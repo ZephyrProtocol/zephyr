@@ -98,6 +98,7 @@ BEGIN_RPC_MESSAGE_CLASS(GetBlocksFast);
     RPC_MESSAGE_MEMBER(uint64_t, start_height);
     RPC_MESSAGE_MEMBER(uint64_t, current_height);
     RPC_MESSAGE_MEMBER(std::vector<cryptonote::rpc::block_output_indices>, output_indices);
+    RPC_MESSAGE_MEMBER(std::vector<cryptonote::rpc::block_asset_type_output_indices>, asset_type_output_indices);
   END_RPC_MESSAGE_RESPONSE;
 END_RPC_MESSAGE_CLASS;
 
@@ -148,6 +149,7 @@ BEGIN_RPC_MESSAGE_CLASS(GetTxGlobalOutputIndices);
   END_RPC_MESSAGE_REQUEST;
   BEGIN_RPC_MESSAGE_RESPONSE;
     RPC_MESSAGE_MEMBER(std::vector<uint64_t>, output_indices);
+    RPC_MESSAGE_MEMBER(std::vector<uint64_t>, asset_type_output_indices);
   END_RPC_MESSAGE_RESPONSE;
 END_RPC_MESSAGE_CLASS;
 
@@ -203,6 +205,14 @@ BEGIN_RPC_MESSAGE_CLASS(StopMining);
     BEGIN_RPC_MESSAGE_REQUEST;
     END_RPC_MESSAGE_REQUEST;
   BEGIN_RPC_MESSAGE_RESPONSE;
+  END_RPC_MESSAGE_RESPONSE;
+END_RPC_MESSAGE_CLASS;
+
+BEGIN_RPC_MESSAGE_CLASS(GetPricingRecord);
+  BEGIN_RPC_MESSAGE_REQUEST;
+  END_RPC_MESSAGE_REQUEST;
+  BEGIN_RPC_MESSAGE_RESPONSE;
+    RPC_MESSAGE_MEMBER(oracle::pricing_record, pricing_record);
   END_RPC_MESSAGE_RESPONSE;
 END_RPC_MESSAGE_CLASS;
 
@@ -433,6 +443,7 @@ END_RPC_MESSAGE_CLASS;
 BEGIN_RPC_MESSAGE_CLASS(GetOutputDistribution);
   BEGIN_RPC_MESSAGE_REQUEST;
     RPC_MESSAGE_MEMBER(std::vector<uint64_t>, amounts);
+    RPC_MESSAGE_MEMBER(std::string, rct_asset_type);
     RPC_MESSAGE_MEMBER(uint64_t, from_height);
     RPC_MESSAGE_MEMBER(uint64_t, to_height);
     RPC_MESSAGE_MEMBER(bool, cumulative);

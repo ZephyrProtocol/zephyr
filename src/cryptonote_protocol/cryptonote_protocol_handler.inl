@@ -345,7 +345,7 @@ namespace cryptonote
     if (hshd.current_height > 0)
     {
       const uint8_t version = m_core.get_ideal_hard_fork_version(hshd.current_height - 1);
-      if (version >= 6 && version != hshd.top_version)
+      if (version != hshd.top_version)
       {
         if (version < hshd.top_version && version == m_core.get_ideal_hard_fork_version())
           MDEBUG(context << " peer claims higher version than we think (" <<
@@ -2057,10 +2057,7 @@ skip:
     const uint32_t local_stripe = tools::get_pruning_stripe(m_core.get_blockchain_pruning_seed());
     if (local_stripe == 0)
       return false;
-    // don't request pre-bulletprooof pruned blocks, we can't reconstruct their weight (yet)
-    static const uint64_t bp_fork_height = m_core.get_earliest_ideal_height_for_version(HF_VERSION_SMALLER_BP + 1);
-    if (first_block_height < bp_fork_height)
-      return false;
+
     // assumes the span size is less or equal to the stripe size
     bool full_data_needed = tools::get_pruning_stripe(first_block_height, context.m_remote_blockchain_height, CRYPTONOTE_PRUNING_LOG_STRIPES) == local_stripe
         || tools::get_pruning_stripe(first_block_height + nblocks - 1, context.m_remote_blockchain_height, CRYPTONOTE_PRUNING_LOG_STRIPES) == local_stripe;
@@ -2936,7 +2933,7 @@ skip:
       m_core.set_target_blockchain_height(target);
       if (target == 0 && context.m_state > cryptonote_connection_context::state_before_handshake && !m_stopping)
       {
-        MCWARNING("global", "monerod is now disconnected from the network");
+        MCWARNING("global", "zephyrd is now disconnected from the network");
         m_ask_for_txpool_complement = true;
       }
     }

@@ -171,7 +171,7 @@ namespace cryptonote
   static const command_line::arg_descriptor<std::string> arg_check_updates = {
     "check-updates"
   , "Check for new versions of monero: [disabled|notify|download|update]"
-  , "notify"
+  , "disabled"
   };
   static const command_line::arg_descriptor<bool> arg_fluffy_blocks  = {
     "fluffy-blocks"
@@ -503,8 +503,8 @@ namespace cryptonote
       if (boost::filesystem::exists(old_files / "blockchain.bin"))
       {
         MWARNING("Found old-style blockchain.bin in " << old_files.string());
-        MWARNING("Monero now uses a new format. You can either remove blockchain.bin to start syncing");
-        MWARNING("the blockchain anew, or use monero-blockchain-export and monero-blockchain-import to");
+        MWARNING("Zephyr now uses a new format. You can either remove blockchain.bin to start syncing");
+        MWARNING("the blockchain anew, or use zephyr-blockchain-export and zephyr-blockchain-import to");
         MWARNING("convert your existing blockchain.bin to the new format. See README.md for instructions.");
         return false;
       }
@@ -798,6 +798,8 @@ namespace cryptonote
 
     tx_hash = crypto::null_hash;
 
+    MDEBUG("tx: " << ENDL << cryptonote::obj_to_json_str(tx));
+
     bool r;
     if (tx_blob.prunable_hash == crypto::null_hash)
     {
@@ -836,7 +838,7 @@ namespace cryptonote
     bad_semantics_txes_lock.unlock();
 
     uint8_t version = m_blockchain_storage.get_current_hard_fork_version();
-    const size_t max_tx_version = version == 1 ? 1 : 2;
+    const size_t max_tx_version = (version < HF_VERSION_DJED) ? 2 : CURRENT_TRANSACTION_VERSION;
     if (tx.version == 0 || tx.version > max_tx_version)
     {
       // v2 is the latest one we know
@@ -902,9 +904,71 @@ namespace cryptonote
       return true;
     }
 
+    const uint8_t hf_version = m_blockchain_storage.get_current_hard_fork_version();
+
     std::vector<const rct::rctSig*> rvv;
     for (size_t n = 0; n < tx_info.size(); ++n)
     {
+      
+      if (!get_tx_asset_types(*tx_info[n].tx, tx_info[n].tx_hash, tx_info[n].tvc.m_source_asset, tx_info[n].tvc.m_dest_asset, false)) {
+        MERROR("At least 1 input or 1 output of the tx was invalid." << tx_info[n].tx_hash);
+        if (tx_info[n].tvc.m_source_asset.empty()) {
+          tx_info[n].tvc.m_invalid_input = true;
+        }
+        if (tx_info[n].tvc.m_dest_asset.empty()) {
+          tx_info[n].tvc.m_invalid_output = true;
+        }
+        set_semantics_failed(tx_info[n].tx_hash);
+        tx_info[n].tvc.m_verifivation_failed = true;
+        tx_info[n].result = false;
+        continue;
+      }
+
+       // Get the TX type flags
+      if (!get_tx_type(tx_info[n].tvc.m_source_asset, tx_info[n].tvc.m_dest_asset, tx_info[n].tvc.m_type)) {
+        MERROR("At least 1 input or 1 output of the tx was invalid." << tx_info[n].tx_hash);
+        set_semantics_failed(tx_info[n].tx_hash);
+        tx_info[n].tvc.m_verifivation_failed = true;
+        tx_info[n].result = false;
+	      continue;
+      }
+
+      // Get the pricing_record_height for any oracle TX
+      if (tx_info[n].tvc.m_source_asset != tx_info[n].tvc.m_dest_asset) {
+        if (hf_version < HF_VERSION_DJED) {
+          MERROR("Conversion TX found before fork. Rejecting..." << tx_info[n].tx_hash);
+          set_semantics_failed(tx_info[n].tx_hash);
+          tx_info[n].tvc.m_verifivation_failed = true;
+          tx_info[n].result = false;
+          continue;
+        }
+        // validate that tx uses a recent pr
+        const uint64_t pr_height = tx_info[n].tx->pricing_record_height;
+        const uint64_t current_height = m_blockchain_storage.get_current_blockchain_height();
+        if (!tx_pr_height_valid(current_height, pr_height, tx_info[n].tx_hash)) {
+          MERROR_VER("Tx uses older pricing record than 10 blocks or a pricing record that is in the future. Current height: " << current_height << " Pr height: " << pr_height);
+          set_semantics_failed(tx_info[n].tx_hash);
+          tx_info[n].tvc.m_verifivation_failed = true;
+          tx_info[n].result = false;
+          continue;
+        } else {
+          tx_info[n].tvc.tx_pr_height_verified = true;
+        }
+
+        // Get the correct pricing record here, given the height
+        std::vector<std::pair<cryptonote::blobdata,block>> blocks_pr;
+        bool b = m_blockchain_storage.get_blocks(pr_height, 1, blocks_pr);
+        if (!b) {
+          MERROR_VER("Failed to obtain pricing record for block: " << pr_height);
+          set_semantics_failed(tx_info[n].tx_hash);
+          tx_info[n].tvc.m_verifivation_failed = true;
+          tx_info[n].result = false;
+          continue;
+        }
+        tx_info[n].tvc.pr = blocks_pr[0].second.pricing_record;
+      }
+
+
       if (!check_tx_semantic(*tx_info[n].tx, keeped_by_block))
       {
         set_semantics_failed(tx_info[n].tx_hash);
@@ -925,7 +989,7 @@ namespace cryptonote
           tx_info[n].result = false;
           break;
         case rct::RCTTypeSimple:
-          if (!rct::verRctSemanticsSimple(rv))
+          if (!rct::verRctSemanticsSimple(rv, tx_info[n].tvc.pr, tx_info[n].tvc.m_type, tx_info[n].tvc.m_source_asset, tx_info[n].tvc.m_dest_asset))
           {
             MERROR_VER("rct signature semantics check failed");
             set_semantics_failed(tx_info[n].tx_hash);
@@ -976,19 +1040,22 @@ namespace cryptonote
           break;
       }
     }
-    if (!rvv.empty() && !rct::verRctSemanticsSimple(rvv))
+    if (!rvv.empty())
     {
-      LOG_PRINT_L1("One transaction among this group has bad semantics, verifying one at a time");
+      LOG_PRINT_L1("Verifying one transaction at a time");
       ret = false;
-      const bool assumed_bad = rvv.size() == 1; // if there's only one tx, it must be the bad one
       for (size_t n = 0; n < tx_info.size(); ++n)
       {
         if (!tx_info[n].result)
           continue;
         if (tx_info[n].tx->rct_signatures.type != rct::RCTTypeBulletproof && tx_info[n].tx->rct_signatures.type != rct::RCTTypeBulletproof2 && tx_info[n].tx->rct_signatures.type != rct::RCTTypeCLSAG && tx_info[n].tx->rct_signatures.type != rct::RCTTypeBulletproofPlus)
           continue;
-        if (assumed_bad || !rct::verRctSemanticsSimple(tx_info[n].tx->rct_signatures))
+
+        const uint8_t hf_version = m_blockchain_storage.get_current_hard_fork_version();
+        std::vector<std::pair<std::string, std::string>> circ_supply = m_blockchain_storage.get_db().get_circulating_supply();
+        if (!rct::verRctSemanticsSimple2(tx_info[n].tx->rct_signatures, tx_info[n].tvc.pr, circ_supply, tx_info[n].tvc.m_type, tx_info[n].tvc.m_source_asset, tx_info[n].tvc.m_dest_asset, tx_info[n].tx->amount_burnt, tx_info[n].tx->vout, tx_info[n].tx->vin, hf_version))
         {
+          MDEBUG("Damn, rct signature semantics check failed");
           set_semantics_failed(tx_info[n].tx_hash);
           tx_info[n].tvc.m_verifivation_failed = true;
           tx_info[n].result = false;
@@ -1001,6 +1068,7 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   bool core::handle_incoming_txs(const epee::span<const tx_blob_entry> tx_blobs, epee::span<tx_verification_context> tvc, relay_method tx_relay, bool relayed)
   {
+    MDEBUG("handle_incoming_txs");
     TRY_ENTRY();
 
     if (tx_blobs.size() != tvc.size())
@@ -1299,7 +1367,7 @@ namespace cryptonote
     std::unordered_set<crypto::key_image> ki;
     for(const auto& in: tx.vin)
     {
-      CHECKED_GET_SPECIFIC_VARIANT(in, const txin_to_key, tokey_in, false);
+      CHECKED_GET_SPECIFIC_VARIANT(in, const txin_zephyr_key, tokey_in, false);
       if(!ki.insert(tokey_in.k_image).second)
         return false;
     }
@@ -1308,15 +1376,12 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   bool core::check_tx_inputs_ring_members_diff(const transaction& tx, const uint8_t hf_version) const
   {
-    if (hf_version >= 6)
+    for(const auto& in: tx.vin)
     {
-      for(const auto& in: tx.vin)
-      {
-        CHECKED_GET_SPECIFIC_VARIANT(in, const txin_to_key, tokey_in, false);
-        for (size_t n = 1; n < tokey_in.key_offsets.size(); ++n)
-          if (tokey_in.key_offsets[n] == 0)
-            return false;
-      }
+      CHECKED_GET_SPECIFIC_VARIANT(in, const txin_zephyr_key, tokey_in, false);
+      for (size_t n = 1; n < tokey_in.key_offsets.size(); ++n)
+        if (tokey_in.key_offsets[n] == 0)
+          return false;
     }
     return true;
   }
@@ -1326,7 +1391,7 @@ namespace cryptonote
     std::unordered_set<crypto::key_image> ki;
     for(const auto& in: tx.vin)
     {
-      CHECKED_GET_SPECIFIC_VARIANT(in, const txin_to_key, tokey_in, false);
+      CHECKED_GET_SPECIFIC_VARIANT(in, const txin_zephyr_key, tokey_in, false);
       if (!(rct::scalarmultKey(rct::ki2rct(tokey_in.k_image), rct::curveOrder()) == rct::identity()))
         return false;
     }
@@ -1502,17 +1567,18 @@ namespace cryptonote
     return m_blockchain_storage.get_outs(req, res);
   }
   //-----------------------------------------------------------------------------------------------
-  bool core::get_output_distribution(uint64_t amount, uint64_t from_height, uint64_t to_height, uint64_t &start_height, std::vector<uint64_t> &distribution, uint64_t &base) const
+  bool core::get_output_distribution(uint64_t amount, std::string asset_type,  uint64_t from_height, uint64_t to_height, uint64_t &start_height, std::vector<uint64_t> &distribution, uint64_t &base, uint64_t &num_spendable_global_outs) const
   {
-    return m_blockchain_storage.get_output_distribution(amount, from_height, to_height, start_height, distribution, base);
+    MDEBUG("core::" << __func__);
+    return m_blockchain_storage.get_output_distribution(amount, asset_type, from_height, to_height, start_height, distribution, base, num_spendable_global_outs);
   }
   //-----------------------------------------------------------------------------------------------
-  bool core::get_tx_outputs_gindexs(const crypto::hash& tx_id, std::vector<uint64_t>& indexs) const
+  bool core::get_tx_outputs_gindexs(const crypto::hash& tx_id, std::vector<std::pair<uint64_t, uint64_t>>& indexs) const
   {
     return m_blockchain_storage.get_tx_outputs_gindexs(tx_id, indexs);
   }
   //-----------------------------------------------------------------------------------------------
-  bool core::get_tx_outputs_gindexs(const crypto::hash& tx_id, size_t n_txes, std::vector<std::vector<uint64_t>>& indexs) const
+  bool core::get_tx_outputs_gindexs(const crypto::hash& tx_id, size_t n_txes, std::vector<std::vector<std::pair<uint64_t, uint64_t>>>& indexs) const
   {
     return m_blockchain_storage.get_tx_outputs_gindexs(tx_id, n_txes, indexs);
   }
@@ -1860,7 +1926,7 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   bool core::check_updates()
   {
-    static const char software[] = "monero";
+    static const char software[] = "zephyr";
 #ifdef BUILD_TAG
     static const char buildtag[] = BOOST_PP_STRINGIZE(BUILD_TAG);
     static const char subdir[] = "cli"; // because it can never be simple

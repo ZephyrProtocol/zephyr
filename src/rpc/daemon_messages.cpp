@@ -72,6 +72,7 @@ void GetBlocksFast::Response::doToJson(rapidjson::Writer<epee::byte_stream>& des
   INSERT_INTO_JSON_OBJECT(dest, start_height, start_height);
   INSERT_INTO_JSON_OBJECT(dest, current_height, current_height);
   INSERT_INTO_JSON_OBJECT(dest, output_indices, output_indices);
+  INSERT_INTO_JSON_OBJECT(dest, asset_type_output_indices, asset_type_output_indices);
 }
 
 void GetBlocksFast::Response::fromJson(const rapidjson::Value& val)
@@ -80,6 +81,7 @@ void GetBlocksFast::Response::fromJson(const rapidjson::Value& val)
   GET_FROM_JSON_OBJECT(val, start_height, start_height);
   GET_FROM_JSON_OBJECT(val, current_height, current_height);
   GET_FROM_JSON_OBJECT(val, output_indices, output_indices);
+  GET_FROM_JSON_OBJECT(val, asset_type_output_indices, asset_type_output_indices);
 }
 
 
@@ -167,11 +169,13 @@ void GetTxGlobalOutputIndices::Request::fromJson(const rapidjson::Value& val)
 void GetTxGlobalOutputIndices::Response::doToJson(rapidjson::Writer<epee::byte_stream>& dest) const
 {
   INSERT_INTO_JSON_OBJECT(dest, output_indices, output_indices);
+  INSERT_INTO_JSON_OBJECT(dest, asset_type_output_indices, asset_type_output_indices);
 }
 
 void GetTxGlobalOutputIndices::Response::fromJson(const rapidjson::Value& val)
 {
   GET_FROM_JSON_OBJECT(val, output_indices, output_indices);
+  GET_FROM_JSON_OBJECT(val, asset_type_output_indices, asset_type_output_indices);
 }
 
 void SendRawTx::Request::doToJson(rapidjson::Writer<epee::byte_stream>& dest) const

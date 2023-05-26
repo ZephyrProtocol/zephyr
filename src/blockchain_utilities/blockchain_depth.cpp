@@ -88,12 +88,12 @@ int main(int argc, char* argv[])
 
   if (command_line::get_arg(vm, command_line::arg_help))
   {
-    std::cout << "Monero '" << MONERO_RELEASE_NAME << "' (v" << MONERO_VERSION_FULL << ")" << ENDL << ENDL;
+    std::cout << "Zephyr '" << MONERO_RELEASE_NAME << "' (v" << MONERO_VERSION_FULL << ")" << ENDL << ENDL;
     std::cout << desc_options << std::endl;
     return 1;
   }
 
-  mlog_configure(mlog_get_default_log_path("monero-blockchain-depth.log"), true);
+  mlog_configure(mlog_get_default_log_path("zephyr-blockchain-depth.log"), true);
   if (!command_line::is_arg_defaulted(vm, arg_log_level))
     mlog_set_log(command_line::get_arg(vm, arg_log_level).c_str());
   else
@@ -224,9 +224,9 @@ int main(int argc, char* argv[])
             coinbase = true;
             goto done;
           }
-          if (tx.vin[ring].type() == typeid(cryptonote::txin_to_key))
+          if (tx.vin[ring].type() == typeid(cryptonote::txin_zephyr_key))
           {
-            const cryptonote::txin_to_key &txin = boost::get<cryptonote::txin_to_key>(tx.vin[ring]);
+            const cryptonote::txin_zephyr_key &txin = boost::get<cryptonote::txin_zephyr_key>(tx.vin[ring]);
             const uint64_t amount = txin.amount;
             auto absolute_offsets = cryptonote::relative_output_offsets_to_absolute(txin.key_offsets);
             for (uint64_t offset: absolute_offsets)
@@ -244,9 +244,9 @@ int main(int argc, char* argv[])
               bool found = false;
               for (size_t out = 0; out < b.miner_tx.vout.size(); ++out)
               {
-                if (b.miner_tx.vout[out].target.type() == typeid(cryptonote::txout_to_key))
+                if (b.miner_tx.vout[out].target.type() == typeid(cryptonote::txout_zephyr_tagged_key))
                 {
-                  const auto &txout = boost::get<cryptonote::txout_to_key>(b.miner_tx.vout[out].target);
+                  const auto &txout = boost::get<cryptonote::txout_zephyr_tagged_key>(b.miner_tx.vout[out].target);
                   if (txout.key == od.pubkey)
                   {
                     found = true;
@@ -278,9 +278,9 @@ int main(int argc, char* argv[])
                 }
                 for (size_t out = 0; out < tx2.vout.size(); ++out)
                 {
-                  if (tx2.vout[out].target.type() == typeid(cryptonote::txout_to_key))
+                  if (tx2.vout[out].target.type() == typeid(cryptonote::txout_zephyr_tagged_key))
                   {
-                    const auto &txout = boost::get<cryptonote::txout_to_key>(tx2.vout[out].target);
+                    const auto &txout = boost::get<cryptonote::txout_zephyr_tagged_key>(tx2.vout[out].target);
                     if (txout.key == od.pubkey)
                     {
                       found = true;

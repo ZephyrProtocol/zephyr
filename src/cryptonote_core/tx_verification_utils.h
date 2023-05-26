@@ -72,7 +72,8 @@ bool ver_rct_non_semantics_simple_cached
     transaction& tx,
     const rct::ctkeyM& mix_ring,
     rct_ver_cache_t& cache,
-    std::uint8_t rct_type_to_cache
+    std::uint8_t rct_type_to_cache,
+    uint8_t hf_version
 );
 
 } // namespace cryptonote

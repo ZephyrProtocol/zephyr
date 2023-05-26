@@ -101,15 +101,10 @@ namespace boost
 
 
   template <class Archive>
-  inline void serialize(Archive &a, cryptonote::txout_to_key &x, const boost::serialization::version_type ver)
+  inline void serialize(Archive &a, cryptonote::txout_zephyr_tagged_key &x, const boost::serialization::version_type ver)
   {
     a & x.key;
-  }
-
-  template <class Archive>
-  inline void serialize(Archive &a, cryptonote::txout_to_tagged_key &x, const boost::serialization::version_type ver)
-  {
-    a & x.key;
+    a & x.asset_type;
     a & x.view_tag;
   }
 
@@ -143,9 +138,10 @@ namespace boost
   }
 
   template <class Archive>
-  inline void serialize(Archive &a, cryptonote::txin_to_key &x, const boost::serialization::version_type ver)
+  inline void serialize(Archive &a, cryptonote::txin_zephyr_key &x, const boost::serialization::version_type ver)
   {
     a & x.amount;
+    a & x.asset_type;
     a & x.key_offsets;
     a & x.k_image;
   }
@@ -166,6 +162,11 @@ namespace boost
     a & x.vin;
     a & x.vout;
     a & x.extra;
+
+    
+    a & x.pricing_record_height;
+    a & x.amount_burnt;
+    a & x.amount_minted;
   }
 
   template <class Archive>
@@ -176,16 +177,16 @@ namespace boost
     a & x.vin;
     a & x.vout;
     a & x.extra;
-    if (x.version == 1)
-    {
-      a & x.signatures;
-    }
-    else
-    {
-      a & (rct::rctSigBase&)x.rct_signatures;
-      if (x.rct_signatures.type != rct::RCTTypeNull)
-        a & x.rct_signatures.p;
-    }
+
+   
+    a & x.pricing_record_height;
+    a & x.amount_burnt;
+    a & x.amount_minted;
+    
+
+    a & (rct::rctSigBase&)x.rct_signatures;
+    if (x.rct_signatures.type != rct::RCTTypeNull)
+      a & x.rct_signatures.p;
   }
 
   template <class Archive>
@@ -196,6 +197,8 @@ namespace boost
     a & b.timestamp;
     a & b.prev_id;
     a & b.nonce;
+    a & b.pricing_record;
+
     //------------------
     a & b.miner_tx;
     a & b.tx_hashes;
@@ -348,8 +351,7 @@ namespace boost
     if (x.rangeSigs.empty())
     {
       a & x.bulletproofs;
-      if (ver >= 2u)
-        a & x.bulletproofs_plus;
+      a & x.bulletproofs_plus;
     }
     a & x.MGs;
     if (ver >= 1u)
@@ -378,8 +380,7 @@ namespace boost
     if (x.p.rangeSigs.empty())
     {
       a & x.p.bulletproofs;
-      if (ver >= 2u)
-        a & x.p.bulletproofs_plus;
+      a & x.p.bulletproofs_plus;
     }
     a & x.p.MGs;
     if (ver >= 1u)
@@ -420,6 +421,14 @@ namespace boost
       v = x_.convert_to<uint64_t>();
       a & v;
     }
+  }
+
+  template <class Archive>
+  inline void serialize(Archive &a, oracle::pricing_record &x, const boost::serialization::version_type ver)
+  {
+    a & x.zEPHUSD;
+    a & x.zEPHRSV;
+    a & x.timestamp;
   }
 
 }

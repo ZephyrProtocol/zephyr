@@ -42,4 +42,15 @@ namespace cryptonote
     fluff,    //!< Received/sent over network using Dandelion++ fluff
     block     //!< Received in block, takes precedence over others
   };
+
+  enum class transaction_type {
+    UNSET = 0,
+    TRANSFER,
+    MINT_STABLE,
+    REDEEM_STABLE,
+    STABLE_TRANSFER,
+    MINT_RESERVE,
+    REDEEM_RESERVE,
+    RESERVE_TRANSFER
+  };
 }

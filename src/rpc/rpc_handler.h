@@ -47,6 +47,7 @@ struct output_distribution_data
   std::vector<std::uint64_t> distribution;
   std::uint64_t start_height;
   std::uint64_t base;
+  std::uint64_t num_spendable_global_outs;
 };
 
 class RpcHandler
@@ -58,7 +59,7 @@ class RpcHandler
     virtual epee::byte_slice handle(std::string&& request) = 0;
 
     static boost::optional<output_distribution_data>
-      get_output_distribution(const std::function<bool(uint64_t, uint64_t, uint64_t, uint64_t&, std::vector<uint64_t>&, uint64_t&)> &f, uint64_t amount, uint64_t from_height, uint64_t to_height, const std::function<crypto::hash(uint64_t)> &get_hash, bool cumulative, uint64_t blockchain_height);
+      get_output_distribution(const std::function<bool(uint64_t, std::string, uint64_t, uint64_t, uint64_t&, std::vector<uint64_t>&, uint64_t&, uint64_t&)> &f, uint64_t amount, std::string asset_type, uint64_t from_height, uint64_t to_height, const std::function<crypto::hash(uint64_t)> &get_hash, bool cumulative, uint64_t blockchain_height);
 };
 
 

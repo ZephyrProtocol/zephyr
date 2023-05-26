@@ -38,6 +38,7 @@
 #include <ctime>
 #include <iostream>
 #include <stdexcept>
+#include <map>
 
 //  Public interface for libwallet library
 namespace Monero {
@@ -351,14 +352,14 @@ struct WalletListener
      * @param txId       - transaction id
      * @param amount     - amount
      */
-    virtual void moneySpent(const std::string &txId, uint64_t amount) = 0;
+    virtual void moneySpent(const std::string &txId, uint64_t amount, std::string asset_type) = 0;
 
     /**
      * @brief moneyReceived - called when money received
      * @param txId          - transaction id
      * @param amount        - amount
      */
-    virtual void moneyReceived(const std::string &txId, uint64_t amount) = 0;
+    virtual void moneyReceived(const std::string &txId, uint64_t amount, std::string asset_type) = 0;
     
    /**
     * @brief unconfirmedMoneyReceived - called when payment arrived in tx pool
@@ -978,9 +979,9 @@ struct Wallet
      */
     virtual std::string getUserNote(const std::string &txid) const = 0;
     virtual std::string getTxKey(const std::string &txid) const = 0;
-    virtual bool checkTxKey(const std::string &txid, std::string tx_key, const std::string &address, uint64_t &received, bool &in_pool, uint64_t &confirmations) = 0;
+    virtual bool checkTxKey(const std::string &txid, std::string tx_key, const std::string &address, std::map<std::string, uint64_t> &received, bool &in_pool, uint64_t &confirmations) = 0;
     virtual std::string getTxProof(const std::string &txid, const std::string &address, const std::string &message) const = 0;
-    virtual bool checkTxProof(const std::string &txid, const std::string &address, const std::string &message, const std::string &signature, bool &good, uint64_t &received, bool &in_pool, uint64_t &confirmations) = 0;
+    virtual bool checkTxProof(const std::string &txid, const std::string &address, const std::string &message, const std::string &signature, bool &good, std::map<std::string, uint64_t> &received, bool &in_pool, uint64_t &confirmations) = 0;
     virtual std::string getSpendProof(const std::string &txid, const std::string &message) const = 0;
     virtual bool checkSpendProof(const std::string &txid, const std::string &message, const std::string &signature, bool &good) const = 0;
     /*!

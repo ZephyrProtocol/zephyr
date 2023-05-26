@@ -38,7 +38,7 @@
 using namespace cryptonote;
 
 // Do RCT expansion, then do post-expansion sanity checks, then do full non-semantics verification.
-static bool expand_tx_and_ver_rct_non_sem(transaction& tx, const rct::ctkeyM& mix_ring)
+static bool expand_tx_and_ver_rct_non_sem(transaction& tx, const rct::ctkeyM& mix_ring, uint8_t hf_version)
 {
     // Pruned transactions can not be expanded and verified because they are missing RCT data
     VER_ASSERT(!tx.pruned, "Pruned transaction will not pass verRctNonSemanticsSimple");
@@ -47,7 +47,7 @@ static bool expand_tx_and_ver_rct_non_sem(transaction& tx, const rct::ctkeyM& mi
     const crypto::hash tx_prefix_hash = get_transaction_prefix_hash(tx);
 
     // Expand mixring, tx inputs, tx key images, prefix hash message, etc into the RCT sig
-    const bool exp_res = Blockchain::expand_transaction_2(tx, tx_prefix_hash, mix_ring);
+    const bool exp_res = Blockchain::expand_transaction_2(tx, tx_prefix_hash, mix_ring, hf_version);
     VER_ASSERT(exp_res, "Failed to expand rct signatures!");
 
     const rct::rctSig& rv = tx.rct_signatures;
@@ -62,7 +62,7 @@ static bool expand_tx_and_ver_rct_non_sem(transaction& tx, const rct::ctkeyM& mi
     // For each input, check that the key images were copied into the expanded RCT sig correctly
     for (size_t n = 0; n < n_sigs; ++n)
     {
-        const crypto::key_image& nth_vin_image = boost::get<txin_to_key>(tx.vin[n]).k_image;
+        const crypto::key_image& nth_vin_image = boost::get<txin_zephyr_key>(tx.vin[n]).k_image;
 
         if (rct::is_rct_clsag(rv.type))
         {
@@ -115,7 +115,8 @@ bool ver_rct_non_semantics_simple_cached
     transaction& tx,
     const rct::ctkeyM& mix_ring,
     rct_ver_cache_t& cache,
-    const std::uint8_t rct_type_to_cache
+    const std::uint8_t rct_type_to_cache,
+    uint8_t hf_version
 )
 {
     // Hello future Monero dev! If you got this assert, read the following carefully:
@@ -129,7 +130,7 @@ bool ver_rct_non_semantics_simple_cached
     // mixring. Future versions of the protocol may differ in this regard, but if this assumptions
     // holds true in the future, enable the verification hash by modifying the `untested_tx`
     // condition below.
-    const bool untested_tx = tx.version > 2 || tx.rct_signatures.type > rct::RCTTypeBulletproofPlus;
+    const bool untested_tx = tx.version > 3 || tx.rct_signatures.type > rct::RCTTypeBulletproofPlus;
     VER_ASSERT(!untested_tx, "Unknown TX type. Make sure RCT cache works correctly with this type and then enable it in the code here.");
 
     // Don't cache older (or newer) rctSig types
@@ -138,7 +139,7 @@ bool ver_rct_non_semantics_simple_cached
     if (tx.rct_signatures.type != rct_type_to_cache)
     {
         MDEBUG("RCT cache: tx " << get_transaction_hash(tx) << " skipped");
-        return expand_tx_and_ver_rct_non_sem(tx, mix_ring);
+        return expand_tx_and_ver_rct_non_sem(tx, mix_ring, hf_version);
     }
 
     // Generate unique hash for tx+mix_ring pair
@@ -153,7 +154,7 @@ bool ver_rct_non_semantics_simple_cached
 
     // We had a cache miss, so now we must expand the mix ring and do full verification
     MDEBUG("RCT cache: tx " << get_transaction_hash(tx) << " missed");
-    if (!expand_tx_and_ver_rct_non_sem(tx, mix_ring))
+    if (!expand_tx_and_ver_rct_non_sem(tx, mix_ring, hf_version))
     {
         return false;
     }

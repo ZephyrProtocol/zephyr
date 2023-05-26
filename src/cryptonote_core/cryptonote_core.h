@@ -605,8 +605,8 @@ namespace cryptonote
       *
       * @note see Blockchain::get_tx_outputs_gindexs
       */
-     bool get_tx_outputs_gindexs(const crypto::hash& tx_id, std::vector<uint64_t>& indexs) const;
-     bool get_tx_outputs_gindexs(const crypto::hash& tx_id, size_t n_txes, std::vector<std::vector<uint64_t>>& indexs) const;
+     bool get_tx_outputs_gindexs(const crypto::hash& tx_id, std::vector<std::pair<uint64_t, uint64_t>>& indexs) const;
+     bool get_tx_outputs_gindexs(const crypto::hash& tx_id, size_t n_txes, std::vector<std::vector<std::pair<uint64_t, uint64_t>>>& indexs) const;
 
      /**
       * @copydoc Blockchain::get_tail_id
@@ -634,7 +634,7 @@ namespace cryptonote
       *
       * @brief get per block distribution of outputs of a given amount
       */
-     bool get_output_distribution(uint64_t amount, uint64_t from_height, uint64_t to_height, uint64_t &start_height, std::vector<uint64_t> &distribution, uint64_t &base) const;
+     bool get_output_distribution(uint64_t amount, std::string asset_type, uint64_t from_height, uint64_t to_height, uint64_t &start_height, std::vector<uint64_t> &distribution, uint64_t &base, uint64_t &num_spendable_global_outs) const;
 
      /**
       * @copydoc miner::pause

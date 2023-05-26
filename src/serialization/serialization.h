@@ -293,7 +293,6 @@ inline bool do_serialize(Archive &ar, bool &v)
     if (!ar.good()) return false;		\
   } while(0);
 
-
 namespace serialization {
   /*! \namespace detail
    *

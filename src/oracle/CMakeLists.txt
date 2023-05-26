@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2023, The Monero Project
+# Copyright (c) 2019, Haven Protocol
 #
 # All rights reserved.
 #
@@ -26,29 +26,31 @@
 # STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 # THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-set(gen_multisig_sources
-  gen_multisig.cpp)
+set(oracle_sources
+  pricing_record.cpp)
 
-monero_add_executable(gen_multisig
-  ${gen_multisig_sources})
-target_link_libraries(gen_multisig
-  PRIVATE
-    wallet
-    cryptonote_core
-    cncrypto
+set(oracle_headers)
+
+set(oracle_private_headers
+  asset_types.h
+  pricing_record.h)
+
+monero_private_headers(oracle
+  ${oracle_private_headers})
+monero_add_library(oracle
+  ${oracle_sources}
+  ${oracle_headers}
+  ${oracle_private_headers})
+target_link_libraries(oracle
+  PUBLIC
+    version
     common
-    epee
-    ${EPEE_READLINE}
-    ${Boost_CHRONO_LIBRARY}
+    device
+    ${Boost_DATE_TIME_LIBRARY}
     ${Boost_PROGRAM_OPTIONS_LIBRARY}
+    ${Boost_SERIALIZATION_LIBRARY}
     ${Boost_FILESYSTEM_LIBRARY}
+    ${Boost_SYSTEM_LIBRARY}
     ${Boost_THREAD_LIBRARY}
-    ${CMAKE_THREAD_LIBS_INIT}
-    ${GNU_READLINE_LIBRARY}
+  PRIVATE
     ${EXTRA_LIBRARIES})
-add_dependencies(gen_multisig
-  version)
-set_property(TARGET gen_multisig
-  PROPERTY
-    OUTPUT_NAME "zephyr-gen-trusted-multisig")
-install(TARGETS gen_multisig DESTINATION bin)

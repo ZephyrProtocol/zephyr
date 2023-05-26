@@ -140,6 +140,21 @@ namespace cryptonote
     get_transaction_prefix_hash(tx, h, hwdev);
     return h;
   }
+  //---------------------------------------------------------------  
+  void get_transaction_prefix_hash(const transaction_prefix& tx, crypto::hash& h)
+  {
+    std::ostringstream s;
+    binary_archive<true> a(s);
+    ::serialization::serialize(a, const_cast<transaction_prefix&>(tx));
+    crypto::cn_fast_hash(s.str().data(), s.str().size(), h);
+  }
+  //---------------------------------------------------------------
+  crypto::hash get_transaction_prefix_hash(const transaction_prefix& tx)
+  {
+    crypto::hash h = null_hash;
+    get_transaction_prefix_hash(tx, h);
+    return h;
+  }
   
   bool expand_transaction_1(transaction &tx, bool base_only)
   {
@@ -223,6 +238,9 @@ namespace cryptonote
   //---------------------------------------------------------------
   bool parse_and_validate_tx_from_blob(const blobdata_ref& tx_blob, transaction& tx)
   {
+    // print tx
+    LOG_PRINT_L1("tx" << ENDL << obj_to_json_str(tx));
+
     binary_archive<false> ba{epee::strspan<std::uint8_t>(tx_blob)};
     bool r = ::serialization::serialize(ba, tx);
     CHECK_AND_ASSERT_MES(r, false, "Failed to parse transaction from blob");
@@ -253,11 +271,14 @@ namespace cryptonote
   bool parse_and_validate_tx_from_blob(const blobdata_ref& tx_blob, transaction& tx, crypto::hash& tx_hash)
   {
     binary_archive<false> ba{epee::strspan<std::uint8_t>(tx_blob)};
+
     bool r = ::serialization::serialize(ba, tx);
     CHECK_AND_ASSERT_MES(r, false, "Failed to parse transaction from blob");
     CHECK_AND_ASSERT_MES(expand_transaction_1(tx, false), false, "Failed to expand transaction data");
     tx.invalidate_hashes();
     //TODO: validate tx
+
+    MDEBUG("tx: " << ENDL << obj_to_json_str(tx));
 
     return get_transaction_hash(tx, tx_hash);
   }
@@ -464,7 +485,7 @@ namespace cryptonote
     CHECK_AND_ASSERT_MES(tx.rct_signatures.type == rct::RCTTypeBulletproof2 || tx.rct_signatures.type == rct::RCTTypeCLSAG || tx.rct_signatures.type == rct::RCTTypeBulletproofPlus,
         std::numeric_limits<uint64_t>::max(), "Unsupported rct_signatures type in get_pruned_transaction_weight");
     CHECK_AND_ASSERT_MES(!tx.vin.empty(), std::numeric_limits<uint64_t>::max(), "empty vin");
-    CHECK_AND_ASSERT_MES(tx.vin[0].type() == typeid(cryptonote::txin_to_key), std::numeric_limits<uint64_t>::max(), "empty vin");
+    CHECK_AND_ASSERT_MES(tx.vin[0].type() == typeid(cryptonote::txin_zephyr_key), std::numeric_limits<uint64_t>::max(), "empty vin");
 
     // get pruned data size
     std::ostringstream s;
@@ -484,7 +505,7 @@ namespace cryptonote
     weight += extra;
 
     // calculate deterministic CLSAG/MLSAG data size
-    const size_t ring_size = boost::get<cryptonote::txin_to_key>(tx.vin[0]).key_offsets.size();
+    const size_t ring_size = boost::get<cryptonote::txin_zephyr_key>(tx.vin[0]).key_offsets.size();
     if (rct::is_rct_clsag(tx.rct_signatures.type))
       extra = tx.vin.size() * (ring_size + 2) * 32;
     else
@@ -531,8 +552,8 @@ namespace cryptonote
     uint64_t amount_out = 0;
     for(auto& in: tx.vin)
     {
-      CHECK_AND_ASSERT_MES(in.type() == typeid(txin_to_key), 0, "unexpected type id in transaction");
-      amount_in += boost::get<txin_to_key>(in).amount;
+      CHECK_AND_ASSERT_MES(in.type() == typeid(txin_zephyr_key), 0, "unexpected type id in transaction");
+      amount_in += boost::get<txin_zephyr_key>(in).amount;
     }
     for(auto& o: tx.vout)
       amount_out += o.amount;
@@ -824,7 +845,7 @@ namespace cryptonote
     money = 0;
     for(const auto& in: tx.vin)
     {
-      CHECKED_GET_SPECIFIC_VARIANT(in, const txin_to_key, tokey_in, false);
+      CHECKED_GET_SPECIFIC_VARIANT(in, const txin_zephyr_key, tokey_in, false);
       money += tokey_in.amount;
     }
     return true;
@@ -841,8 +862,8 @@ namespace cryptonote
   {
     for(const auto& in: tx.vin)
     {
-      CHECK_AND_ASSERT_MES(in.type() == typeid(txin_to_key), false, "wrong variant type: "
-        << in.type().name() << ", expected " << typeid(txin_to_key).name()
+      CHECK_AND_ASSERT_MES(in.type() == typeid(txin_zephyr_key), false, "wrong variant type: "
+        << in.type().name() << ", expected " << typeid(txin_zephyr_key).name()
         << ", in transaction id=" << get_transaction_hash(tx));
 
     }
@@ -878,7 +899,7 @@ namespace cryptonote
     uint64_t money = 0;
     for(const auto& in: tx.vin)
     {
-      CHECKED_GET_SPECIFIC_VARIANT(in, const txin_to_key, tokey_in, false);
+      CHECKED_GET_SPECIFIC_VARIANT(in, const txin_zephyr_key, tokey_in, false);
       if(money > tokey_in.amount + money)
         return false;
       money += tokey_in.amount;
@@ -908,12 +929,21 @@ namespace cryptonote
   //---------------------------------------------------------------
   bool get_output_public_key(const cryptonote::tx_out& out, crypto::public_key& output_public_key)
   {
-    // before HF_VERSION_VIEW_TAGS, outputs with public keys are of type txout_to_key
-    // after HF_VERSION_VIEW_TAGS, outputs with public keys are of type txout_to_tagged_key
-    if (out.target.type() == typeid(txout_to_key))
-      output_public_key = boost::get< txout_to_key >(out.target).key;
-    else if (out.target.type() == typeid(txout_to_tagged_key))
-      output_public_key = boost::get< txout_to_tagged_key >(out.target).key;
+    if (out.target.type() == typeid(txout_zephyr_tagged_key))
+      output_public_key = boost::get< txout_zephyr_tagged_key >(out.target).key;
+    else
+    {
+      LOG_ERROR("Unexpected output target type found: " << out.target.type().name());
+      return false;
+    }
+
+    return true;
+  }
+  //---------------------------------------------------------------
+  bool get_output_asset_type(const cryptonote::tx_out& out, std::string& output_asset_type)
+  {
+    if (out.target.type() == typeid(txout_zephyr_tagged_key))
+      output_asset_type = boost::get< txout_zephyr_tagged_key >(out.target).asset_type;
     else
     {
       LOG_ERROR("Unexpected output target type found: " << out.target.type().name());
@@ -925,8 +955,8 @@ namespace cryptonote
   //---------------------------------------------------------------
   boost::optional<crypto::view_tag> get_output_view_tag(const cryptonote::tx_out& out)
   {
-    return out.target.type() == typeid(txout_to_tagged_key)
-      ? boost::optional<crypto::view_tag>(boost::get< txout_to_tagged_key >(out.target).view_tag)
+    return out.target.type() == typeid(txout_zephyr_tagged_key)
+      ? boost::optional<crypto::view_tag>(boost::get< txout_zephyr_tagged_key >(out.target).view_tag)
       : boost::optional<crypto::view_tag>();
   }
   //---------------------------------------------------------------
@@ -939,52 +969,32 @@ namespace cryptonote
     return res;
   }
   //---------------------------------------------------------------
-  void set_tx_out(const uint64_t amount, const crypto::public_key& output_public_key, const bool use_view_tags, const crypto::view_tag& view_tag, tx_out& out)
+  void set_tx_out(const std::string& asset_type, const uint64_t amount, const crypto::public_key& output_public_key, const bool use_view_tags, const crypto::view_tag& view_tag, tx_out& out)
   {
     out.amount = amount;
-    if (use_view_tags)
-    {
-      txout_to_tagged_key ttk;
+    // if (use_view_tags)
+    // {
+      txout_zephyr_tagged_key ttk;
       ttk.key = output_public_key;
       ttk.view_tag = view_tag;
+      ttk.asset_type = asset_type;
       out.target = ttk;
-    }
-    else
-    {
-      txout_to_key tk;
-      tk.key = output_public_key;
-      out.target = tk;
-    }
+    // }
+    // else
+    // {
+    //   txout_to_key tk;
+    //   tk.key = output_public_key;
+    //   out.target = tk;
+    // }
   }
   //---------------------------------------------------------------
   bool check_output_types(const transaction& tx, const uint8_t hf_version)
   {
     for (const auto &o: tx.vout)
     {
-      if (hf_version > HF_VERSION_VIEW_TAGS)
-      {
-        // from v15, require outputs have view tags
-        CHECK_AND_ASSERT_MES(o.target.type() == typeid(txout_to_tagged_key), false, "wrong variant type: "
-          << o.target.type().name() << ", expected txout_to_tagged_key in transaction id=" << get_transaction_hash(tx));
-      }
-      else if (hf_version < HF_VERSION_VIEW_TAGS)
-      {
-        // require outputs to be of type txout_to_key
-        CHECK_AND_ASSERT_MES(o.target.type() == typeid(txout_to_key), false, "wrong variant type: "
-          << o.target.type().name() << ", expected txout_to_key in transaction id=" << get_transaction_hash(tx));
-      }
-      else  //(hf_version == HF_VERSION_VIEW_TAGS)
-      {
-        // require outputs be of type txout_to_key OR txout_to_tagged_key
-        // to allow grace period before requiring all to be txout_to_tagged_key
-        CHECK_AND_ASSERT_MES(o.target.type() == typeid(txout_to_key) || o.target.type() == typeid(txout_to_tagged_key), false, "wrong variant type: "
-          << o.target.type().name() << ", expected txout_to_key or txout_to_tagged_key in transaction id=" << get_transaction_hash(tx));
-
-        // require all outputs in a tx be of the same type
-        CHECK_AND_ASSERT_MES(o.target.type() == tx.vout[0].target.type(), false, "non-matching variant types: "
-          << o.target.type().name() << " and " << tx.vout[0].target.type().name() << ", "
-          << "expected matching variant types in transaction id=" << get_transaction_hash(tx));
-      }
+      // from v15, require outputs have view tags
+      CHECK_AND_ASSERT_MES(o.target.type() == typeid(txout_zephyr_tagged_key), false, "wrong variant type: "
+        << o.target.type().name() << ", expected txout_zephyr_tagged_key in transaction id=" << get_transaction_hash(tx));
     }
     return true;
   }
@@ -1137,15 +1147,15 @@ namespace cryptonote
     switch (decimal_point)
     {
       case 12:
-        return "monero";
+        return "zephyr";
       case 9:
-        return "millinero";
+        return "millizeph";
       case 6:
-        return "micronero";
+        return "microzeph";
       case 3:
-        return "nanonero";
+        return "nanozeph";
       case 0:
-        return "piconero";
+        return "picozeph";
       default:
         ASSERT_MES_AND_THROW("Invalid decimal point specification: " << decimal_point);
     }
@@ -1286,7 +1296,7 @@ namespace cryptonote
       binary_archive<true> ba(ss);
       const size_t inputs = t.vin.size();
       const size_t outputs = t.vout.size();
-      const size_t mixin = t.vin.empty() ? 0 : t.vin[0].type() == typeid(txin_to_key) ? boost::get<txin_to_key>(t.vin[0]).key_offsets.size() - 1 : 0;
+      const size_t mixin = t.vin.empty() ? 0 : t.vin[0].type() == typeid(txin_zephyr_key) ? boost::get<txin_zephyr_key>(t.vin[0]).key_offsets.size() - 1 : 0;
       bool r = tt.rct_signatures.p.serialize_rctsig_prunable(ba, t.rct_signatures.type, inputs, outputs, mixin);
       CHECK_AND_ASSERT_MES(r, false, "Failed to serialize rct signatures prunable");
       cryptonote::get_blob_hash(ss.str(), res);
@@ -1370,8 +1380,10 @@ namespace cryptonote
     const unsigned int unprunable_size = t.unprunable_size;
     const unsigned int prefix_size = t.prefix_size;
 
-    // base rct
-    CHECK_AND_ASSERT_MES(prefix_size <= unprunable_size && unprunable_size <= blob.size(), false, "Inconsistent transaction prefix, unprunable and blob sizes");
+    if ((prefix_size > unprunable_size) || (unprunable_size > blob.size())) {
+      CHECK_AND_ASSERT_MES(prefix_size <= unprunable_size && unprunable_size <= blob.size(), false, "Inconsistent transaction prefix, unprunable and blob sizes");
+    }
+    
     cryptonote::get_blob_hash(blobdata_ref(blob.data() + prefix_size, unprunable_size - prefix_size), hashes[1]);
 
     // prunable rct
@@ -1387,6 +1399,8 @@ namespace cryptonote
 
     // the tx hash is the hash of the 3 hashes
     res = cn_fast_hash(hashes, sizeof(hashes));
+
+    MDEBUG("Calculated transaction hash for tx version " << t.version << ": " << res);
 
     // we still need the size
     if (blob_size)

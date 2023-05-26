@@ -167,7 +167,7 @@ struct Wallet2CallbackImpl : public tools::i_wallet2_callback
                      << ", idx: " << subaddr_index);
         // do not signal on received tx if wallet is not syncronized completely
         if (m_listener && m_wallet->synchronized()) {
-            m_listener->moneyReceived(tx_hash, amount - burnt);
+            m_listener->moneyReceived(tx_hash, amount - burnt, "ZEPH");
             m_listener->updated();
         }
     }
@@ -199,7 +199,7 @@ struct Wallet2CallbackImpl : public tools::i_wallet2_callback
                      << ", idx: " << subaddr_index);
         // do not signal on sent tx if wallet is not syncronized completely
         if (m_listener && m_wallet->synchronized()) {
-            m_listener->moneySpent(tx_hash, amount);
+            m_listener->moneySpent(tx_hash, amount, "ZEPH");
             m_listener->updated();
         }
     }
@@ -945,12 +945,12 @@ void WalletImpl::setSubaddressLookahead(uint32_t major, uint32_t minor)
 
 uint64_t WalletImpl::balance(uint32_t accountIndex) const
 {
-    return m_wallet->balance(accountIndex, false);
+    return m_wallet->balance("ZEPH", accountIndex, false);
 }
 
 uint64_t WalletImpl::unlockedBalance(uint32_t accountIndex) const
 {
-    return m_wallet->unlocked_balance(accountIndex, false);
+    return m_wallet->unlocked_balance("ZEPH", accountIndex, false);
 }
 
 uint64_t WalletImpl::blockChainHeight() const
@@ -1512,7 +1512,7 @@ PendingTransaction *WalletImpl::createTransactionMultDest(const std::vector<stri
             fake_outs_count = m_wallet->adjust_mixin(mixin_count);
 
             if (amount) {
-                transaction->m_pending_tx = m_wallet->create_transactions_2(dsts, fake_outs_count, 0 /* unlock_time */,
+                transaction->m_pending_tx = m_wallet->create_transactions_2(dsts, "ZEPH", fake_outs_count, 0 /* unlock_time */,
                                                                             adjusted_priority,
                                                                             extra, subaddr_account, subaddr_indices);
             } else {
@@ -1700,16 +1700,16 @@ uint64_t WalletImpl::estimateTransactionFee(const std::vector<std::pair<std::str
     const size_t extra_size = pubkey_size + encrypted_paymentid_size;
 
     return m_wallet->estimate_fee(
-        m_wallet->use_fork_rules(HF_VERSION_PER_BYTE_FEE, 0),
-        m_wallet->use_fork_rules(4, 0),
+        true,
+        true,
         1,
         m_wallet->get_min_ring_size() - 1,
         destinations.size() + 1,
         extra_size,
-        m_wallet->use_fork_rules(8, 0),
-        m_wallet->use_fork_rules(HF_VERSION_CLSAG, 0),
-        m_wallet->use_fork_rules(HF_VERSION_BULLETPROOF_PLUS, 0),
-        m_wallet->use_fork_rules(HF_VERSION_VIEW_TAGS, 0),
+        true,
+        true,
+        true,
+        true,
         m_wallet->get_base_fee(priority),
         m_wallet->get_fee_quantization_mask());
 }
@@ -1820,7 +1820,7 @@ std::string WalletImpl::getTxKey(const std::string &txid_str) const
     }
 }
 
-bool WalletImpl::checkTxKey(const std::string &txid_str, std::string tx_key_str, const std::string &address_str, uint64_t &received, bool &in_pool, uint64_t &confirmations)
+bool WalletImpl::checkTxKey(const std::string &txid_str, std::string tx_key_str, const std::string &address_str, std::map<std::string, uint64_t> &received, bool &in_pool, uint64_t &confirmations)
 {
     crypto::hash txid;
     if (!epee::string_tools::hex_to_pod(txid_str, txid))
@@ -1896,7 +1896,7 @@ std::string WalletImpl::getTxProof(const std::string &txid_str, const std::strin
     }
 }
 
-bool WalletImpl::checkTxProof(const std::string &txid_str, const std::string &address_str, const std::string &message, const std::string &signature, bool &good, uint64_t &received, bool &in_pool, uint64_t &confirmations)
+bool WalletImpl::checkTxProof(const std::string &txid_str, const std::string &address_str, const std::string &message, const std::string &signature, bool &good, std::map<std::string, uint64_t> &received, bool &in_pool, uint64_t &confirmations)
 {
     crypto::hash txid;
     if (!epee::string_tools::hex_to_pod(txid_str, txid))

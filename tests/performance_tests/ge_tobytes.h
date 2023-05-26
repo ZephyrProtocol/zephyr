@@ -60,7 +60,7 @@ public:
     if (!construct_tx(this->m_miners[this->real_source_idx].get_keys(), this->m_sources, destinations, boost::none, std::vector<uint8_t>(), m_tx, 0))
       return false;
     
-    const cryptonote::txin_to_key& txin = boost::get<cryptonote::txin_to_key>(m_tx.vin[0]);
+    const cryptonote::txin_zephyr_key& txin = boost::get<cryptonote::txin_zephyr_key>(m_tx.vin[0]);
     if (ge_frombytes_vartime(&m_p3, (const unsigned char*) &txin.k_image) != 0)
       return false;
 

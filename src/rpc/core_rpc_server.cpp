@@ -715,6 +715,7 @@ namespace cryptonote
       size_t size = 0, ntxes = 0;
       res.blocks.reserve(bs.size());
       res.output_indices.reserve(bs.size());
+      res.asset_type_output_indices.reserve(bs.size());
       for(auto& bd: bs)
       {
         res.blocks.resize(res.blocks.size()+1);
@@ -722,10 +723,15 @@ namespace cryptonote
         res.blocks.back().block = bd.first.first;
         size += bd.first.first.size();
         res.output_indices.push_back(COMMAND_RPC_GET_BLOCKS_FAST::block_output_indices());
+        res.asset_type_output_indices.push_back(COMMAND_RPC_GET_BLOCKS_FAST::block_asset_type_output_indices());
         ntxes += bd.second.size();
         res.output_indices.back().indices.reserve(1 + bd.second.size());
+        res.asset_type_output_indices.back().indices.reserve(1 + bd.second.size());
         if (req.no_miner_tx)
+        {
           res.output_indices.back().indices.push_back(COMMAND_RPC_GET_BLOCKS_FAST::tx_output_indices());
+          res.asset_type_output_indices.back().indices.push_back(COMMAND_RPC_GET_BLOCKS_FAST::tx_asset_type_output_indices());
+        }
         res.blocks.back().txs.reserve(bd.second.size());
         for (std::vector<std::pair<crypto::hash, cryptonote::blobdata>>::iterator i = bd.second.begin(); i != bd.second.end(); ++i)
         {
@@ -734,11 +740,10 @@ namespace cryptonote
           i->second.shrink_to_fit();
           size += res.blocks.back().txs.back().blob.size();
         }
-
         const size_t n_txes_to_lookup = bd.second.size() + (req.no_miner_tx ? 0 : 1);
         if (n_txes_to_lookup > 0)
         {
-          std::vector<std::vector<uint64_t>> indices;
+          std::vector<std::vector<std::pair<uint64_t, uint64_t>>> indices;
           bool r = m_core.get_tx_outputs_gindexs(req.no_miner_tx ? bd.second.front().first : bd.first.second, n_txes_to_lookup, indices);
           if (!r)
           {
@@ -750,8 +755,21 @@ namespace cryptonote
             res.status = "Failed";
             return true;
           }
+
+          LOG_PRINT_L1("COMMAND_RPC_GET_BLOCKS_FAST HAS " << indices.size() << " indices size");
           for (size_t i = 0; i < indices.size(); ++i)
-            res.output_indices.back().indices.push_back({std::move(indices[i])});
+          {
+            cryptonote::rpc::tx_output_indices tx_indices;
+            cryptonote::rpc::tx_asset_type_output_indices tx_asset_type_output_indices;
+            for (size_t j = 0; j < indices[i].size(); ++j)
+            {
+              LOG_PRINT_L2("index: " << i << ", " << j);
+              tx_indices.push_back(indices[i][j].first);
+              tx_asset_type_output_indices.push_back(indices[i][j].second);
+            }
+            res.output_indices.back().indices.push_back({std::move(tx_indices)});
+            res.asset_type_output_indices.back().indices.push_back({std::move(tx_asset_type_output_indices)});
+          }
         }
       }
       MDEBUG("on_get_blocks: " << bs.size() << " blocks, " << ntxes << " txes, size " << size);
@@ -906,6 +924,7 @@ namespace cryptonote
     cryptonote::COMMAND_RPC_GET_OUTPUTS_BIN::request req_bin;
     req_bin.outputs = req.outputs;
     req_bin.get_txid = req.get_txid;
+    req_bin.asset_type = req.asset_type;
     cryptonote::COMMAND_RPC_GET_OUTPUTS_BIN::response res_bin;
     if(!m_core.get_outs(req_bin, res_bin))
     {
@@ -937,13 +956,20 @@ namespace cryptonote
       return ok;
 
     CHECK_PAYMENT_MIN1(req, res, COST_PER_OUTPUT_INDEXES, false);
-
-    bool r = m_core.get_tx_outputs_gindexs(req.txid, res.o_indexes);
+    std::vector<std::pair<uint64_t, uint64_t>> output_indices;
+    bool r = m_core.get_tx_outputs_gindexs(req.txid, output_indices);
     if(!r)
     {
       res.status = "Failed";
       return true;
     }
+
+    for (size_t i = 0; i < output_indices.size(); ++i)
+    {
+      res.o_indexes.push_back(output_indices[i].first);
+      res.asset_type_output_indices.push_back(output_indices[i].second);
+    }
+
     res.status = CORE_RPC_STATUS_OK;
     LOG_PRINT_L2("COMMAND_RPC_GET_TX_GLOBAL_OUTPUTS_INDEXES: [" << res.o_indexes.size() << "]");
     return true;
@@ -1180,11 +1206,18 @@ namespace cryptonote
       // output indices too if not in pool
       if (pool_tx_hashes.find(tx_hash) == pool_tx_hashes.end())
       {
-        bool r = m_core.get_tx_outputs_gindexs(tx_hash, e.output_indices);
+         std::vector<std::pair<uint64_t, uint64_t>> output_indices;
+        bool r = m_core.get_tx_outputs_gindexs(tx_hash, output_indices);
         if (!r)
         {
           res.status = "Failed";
           return true;
+        }
+
+        for (size_t i = 0; i < output_indices.size(); ++i)
+        {
+          e.output_indices.push_back(output_indices[i].first);
+          e.asset_type_output_indices.push_back(output_indices[i].second);
         }
       }
     }
@@ -1461,7 +1494,7 @@ namespace cryptonote
     res.is_background_mining_enabled = lMiner.get_is_background_mining_enabled();
     store_difficulty(m_core.get_blockchain_storage().get_difficulty_for_next_block(), res.difficulty, res.wide_difficulty, res.difficulty_top64);
     
-    res.block_target = m_core.get_blockchain_storage().get_current_hard_fork_version() < 2 ? DIFFICULTY_TARGET_V1 : DIFFICULTY_TARGET_V2;
+    res.block_target = DIFFICULTY_TARGET_V2;
     if ( lMiner.is_mining() ) {
       res.speed = lMiner.get_speed();
       res.threads_count = lMiner.get_threads_count();
@@ -1470,17 +1503,9 @@ namespace cryptonote
     const account_public_address& lMiningAdr = lMiner.get_mining_address();
     if (lMiner.is_mining() || lMiner.get_is_background_mining_enabled())
       res.address = get_account_address_as_str(nettype(), false, lMiningAdr);
-    const uint8_t major_version = m_core.get_blockchain_storage().get_current_hard_fork_version();
-    const unsigned variant = major_version >= 7 ? major_version - 6 : 0;
-    switch (variant)
-    {
-      case 0: res.pow_algorithm = "Cryptonight"; break;
-      case 1: res.pow_algorithm = "CNv1 (Cryptonight variant 1)"; break;
-      case 2: case 3: res.pow_algorithm = "CNv2 (Cryptonight variant 2)"; break;
-      case 4: case 5: res.pow_algorithm = "CNv4 (Cryptonight variant 4)"; break;
-      case 6: case 7: case 8: case 9: res.pow_algorithm = "RandomX"; break;
-      default: res.pow_algorithm = "RandomX"; break; // assumed
-    }
+
+    res.pow_algorithm = "RandomX";
+
     if (res.is_background_mining_enabled)
     {
       res.bg_idle_threshold = lMiner.get_idle_threshold();
@@ -1948,12 +1973,11 @@ namespace cryptonote
     crypto::hash seed_hash, next_seed_hash;
     if (!get_block_template(info.address, req.prev_block.empty() ? NULL : &prev_block, blob_reserve, reserved_offset, wdiff, res.height, res.expected_reward, b, res.seed_height, seed_hash, next_seed_hash, error_resp))
       return false;
-    if (b.major_version >= RX_BLOCK_VERSION)
-    {
-      res.seed_hash = string_tools::pod_to_hex(seed_hash);
-      if (seed_hash != next_seed_hash)
-        res.next_seed_hash = string_tools::pod_to_hex(next_seed_hash);
-    }
+    
+    res.seed_hash = string_tools::pod_to_hex(seed_hash);
+    if (seed_hash != next_seed_hash)
+      res.next_seed_hash = string_tools::pod_to_hex(next_seed_hash);
+ 
 
     res.reserved_offset = reserved_offset;
     store_difficulty(wdiff, res.difficulty, res.wide_difficulty, res.difficulty_top64);
@@ -2266,7 +2290,7 @@ namespace cryptonote
       }
       b.nonce = req.starting_nonce;
       crypto::hash seed_hash = crypto::null_hash;
-      if (b.major_version >= RX_BLOCK_VERSION && !epee::string_tools::hex_to_pod(template_res.seed_hash, seed_hash))
+      if (!epee::string_tools::hex_to_pod(template_res.seed_hash, seed_hash))
       {
         error_resp.code = CORE_RPC_ERROR_CODE_INTERNAL_ERROR;
         error_resp.message = "Error converting seed hash";
@@ -2308,6 +2332,7 @@ namespace cryptonote
     response.timestamp = blk.timestamp;
     response.prev_hash = string_tools::pod_to_hex(blk.prev_id);
     response.nonce = blk.nonce;
+    response.pricing_record = blk.pricing_record;
     response.orphan_status = orphan_status;
     response.height = height;
     response.depth = m_core.get_current_blockchain_height() - height - 1;
@@ -2962,6 +2987,19 @@ namespace cryptonote
     return true;
   }
   //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::on_get_circulating_supply(const COMMAND_RPC_GET_CIRCULATING_SUPPLY::request& req, COMMAND_RPC_GET_CIRCULATING_SUPPLY::response& res, epee::json_rpc::error& error_resp, const connection_context *ctx)
+  {
+    PERF_TIMER(on_get_circulating_supply);
+    std::vector<std::pair<std::string, std::string>> amounts = m_core.get_blockchain_storage().get_db().get_circulating_supply();
+    for (const auto &i: amounts)
+    {
+      COMMAND_RPC_GET_CIRCULATING_SUPPLY::supply_entry se(i.first, i.second);
+      res.supply_tally.push_back(se);
+    }
+    res.status = CORE_RPC_STATUS_OK;
+    return true;    
+  }
+  //------------------------------------------------------------------------------------------------------------------------------
   bool core_rpc_server::on_get_base_fee_estimate(const COMMAND_RPC_GET_BASE_FEE_ESTIMATE::request& req, COMMAND_RPC_GET_BASE_FEE_ESTIMATE::response& res, epee::json_rpc::error& error_resp, const connection_context *ctx)
   {
     RPC_TRACKER(get_base_fee_estimate);
@@ -2972,15 +3010,10 @@ namespace cryptonote
     CHECK_PAYMENT(req, res, COST_PER_FEE_ESTIMATE);
 
     const uint8_t version = m_core.get_blockchain_storage().get_current_hard_fork_version();
-    if (version >= HF_VERSION_2021_SCALING)
-    {
-      m_core.get_blockchain_storage().get_dynamic_base_fee_estimate_2021_scaling(req.grace_blocks, res.fees);
-      res.fee = res.fees[0];
-    }
-    else
-    {
-      res.fee = m_core.get_blockchain_storage().get_dynamic_base_fee_estimate(req.grace_blocks);
-    }
+    
+    m_core.get_blockchain_storage().get_dynamic_base_fee_estimate_2021_scaling(req.grace_blocks, res.fees);
+    res.fee = res.fees[0];
+    
     res.quantization_mask = Blockchain::get_fee_quantization_mask();
     res.status = CORE_RPC_STATUS_OK;
     return true;
@@ -3103,7 +3136,7 @@ namespace cryptonote
       return true;
     }
 
-    static const char software[] = "monero";
+    static const char software[] = "zephyr";
 #ifdef BUILD_TAG
     static const char buildtag[] = BOOST_PP_STRINGIZE(BUILD_TAG);
     static const char subdir[] = "cli";
@@ -3307,6 +3340,7 @@ namespace cryptonote
   //------------------------------------------------------------------------------------------------------------------------------
   bool core_rpc_server::on_get_output_distribution(const COMMAND_RPC_GET_OUTPUT_DISTRIBUTION::request& req, COMMAND_RPC_GET_OUTPUT_DISTRIBUTION::response& res, epee::json_rpc::error& error_resp, const connection_context *ctx)
   {
+    MDEBUG("on_get_output_distribution");
     RPC_TRACKER(get_output_distribution);
     bool r;
     if (use_bootstrap_daemon_if_necessary<COMMAND_RPC_GET_OUTPUT_DISTRIBUTION>(invoke_http_mode::JON_RPC, "get_output_distribution", req, res, r))
@@ -3331,11 +3365,12 @@ namespace cryptonote
       const uint64_t req_to_height = req.to_height ? req.to_height : (m_core.get_current_blockchain_height() - 1);
       for (uint64_t amount: req.amounts)
       {
-        auto data = rpc::RpcHandler::get_output_distribution([this](uint64_t amount, uint64_t from, uint64_t to, uint64_t &start_height, std::vector<uint64_t> &distribution, uint64_t &base) { return m_core.get_output_distribution(amount, from, to, start_height, distribution, base); }, amount, req.from_height, req_to_height, [this](uint64_t height) { return m_core.get_blockchain_storage().get_db().get_block_hash_from_height(height); }, req.cumulative, m_core.get_current_blockchain_height());
+        auto data = rpc::RpcHandler::get_output_distribution([this](uint64_t amount, std::string asset_type, uint64_t from, uint64_t to, uint64_t &start_height, std::vector<uint64_t> &distribution, uint64_t &base, uint64_t &num_spendable_global_outs) { 
+          return m_core.get_output_distribution(amount, asset_type, from, to, start_height, distribution, base, num_spendable_global_outs); }, amount, req.rct_asset_type, req.from_height, req_to_height, [this](uint64_t height) { return m_core.get_blockchain_storage().get_db().get_block_hash_from_height(height); }, req.cumulative, m_core.get_current_blockchain_height());
         if (!data)
         {
           error_resp.code = CORE_RPC_ERROR_CODE_INTERNAL_ERROR;
-          error_resp.message = "Failed to get output distribution";
+          error_resp.message = "Failed to get output distribution 6";
           return false;
         }
 
@@ -3344,8 +3379,9 @@ namespace cryptonote
     }
     catch (const std::exception &e)
     {
+      LOG_PRINT_L1("IT FAILED RIGHT HERE");
       error_resp.code = CORE_RPC_ERROR_CODE_INTERNAL_ERROR;
-      error_resp.message = "Failed to get output distribution";
+      error_resp.message = "Failed to get output distribution 5";
       return false;
     }
 
@@ -3355,6 +3391,7 @@ namespace cryptonote
   //------------------------------------------------------------------------------------------------------------------------------
   bool core_rpc_server::on_get_output_distribution_bin(const COMMAND_RPC_GET_OUTPUT_DISTRIBUTION::request& req, COMMAND_RPC_GET_OUTPUT_DISTRIBUTION::response& res, const connection_context *ctx)
   {
+    LOG_PRINT_L3("on_get_output_distribution_bin");
     RPC_TRACKER(get_output_distribution_bin);
 
     bool r;
@@ -3386,10 +3423,10 @@ namespace cryptonote
       const uint64_t req_to_height = req.to_height ? req.to_height : (m_core.get_current_blockchain_height() - 1);
       for (uint64_t amount: req.amounts)
       {
-        auto data = rpc::RpcHandler::get_output_distribution([this](uint64_t amount, uint64_t from, uint64_t to, uint64_t &start_height, std::vector<uint64_t> &distribution, uint64_t &base) { return m_core.get_output_distribution(amount, from, to, start_height, distribution, base); }, amount, req.from_height, req_to_height, [this](uint64_t height) { return m_core.get_blockchain_storage().get_db().get_block_hash_from_height(height); }, req.cumulative, m_core.get_current_blockchain_height());
+        auto data = rpc::RpcHandler::get_output_distribution([this](uint64_t amount, std::string asset_type, uint64_t from, uint64_t to, uint64_t &start_height, std::vector<uint64_t> &distribution, uint64_t &base, uint64_t &num_spendable_global_outs) { return m_core.get_output_distribution(amount, asset_type, from, to, start_height, distribution, base, num_spendable_global_outs); }, amount, req.rct_asset_type, req.from_height, req_to_height, [this](uint64_t height) { return m_core.get_blockchain_storage().get_db().get_block_hash_from_height(height); }, req.cumulative, m_core.get_current_blockchain_height());
         if (!data)
         {
-          res.status = "Failed to get output distribution";
+          res.status = "Failed to get output distribution 4";
           return true;
         }
 
@@ -3398,7 +3435,7 @@ namespace cryptonote
     }
     catch (const std::exception &e)
     {
-      res.status = "Failed to get output distribution";
+      res.status = "Failed to get output distribution 3";
       return true;
     }
 
@@ -3484,12 +3521,10 @@ namespace cryptonote
     }
     res.hashing_blob = epee::string_tools::buff_to_hex_nodelimer(hashing_blob);
     res.top_hash = epee::string_tools::pod_to_hex(top_hash);
-    if (hashing_blob[0] >= RX_BLOCK_VERSION)
-    {
-      res.seed_hash = string_tools::pod_to_hex(seed_hash);
-      if (seed_hash != next_seed_hash)
-        res.next_seed_hash = string_tools::pod_to_hex(next_seed_hash);
-    }
+   
+    res.seed_hash = string_tools::pod_to_hex(seed_hash);
+    if (seed_hash != next_seed_hash)
+      res.next_seed_hash = string_tools::pod_to_hex(next_seed_hash);
 
     res.status = CORE_RPC_STATUS_OK;
     return true;

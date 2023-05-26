@@ -31,6 +31,7 @@
 #pragma once
 
 #include "cryptonote_protocol/enums.h"
+#include "oracle/pricing_record.h"
 
 namespace cryptonote
 {
@@ -59,6 +60,12 @@ namespace cryptonote
     bool m_fee_too_low;
     bool m_too_few_outputs;
     bool m_tx_extra_too_big;
+
+    std::string m_source_asset;
+    std::string m_dest_asset;
+    transaction_type m_type;
+    oracle::pricing_record pr;
+    bool tx_pr_height_verified = false;
   };
 
   struct block_verification_context

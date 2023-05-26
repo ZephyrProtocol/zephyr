@@ -36,6 +36,7 @@
 #include <cstring>  // memcmp
 #include <sstream>
 #include <atomic>
+#include "serialization/string.h"
 #include "serialization/variant.h"
 #include "serialization/containers.h"
 #include "serialization/binary_archive.h"
@@ -43,6 +44,7 @@
 #include "serialization/debug_archive.h"
 #include "serialization/crypto.h"
 #include "serialization/keyvalue_serialization.h" // eepe named serialization
+#include "serialization/pricing_record.h"
 #include "cryptonote_config.h"
 #include "crypto/crypto.h"
 #include "crypto/hash.h"
@@ -50,6 +52,7 @@
 #include "ringct/rctTypes.h"
 #include "device/device.hpp"
 #include "cryptonote_basic/fwd.h"
+#include "oracle/pricing_record.h"
 
 namespace cryptonote
 {
@@ -74,24 +77,17 @@ namespace cryptonote
     crypto::hash hash;
   };
 
-  // outputs <= HF_VERSION_VIEW_TAGS
-  struct txout_to_key
+  struct txout_zephyr_tagged_key
   {
-    txout_to_key() { }
-    txout_to_key(const crypto::public_key &_key) : key(_key) { }
+    txout_zephyr_tagged_key() { }
+    txout_zephyr_tagged_key(const crypto::public_key &_key, const std::string &_asset_type, const crypto::view_tag &_view_tag) : key(_key), asset_type(_asset_type), view_tag(_view_tag) { }
     crypto::public_key key;
-  };
-
-  // outputs >= HF_VERSION_VIEW_TAGS
-  struct txout_to_tagged_key
-  {
-    txout_to_tagged_key() { }
-    txout_to_tagged_key(const crypto::public_key &_key, const crypto::view_tag &_view_tag) : key(_key), view_tag(_view_tag) { }
-    crypto::public_key key;
+    std::string asset_type;
     crypto::view_tag view_tag; // optimization to reduce scanning time
 
     BEGIN_SERIALIZE_OBJECT()
       FIELD(key)
+      FIELD(asset_type)
       FIELD(view_tag)
     END_SERIALIZE()
   };
@@ -135,23 +131,25 @@ namespace cryptonote
     END_SERIALIZE()
   };
 
-  struct txin_to_key
+  struct txin_zephyr_key
   {
     uint64_t amount;
+    std::string asset_type;
     std::vector<uint64_t> key_offsets;
     crypto::key_image k_image;      // double spending protection
 
     BEGIN_SERIALIZE_OBJECT()
       VARINT_FIELD(amount)
+      FIELD(asset_type)
       FIELD(key_offsets)
       FIELD(k_image)
     END_SERIALIZE()
   };
 
 
-  typedef boost::variant<txin_gen, txin_to_script, txin_to_scripthash, txin_to_key> txin_v;
+  typedef boost::variant<txin_gen, txin_to_script, txin_to_scripthash, txin_zephyr_key> txin_v;
 
-  typedef boost::variant<txout_to_script, txout_to_scripthash, txout_to_key, txout_to_tagged_key> txout_target_v;
+  typedef boost::variant<txout_to_script, txout_to_scripthash, txout_zephyr_tagged_key> txout_target_v;
 
   //typedef std::pair<uint64_t, txout> out_t;
   struct tx_out
@@ -179,14 +177,28 @@ namespace cryptonote
     std::vector<tx_out> vout;
     //extra
     std::vector<uint8_t> extra;
+    // Block height to use PR from
+    uint64_t pricing_record_height;
+
+    // Circulating supply information
+    uint64_t amount_burnt;
+    uint64_t amount_minted;
 
     BEGIN_SERIALIZE()
       VARINT_FIELD(version)
-      if((version == 0 || CURRENT_TRANSACTION_VERSION < version)) return false;
+      // if((version == 0 || CURRENT_TRANSACTION_VERSION < version)) return false;
       VARINT_FIELD(unlock_time)
+
+      // if (version >= 2) {
+        
+      // }
+
       FIELD(vin)
       FIELD(vout)
       FIELD(extra)
+      VARINT_FIELD(pricing_record_height)
+      VARINT_FIELD(amount_burnt)
+      VARINT_FIELD(amount_minted)
     END_SERIALIZE()
 
   public:
@@ -195,6 +207,9 @@ namespace cryptonote
     {
       version = 1;
       unlock_time = 0;
+      pricing_record_height = 0;
+      amount_burnt = 0;
+      amount_minted = 0;
       vin.clear();
       vout.clear();
       extra.clear();
@@ -306,7 +321,7 @@ namespace cryptonote
             ar.tag("rctsig_prunable");
             ar.begin_object();
             r = rct_signatures.p.serialize_rctsig_prunable(ar, rct_signatures.type, vin.size(), vout.size(),
-                vin.size() > 0 && vin[0].type() == typeid(txin_to_key) ? boost::get<txin_to_key>(vin[0]).key_offsets.size() - 1 : 0);
+                vin.size() > 0 && vin[0].type() == typeid(txin_zephyr_key) ? boost::get<txin_zephyr_key>(vin[0]).key_offsets.size() - 1 : 0);
             if (!r || !ar.good()) return false;
             ar.end_object();
           }
@@ -443,7 +458,7 @@ namespace cryptonote
       size_t operator()(const txin_gen& txin) const{return 0;}
       size_t operator()(const txin_to_script& txin) const{return 0;}
       size_t operator()(const txin_to_scripthash& txin) const{return 0;}
-      size_t operator()(const txin_to_key& txin) const {return txin.key_offsets.size();}
+      size_t operator()(const txin_zephyr_key& txin) const {return txin.key_offsets.size();}
     };
 
     return boost::apply_visitor(txin_signature_size_visitor(), tx_in);
@@ -461,6 +476,7 @@ namespace cryptonote
     uint64_t timestamp;
     crypto::hash  prev_id;
     uint32_t nonce;
+    oracle::pricing_record pricing_record;
 
     BEGIN_SERIALIZE()
       VARINT_FIELD(major_version)
@@ -468,6 +484,7 @@ namespace cryptonote
       VARINT_FIELD(timestamp)
       FIELD(prev_id)
       FIELD(nonce)
+      FIELD(pricing_record)
     END_SERIALIZE()
   };
 
@@ -566,38 +583,39 @@ namespace std {
   };
 }
 
-BLOB_SERIALIZER(cryptonote::txout_to_key);
+
+// BLOB_SERIALIZER(cryptonote::txout_zephyr_tagged_key);
 BLOB_SERIALIZER(cryptonote::txout_to_scripthash);
 
 VARIANT_TAG(binary_archive, cryptonote::txin_gen, 0xff);
 VARIANT_TAG(binary_archive, cryptonote::txin_to_script, 0x0);
 VARIANT_TAG(binary_archive, cryptonote::txin_to_scripthash, 0x1);
-VARIANT_TAG(binary_archive, cryptonote::txin_to_key, 0x2);
+VARIANT_TAG(binary_archive, cryptonote::txin_zephyr_key, 0x2);
 VARIANT_TAG(binary_archive, cryptonote::txout_to_script, 0x0);
 VARIANT_TAG(binary_archive, cryptonote::txout_to_scripthash, 0x1);
-VARIANT_TAG(binary_archive, cryptonote::txout_to_key, 0x2);
-VARIANT_TAG(binary_archive, cryptonote::txout_to_tagged_key, 0x3);
+// VARIANT_TAG(binary_archive, cryptonote::txout_to_key, 0x2);
+VARIANT_TAG(binary_archive, cryptonote::txout_zephyr_tagged_key, 0x2);
 VARIANT_TAG(binary_archive, cryptonote::transaction, 0xcc);
 VARIANT_TAG(binary_archive, cryptonote::block, 0xbb);
 
 VARIANT_TAG(json_archive, cryptonote::txin_gen, "gen");
 VARIANT_TAG(json_archive, cryptonote::txin_to_script, "script");
 VARIANT_TAG(json_archive, cryptonote::txin_to_scripthash, "scripthash");
-VARIANT_TAG(json_archive, cryptonote::txin_to_key, "key");
+VARIANT_TAG(json_archive, cryptonote::txin_zephyr_key, "key");
 VARIANT_TAG(json_archive, cryptonote::txout_to_script, "script");
 VARIANT_TAG(json_archive, cryptonote::txout_to_scripthash, "scripthash");
-VARIANT_TAG(json_archive, cryptonote::txout_to_key, "key");
-VARIANT_TAG(json_archive, cryptonote::txout_to_tagged_key, "tagged_key");
+// VARIANT_TAG(json_archive, cryptonote::txout_to_key, "key");
+VARIANT_TAG(json_archive, cryptonote::txout_zephyr_tagged_key, "tagged_key");
 VARIANT_TAG(json_archive, cryptonote::transaction, "tx");
 VARIANT_TAG(json_archive, cryptonote::block, "block");
 
 VARIANT_TAG(debug_archive, cryptonote::txin_gen, "gen");
 VARIANT_TAG(debug_archive, cryptonote::txin_to_script, "script");
 VARIANT_TAG(debug_archive, cryptonote::txin_to_scripthash, "scripthash");
-VARIANT_TAG(debug_archive, cryptonote::txin_to_key, "key");
+VARIANT_TAG(debug_archive, cryptonote::txin_zephyr_key, "key");
 VARIANT_TAG(debug_archive, cryptonote::txout_to_script, "script");
 VARIANT_TAG(debug_archive, cryptonote::txout_to_scripthash, "scripthash");
-VARIANT_TAG(debug_archive, cryptonote::txout_to_key, "key");
-VARIANT_TAG(debug_archive, cryptonote::txout_to_tagged_key, "tagged_key");
+// VARIANT_TAG(debug_archive, cryptonote::txout_to_key, "key");
+VARIANT_TAG(debug_archive, cryptonote::txout_zephyr_tagged_key, "tagged_key");
 VARIANT_TAG(debug_archive, cryptonote::transaction, "tx");
 VARIANT_TAG(debug_archive, cryptonote::block, "block");

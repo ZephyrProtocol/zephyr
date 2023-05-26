@@ -390,6 +390,7 @@ namespace rct {
               ar.delimit_array();
           }
           ar.end_array();
+
           return ar.good();
         }
 

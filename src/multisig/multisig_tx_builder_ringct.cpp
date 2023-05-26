@@ -471,8 +471,9 @@ static void set_tx_inputs(
     offsets.reserve(sources[i].outputs.size());
     for (const auto& e: sources[i].outputs)
       offsets.emplace_back(e.first);
-    unsigned_tx.vin[i] = cryptonote::txin_to_key{
+    unsigned_tx.vin[i] = cryptonote::txin_zephyr_key{
       .amount = 0,
+      .asset_type = sources[i].asset_type,
       .key_offsets = cryptonote::absolute_output_offsets_to_relative(offsets),
       .k_image = rct::rct2ki(sources[i].multisig_kLRki.ki),
     };
@@ -502,7 +503,7 @@ static bool set_tx_outputs(const rct::keyV& output_public_keys, cryptonote::tran
   const std::size_t num_destinations = output_public_keys.size();
   unsigned_tx.vout.resize(num_destinations);
   for (std::size_t i = 0; i < num_destinations; ++i)
-    cryptonote::set_tx_out(0, rct::rct2pk(output_public_keys[i]), false, crypto::view_tag{}, unsigned_tx.vout[i]);
+    cryptonote::set_tx_out("ZEPH", 0, rct::rct2pk(output_public_keys[i]), false, crypto::view_tag{}, unsigned_tx.vout[i]);
 
   return true;
 }
@@ -524,7 +525,7 @@ static bool set_tx_outputs_with_view_tags(
     "multisig signing protocol: internal error, view tag size mismatch.");
   unsigned_tx.vout.resize(num_destinations);
   for (std::size_t i = 0; i < num_destinations; ++i)
-    cryptonote::set_tx_out(0, rct::rct2pk(output_public_keys[i]), true, view_tags[i], unsigned_tx.vout[i]);
+    cryptonote::set_tx_out("ZEPH", 0, rct::rct2pk(output_public_keys[i]), true, view_tags[i], unsigned_tx.vout[i]);
 
   return true;
 }

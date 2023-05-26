@@ -137,8 +137,8 @@ int main(int argc, char* argv[])
     hw::register_device(HW_TREZOR_NAME, ensure_trezor_test_device());  // shim device for call tracking
 
     // Bootstrapping common chain & accounts
-    const uint8_t initial_hf =  (uint8_t)get_env_long("TEST_MIN_HF", HF_VERSION_BULLETPROOF_PLUS);
-    const uint8_t max_hf = (uint8_t)get_env_long("TEST_MAX_HF", HF_VERSION_BULLETPROOF_PLUS);
+    const uint8_t initial_hf =  (uint8_t)get_env_long("TEST_MIN_HF", 1);
+    const uint8_t max_hf = (uint8_t)get_env_long("TEST_MAX_HF", 1);
     auto sync_test = get_env_long("TEST_KI_SYNC", 1);
     MINFO("Test versions " << MONERO_RELEASE_NAME << "' (v" << MONERO_VERSION_FULL << ")");
     MINFO("Testing hardforks [" << (int)initial_hf << ", " << (int)max_hf << "], sync-test: " << sync_test);
@@ -549,7 +549,7 @@ static void expand_tsx(cryptonote::transaction &tx)
     rv.p.MGs.resize(1);
     rv.p.MGs[0].II.resize(tx.vin.size());
     for (size_t n = 0; n < tx.vin.size(); ++n)
-      rv.p.MGs[0].II[n] = rct::ki2rct(boost::get<txin_to_key>(tx.vin[n]).k_image);
+      rv.p.MGs[0].II[n] = rct::ki2rct(boost::get<txin_zephyr_key>(tx.vin[n]).k_image);
   }
   else if (rv.type == rct::RCTTypeSimple || rv.type == rct::RCTTypeBulletproof || rv.type == rct::RCTTypeBulletproof2)
   {
@@ -557,7 +557,7 @@ static void expand_tsx(cryptonote::transaction &tx)
     for (size_t n = 0; n < tx.vin.size(); ++n)
     {
       rv.p.MGs[n].II.resize(1);
-      rv.p.MGs[n].II[0] = rct::ki2rct(boost::get<txin_to_key>(tx.vin[n]).k_image);
+      rv.p.MGs[n].II[0] = rct::ki2rct(boost::get<txin_zephyr_key>(tx.vin[n]).k_image);
     }
   }
   else if (rv.type == rct::RCTTypeCLSAG || rv.type == rct::RCTTypeBulletproofPlus)
@@ -567,7 +567,7 @@ static void expand_tsx(cryptonote::transaction &tx)
       CHECK_AND_ASSERT_THROW_MES(rv.p.CLSAGs.size() == tx.vin.size(), "Bad CLSAGs size");
       for (size_t n = 0; n < tx.vin.size(); ++n)
       {
-        rv.p.CLSAGs[n].I = rct::ki2rct(boost::get<txin_to_key>(tx.vin[n]).k_image);
+        rv.p.CLSAGs[n].I = rct::ki2rct(boost::get<txin_zephyr_key>(tx.vin[n]).k_image);
       }
     }
   }
@@ -1276,9 +1276,9 @@ void gen_trezor_base::set_hard_fork(uint8_t hf)
     rct_config({rct::RangeProofPaddedBulletproof, 1});
   } else if (hf == 12){
     rct_config({rct::RangeProofPaddedBulletproof, 2});
-  } else if (hf == HF_VERSION_CLSAG){
+  } else if (hf == 1){
     rct_config({rct::RangeProofPaddedBulletproof, 3});
-  }  else if (hf == HF_VERSION_BULLETPROOF_PLUS){
+  }  else if (hf == 1){
     rct_config({rct::RangeProofPaddedBulletproof, 4});
   } else {
     throw std::runtime_error("Unsupported HF");
@@ -1457,7 +1457,7 @@ tsx_builder * tsx_builder::construct_pending_tx(tools::wallet2::pending_tx &ptx,
   auto change_addr = m_from->get_account().get_keys().m_account_address;
   bool r = construct_tx_and_get_tx_key(m_from->get_account().get_keys(), subaddresses, m_sources, destinations_copy,
                                        change_addr, extra ? extra.get() : std::vector<uint8_t>(), tx, 0, tx_key,
-                                       additional_tx_keys, true, m_rct_config, this->m_tester->cur_hf() >= HF_VERSION_VIEW_TAGS);
+                                       additional_tx_keys, true, m_rct_config, this->m_tester->cur_hf() >= 1);
   CHECK_AND_ASSERT_THROW_MES(r, "Transaction construction failed");
 
   // Selected transfers permutation

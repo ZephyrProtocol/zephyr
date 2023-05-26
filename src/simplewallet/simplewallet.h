@@ -167,8 +167,17 @@ namespace cryptonote
     bool show_incoming_transfers(const std::vector<std::string> &args);
     bool show_payments(const std::vector<std::string> &args);
     bool show_blockchain_height(const std::vector<std::string> &args);
-    bool transfer_main(int transfer_type, const std::vector<std::string> &args, bool called_by_mms);
+    bool transfer_main(int transfer_type, const std::string& source, const std::string& dest, const std::vector<std::string> &args, bool called_by_mms);
+
     bool transfer(const std::vector<std::string> &args);
+  
+    bool mint_stable(const std::vector<std::string> &args);
+    bool redeem_stable(const std::vector<std::string> &args);
+    bool stable_transfer(const std::vector<std::string> &args);
+    bool mint_reserve(const std::vector<std::string> &args);
+    bool redeem_reserve(const std::vector<std::string> &args);
+    bool reserve_transfer(const std::vector<std::string> &args);
+
     bool locked_transfer(const std::vector<std::string> &args);
     bool locked_sweep_all(const std::vector<std::string> &args);
     bool sweep_main(uint32_t account, uint64_t below, bool locked, const std::vector<std::string> &args);
@@ -262,6 +271,11 @@ namespace cryptonote
     bool version(const std::vector<std::string>& args);
     bool on_unknown_command(const std::vector<std::string>& args);
 
+    bool reserve_info(const std::vector<std::string> &args);
+    bool reserve_ratio(const std::vector<std::string> &args);
+
+    bool get_price(const std::vector<std::string> &args);
+
     bool cold_sign_tx(const std::vector<tools::wallet2::pending_tx>& ptx_vector, tools::wallet2::signed_tx_set &exported_txs, std::vector<cryptonote::address_parse_info> &dsts_info, std::function<bool(const tools::wallet2::signed_tx_set &)> accept_func);
     uint64_t get_daemon_blockchain_height(std::string& err);
     bool try_connect_to_daemon(bool silent = false, uint32_t* version = nullptr);
@@ -276,7 +290,7 @@ namespace cryptonote
     void on_refresh_finished(uint64_t start_height, uint64_t fetched_blocks, bool is_init, bool received_money);
     std::pair<std::string, std::string> show_outputs_line(const std::vector<uint64_t> &heights, uint64_t blockchain_height, uint64_t highlight_idx = std::numeric_limits<uint64_t>::max()) const;
     bool freeze_thaw(const std::vector<std::string>& args, bool freeze);
-    bool prompt_if_old(const std::vector<tools::wallet2::pending_tx> &ptx_vector);
+    bool prompt_if_old(const std::string& asset_type, const std::vector<tools::wallet2::pending_tx> &ptx_vector);
     bool on_command(bool (simple_wallet::*cmd)(const std::vector<std::string>&), const std::vector<std::string> &args);
     bool on_empty_command();
     bool on_cancelled_command();
@@ -297,6 +311,7 @@ namespace cryptonote
       std::set<uint32_t> index;
       std::string note;
       std::string unlocked;
+      std::string asset_type;
     };
     bool get_transfers(std::vector<std::string>& args_, std::vector<transfer_view>& transfers);
 
@@ -339,7 +354,7 @@ namespace cryptonote
 
     //----------------- i_wallet2_callback ---------------------
     virtual void on_new_block(uint64_t height, const cryptonote::block& block);
-    virtual void on_money_received(uint64_t height, const crypto::hash &txid, const cryptonote::transaction& tx, uint64_t amount, uint64_t burnt, const cryptonote::subaddress_index& subaddr_index, bool is_change, uint64_t unlock_time);
+    virtual void on_money_received(uint64_t height, const crypto::hash &txid, const cryptonote::transaction& tx, uint64_t amount, const std::string& asset_type, uint64_t burnt, const cryptonote::subaddress_index& subaddr_index, bool is_change, uint64_t unlock_time);
     virtual void on_unconfirmed_money_received(uint64_t height, const crypto::hash &txid, const cryptonote::transaction& tx, uint64_t amount, const cryptonote::subaddress_index& subaddr_index);
     virtual void on_money_spent(uint64_t height, const crypto::hash &txid, const cryptonote::transaction& in_tx, uint64_t amount, const cryptonote::transaction& spend_tx, const cryptonote::subaddress_index& subaddr_index);
     virtual void on_skip_transaction(uint64_t height, const crypto::hash &txid, const cryptonote::transaction& tx);

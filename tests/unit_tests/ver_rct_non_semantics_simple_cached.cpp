@@ -120,9 +120,9 @@ static bool check_tx_is_expanded(const cryptonote::transaction& tx, const rct::c
     {
         bool error;
         if (rct::is_rct_clsag(rv.type))
-            error = memcmp(&boost::get<cryptonote::txin_to_key>(tx.vin[n]).k_image, &rv.p.CLSAGs[n].I, 32);
+            error = memcmp(&boost::get<cryptonote::txin_zephyr_key>(tx.vin[n]).k_image, &rv.p.CLSAGs[n].I, 32);
         else
-            error = rv.p.MGs[n].II.empty() || memcmp(&boost::get<cryptonote::txin_to_key>(tx.vin[n]).k_image, &rv.p.MGs[n].II[0], 32);
+            error = rv.p.MGs[n].II.empty() || memcmp(&boost::get<cryptonote::txin_zephyr_key>(tx.vin[n]).k_image, &rv.p.MGs[n].II[0], 32);
         if (error)
         {
             MERROR("Failed to check ringct signatures: mismatched key image");

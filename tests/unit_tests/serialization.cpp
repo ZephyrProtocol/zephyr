@@ -407,14 +407,14 @@ TEST(Serialization, serializes_transacion_signatures_correctly)
   ASSERT_FALSE(serialization::parse_binary(blob, tx1));
 
   // Not enough signature vectors for all inputs
-  txin_to_key txin_to_key1;
-  txin_to_key1.amount = 1;
-  memset(&txin_to_key1.k_image, 0x42, sizeof(crypto::key_image));
-  txin_to_key1.key_offsets.push_back(12);
-  txin_to_key1.key_offsets.push_back(3453);
+  txin_zephyr_key txin_zephyr_key1;
+  txin_zephyr_key1.amount = 1;
+  memset(&txin_zephyr_key1.k_image, 0x42, sizeof(crypto::key_image));
+  txin_zephyr_key1.key_offsets.push_back(12);
+  txin_zephyr_key1.key_offsets.push_back(3453);
   tx.vin.clear();
-  tx.vin.push_back(txin_to_key1);
-  tx.vin.push_back(txin_to_key1);
+  tx.vin.push_back(txin_zephyr_key1);
+  tx.vin.push_back(txin_zephyr_key1);
   tx.signatures.resize(1);
   tx.signatures[0].resize(2);
   tx.invalidate_hashes();
@@ -759,7 +759,7 @@ TEST(Serialization, portability_wallet)
   }
 }
 
-#define OUTPUT_EXPORT_FILE_MAGIC "Monero output export\003"
+#define OUTPUT_EXPORT_FILE_MAGIC "Zephyr output export\003"
 TEST(Serialization, portability_outputs)
 {
   // read file
@@ -886,10 +886,10 @@ inline void serialize(Archive &a, unsigned_tx_set &x, const boost::serialization
   a & x.txes;
   a & x.transfers;
 }
-#define UNSIGNED_TX_PREFIX "Monero unsigned tx set\003"
+#define UNSIGNED_TX_PREFIX "Zephyr unsigned tx set\003"
 TEST(Serialization, portability_unsigned_tx)
 {
-  const boost::filesystem::path filename = unit_test::data_dir / "unsigned_monero_tx";
+  const boost::filesystem::path filename = unit_test::data_dir / "unsigned_zephyr_tx";
   std::string s;
   const cryptonote::network_type nettype = cryptonote::TESTNET;
   bool r = epee::file_io_utils::load_file_to_string(filename.string(), s);
@@ -1034,10 +1034,10 @@ TEST(Serialization, portability_unsigned_tx)
   ASSERT_TRUE(td2.m_pk_index == 0);
 }
 
-#define SIGNED_TX_PREFIX "Monero signed tx set\003"
+#define SIGNED_TX_PREFIX "Zephyr signed tx set\003"
 TEST(Serialization, portability_signed_tx)
 {
-  const boost::filesystem::path filename = unit_test::data_dir / "signed_monero_tx";
+  const boost::filesystem::path filename = unit_test::data_dir / "signed_zephyr_tx";
   const cryptonote::network_type nettype = cryptonote::TESTNET;
   std::string s;
   bool r = epee::file_io_utils::load_file_to_string(filename.string(), s);

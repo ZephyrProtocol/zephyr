@@ -154,7 +154,7 @@ bool gen_multisig_tx_validation_base::generate_with(std::vector<test_event_entry
     account_base &account = n < inputs ? miner_account[creator] : miner_accounts[n];
     CHECK_AND_ASSERT_MES(generator.construct_block_manually(blocks[n], *prev_block, account,
         test_generator::bf_major_ver | test_generator::bf_minor_ver | test_generator::bf_timestamp | test_generator::bf_hf_version | test_generator::bf_max_outs,
-        HF_VERSION_BULLETPROOF_PLUS, HF_VERSION_BULLETPROOF_PLUS, prev_block->timestamp + DIFFICULTY_BLOCKS_ESTIMATE_TIMESPAN * 2, // v2 has blocks twice as long
+        1, 1, prev_block->timestamp + DIFFICULTY_BLOCKS_ESTIMATE_TIMESPAN * 2, // v2 has blocks twice as long
           crypto::hash(), 0, transaction(), std::vector<crypto::hash>(), 0, 1, 4),
         false, "Failed to generate block");
     events.push_back(blocks[n]);
@@ -170,7 +170,7 @@ bool gen_multisig_tx_validation_base::generate_with(std::vector<test_event_entry
       cryptonote::block blk;
       CHECK_AND_ASSERT_MES(generator.construct_block_manually(blk, blk_last, miner_accounts[0],
           test_generator::bf_major_ver | test_generator::bf_minor_ver | test_generator::bf_timestamp | test_generator::bf_hf_version | test_generator::bf_max_outs,
-          HF_VERSION_BULLETPROOF_PLUS, HF_VERSION_BULLETPROOF_PLUS, blk_last.timestamp + DIFFICULTY_BLOCKS_ESTIMATE_TIMESPAN * 2, // v2 has blocks twice as long
+          1, 1, blk_last.timestamp + DIFFICULTY_BLOCKS_ESTIMATE_TIMESPAN * 2, // v2 has blocks twice as long
           crypto::hash(), 0, transaction(), std::vector<crypto::hash>(), 0, 1, 4),
           false, "Failed to generate block");
       events.push_back(blk);
@@ -424,7 +424,7 @@ bool gen_multisig_tx_validation_base::generate_with(std::vector<test_event_entry
   crypto::public_key output_public_key;
   for (size_t n = 0; n < tx.vout.size(); ++n)
   {
-    CHECK_AND_ASSERT_MES(typeid(txout_to_tagged_key) == tx.vout[n].target.type(), false, "Unexpected tx out type");
+    CHECK_AND_ASSERT_MES(typeid(txout_zephyr_tagged_key) == tx.vout[n].target.type(), false, "Unexpected tx out type");
     cryptonote::get_output_public_key(tx.vout[n], output_public_key);
     if (is_out_to_acc_precomp(subaddresses, output_public_key, derivation, additional_derivations, n, hw::get_device(("default"))))
     {
