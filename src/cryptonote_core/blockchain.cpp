@@ -1002,9 +1002,7 @@ start:
   }
 
   size_t target = get_difficulty_target();
-  // difficulty_type diff = next_difficulty(timestamps, difficulties, target);
-
-  difficulty_type diff = 1;
+  difficulty_type diff = next_difficulty(timestamps, difficulties, target);
 
   CRITICAL_REGION_LOCAL1(m_difficulty_lock);
   m_difficulty_for_next_block_top_hash = top_hash;
@@ -3207,13 +3205,13 @@ bool Blockchain::check_tx_outputs(const transaction& tx, tx_verification_context
 
   const uint8_t hf_version = m_hardfork->get_current_version();
 
-  for (auto &o: tx.vout) {
-    if (tx.version == 1)
-    {
-      tvc.m_invalid_output = true;
-      return false;
-    }
+
+  if (tx.version == 1)
+  {
+    tvc.m_invalid_output = true;
+    return false;
   }
+
 
   // in a v2 tx, all outputs must have 0 amount
   for (auto &o: tx.vout) {

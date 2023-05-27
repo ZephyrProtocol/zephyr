@@ -1155,7 +1155,7 @@ namespace cryptonote
                                            use_view_tags, view_tag);
 
       tx_out out;
-      cryptonote::set_tx_out(dst_entr.dest_asset_type, dst_entr.dest_amount, out_eph_public_key, use_view_tags, view_tag, out);
+      cryptonote::set_tx_out(dst_entr.dest_asset_type, dst_entr.amount, out_eph_public_key, use_view_tags, view_tag, out);
       tx.vout.push_back(out);
       output_index++;
 
