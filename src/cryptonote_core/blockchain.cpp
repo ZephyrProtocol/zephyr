@@ -3779,6 +3779,9 @@ uint64_t Blockchain::get_dynamic_base_fee(uint64_t block_reward, size_t median_b
     median_block_weight = min_block_weight;
   uint64_t hi, lo;
 
+  lo = mul128(block_reward, DYNAMIC_FEE_REFERENCE_TRANSACTION_WEIGHT, &hi);
+  div128_64(hi, lo, median_block_weight, &hi, &lo, NULL, NULL);
+
   // min_fee_per_byte = round_up( 0.95 * block_reward * ref_weight / (fee_median^2) )
   // note: since hardfork HF_VERSION_2021_SCALING, fee_median (a.k.a. median_block_weight) equals effective long term median
   div128_64(hi, lo, median_block_weight, &hi, &lo, NULL, NULL);
