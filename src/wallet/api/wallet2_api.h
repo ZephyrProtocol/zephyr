@@ -353,14 +353,14 @@ struct WalletListener
      * @param txId       - transaction id
      * @param amount     - amount
      */
-    virtual void moneySpent(const std::string &txId, uint64_t amount, std::string asset_type) = 0;
+    virtual void moneySpent(const std::string &txId, uint64_t amount) = 0;
 
     /**
      * @brief moneyReceived - called when money received
      * @param txId          - transaction id
      * @param amount        - amount
      */
-    virtual void moneyReceived(const std::string &txId, uint64_t amount, std::string asset_type) = 0;
+    virtual void moneyReceived(const std::string &txId, uint64_t amount) = 0;
     
    /**
     * @brief unconfirmedMoneyReceived - called when payment arrived in tx pool
