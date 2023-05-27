@@ -4331,8 +4331,9 @@ leave:
   oracle::pricing_record latest_pr;
   std::vector<std::pair<std::string, std::string>> supply_amounts;
   if (!get_latest_acceptable_pr(latest_pr)) {
-    MWARNING("Failed to find a pricing record in last 10 blocks.");
-    MWARNING("Tx/conversion fees wont be converted. Cant calculate block cap. Block must not contain any oracle/onshore TXs.");
+    if (hf_version >= HF_VERSION_DJED) {
+      MWARNING("Failed to find a pricing record in last 10 blocks.");
+    }
     have_valid_pr = false;
   }
 

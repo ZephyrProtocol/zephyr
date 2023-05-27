@@ -1826,8 +1826,9 @@ namespace cryptonote
       bool have_valid_pr = true;
       oracle::pricing_record latest_pr;
       if (!m_blockchain.get_latest_acceptable_pr(latest_pr)) {
-        MWARNING("Failed to find a pricing record in last 10 block.");
-        MWARNING("Tx/conversion fees wont be converted. Cant calculuate block cap. Conversion txs wont be included in the block.");
+        if (version >= HF_VERSION_DJED) {
+          MWARNING("Failed to find a pricing record in last 10 block.");
+        }
         have_valid_pr = false;
       }
 
