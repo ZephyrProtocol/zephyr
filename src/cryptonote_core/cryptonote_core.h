@@ -1087,13 +1087,6 @@ namespace cryptonote
       */
      bool check_block_rate();
 
-     /**
-      * @brief recalculate difficulties after the last difficulty checklpoint to circumvent the annoying 'difficulty drift' bug
-      *
-      * @return true
-      */
-     bool recalculate_difficulties();
-
      bool m_test_drop_download = true; //!< whether or not to drop incoming blocks (for testing)
 
      uint64_t m_test_drop_download_height = 0; //!< height under which to drop incoming blocks, if doing so
