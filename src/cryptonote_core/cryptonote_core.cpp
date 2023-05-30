@@ -209,7 +209,7 @@ namespace cryptonote
   static const command_line::arg_descriptor<std::string> arg_block_rate_notify = {
     "block-rate-notify"
   , "Run a program when the block rate undergoes large fluctuations. This might "
-    "be a sign of large amounts of hash rate going on and off the Monero network, "
+    "be a sign of large amounts of hash rate going on and off the Zephyr network, "
     "and thus be of potential interest in predicting attacks. %t will be replaced "
     "by the number of minutes for the observation window, %b by the number of "
     "blocks observed within that window, and %e by the number of blocks that was "
@@ -1877,10 +1877,44 @@ namespace cryptonote
     if(!m_starter_message_showed)
     {
       std::string main_message;
+      std::string zephyr_logo =
+"                                      @@@&                                     \n"
+"                         @@@@@@@&.............&@@@@@@*                         \n"
+"                    @@@@*.............................(@@@@                    \n"
+"                @@@@.......................................@@@@                \n"
+"             @@@...............................................@@@             \n"
+"          @@@.....................................................@@/          \n"
+"        @@@.........................................................@@@        \n"
+"      #@@.............................................................@@/      \n"
+"     @@...............@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*........@@     \n"
+"   &@@..............@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@............@@    \n"
+"  ,@@.............................................@@@@@@@@................@@*  \n"
+" /@@...........................................@@@@@@@@@...................@@  \n"
+" @@..........................................@@@@@@@@.......................@@ \n"
+"@@........................................@@@@@@@@@..........................@@\n"
+"@@......................................@@@@@@@@.............................@@\n"
+"@@...................@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@...............@@\n"
+"@@................@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@.................@@\n"
+"@@..............................@@@@@@@@@....................................@@\n"
+"@@............................@@@@@@@@.......................................@@\n"
+"#@.........................@@@@@@@@@........................................%@ \n"
+" @@......................@@@@@@@@...........................................@@ \n"
+"  @@..................@@@@@@@@@............................................@@  \n"
+"  ,@@...............@@@@@@@@..............................................@@(  \n"
+"    @@...........@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@..............@@    \n"
+"     @@@.......@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@...............@@@     \n"
+"       @@.............................................................@@       \n"
+"         @@.........................................................@@,        \n"
+"           @@@...................................................@@@           \n"
+"              @@@.............................................@@@              \n"
+"                 @@@@.....................................@@@@.                \n"
+"                     @@@@@...........................@@@@@.                    \n"
+"                           @@@@@@@@@@&#(#&@@@@@@@@@@                           \n"; // Zephyr logo
       if (m_offline)
-        main_message = "The daemon is running offline and will not attempt to sync to the Monero network.";
+        main_message = "The daemon is running offline and will not attempt to sync to the Zephyr network.";
       else
         main_message = "The daemon will start synchronizing with the network. This may take a long time to complete.";
+      MGINFO_MAGENTA(ENDL << zephyr_logo << ENDL);
       MGINFO_YELLOW(ENDL << "**********************************************************************" << ENDL
         << main_message << ENDL
         << ENDL
@@ -2121,7 +2155,7 @@ namespace cryptonote
       MDEBUG("blocks in the last " << seconds[n] / 60 << " minutes: " << b << " (probability " << p << ")");
       if (p < threshold)
       {
-        MWARNING("There were " << b << (b == max_blocks_checked ? " or more" : "") << " blocks in the last " << seconds[n] / 60 << " minutes, there might be large hash rate changes, or we might be partitioned, cut off from the Monero network or under attack, or your computer's time is off. Or it could be just sheer bad luck.");
+        MWARNING("There were " << b << (b == max_blocks_checked ? " or more" : "") << " blocks in the last " << seconds[n] / 60 << " minutes, there might be large hash rate changes, or we might be partitioned, cut off from the Zephyr network or under attack, or your computer's time is off. Or it could be just sheer bad luck.");
 
         std::shared_ptr<tools::Notify> block_rate_notify = m_block_rate_notify;
         if (block_rate_notify)

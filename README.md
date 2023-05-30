@@ -1,116 +1,34 @@
 # Zephyr
 
-Copyright (c) 2023, Zephyr Protocol
-Copyright (c) 2014-2023, The Monero Project
+Copyright (c) 2023, Zephyr Protocol \
+Copyright (c) 2014-2023, The Monero Project \
 Portions Copyright (c) 2012-2013 The Cryptonote developers.
-
-## Table of Contents
-
-- [Development resources](#development-resources)
-- [Vulnerability response](#vulnerability-response)
-- [Research](#research)
-- [Announcements](#announcements)
-- [Translations](#translations)
-- [Coverage](#coverage)
-- [Introduction](#introduction)
-- [About this project](#about-this-project)
-- [Supporting the project](#supporting-the-project)
-- [License](#license)
-- [Contributing](#contributing)
-- [Scheduled software upgrades](#scheduled-software-upgrades)
-- [Release staging schedule and protocol](#release-staging-schedule-and-protocol)
-- [Compiling Monero from source](#compiling-monero-from-source)
-  - [Dependencies](#dependencies)
-  - [Gitian builds](#gitian-builds)
-- [Internationalization](#Internationalization)
-- [Using Tor](#using-tor)
-- [Pruning](#Pruning)
-- [Debugging](#Debugging)
-- [Known issues](#known-issues)
-
-## Development resources
-
-- Web: [getmonero.org](https://getmonero.org)
-- Forum: [forum.getmonero.org](https://forum.getmonero.org)
-- Mail: [dev@getmonero.org](mailto:dev@getmonero.org)
-- GitHub: [https://github.com/monero-project/monero](https://github.com/monero-project/monero)
-- IRC: [#monero-dev on Libera](https://web.libera.chat/#monero-dev)
-- It is HIGHLY recommended that you join the #monero-dev IRC channel if you are developing software that uses Monero. Due to the nature of this open source software project, joining this channel and idling is the best way to stay updated on best practices and new developments in the Monero ecosystem. All you need to do is join the IRC channel and idle to stay updated with the latest in Monero development. If you do not, you risk wasting resources on developing integrations that are not compatible with the Monero network. The Monero core team and community continuously make efforts to communicate updates, developments, and documentation via other platforms – but for the best information, you need to talk to other Monero developers, and they are on IRC. #monero-dev is about Monero development, not getting help about using Monero, or help about development of other software, including yours, unless it also pertains to Monero code itself. For these cases, checkout #monero.
-
-## Vulnerability response
-
-- Our [Vulnerability Response Process](https://github.com/monero-project/meta/blob/master/VULNERABILITY_RESPONSE_PROCESS.md) encourages responsible disclosure
-- We are also available via [HackerOne](https://hackerone.com/monero)
-
-## Research
-
-The [Monero Research Lab](https://src.getmonero.org/resources/research-lab/) is an open forum where the community coordinates research into Monero cryptography, protocols, fungibility, analysis, and more. We welcome collaboration and contributions from outside researchers! Because not all Lab work and publications are distributed as traditional preprints or articles, they may be easy to miss if you are conducting literature reviews for your own Monero research. You are encouraged to get in touch with the Monero research community if you have questions, wish to collaborate, or would like guidance to help avoid unnecessarily duplicating earlier or known work.
-
-The Monero research community is available on IRC in [#monero-research-lab on Libera](https://web.libera.chat/#monero-research-lab), which is also accessible via Matrix.
-
-## Announcements
-
-- You can subscribe to an [announcement listserv](https://lists.getmonero.org) to get critical announcements from the Monero core team. The announcement list can be very helpful for knowing when software updates are needed.
-
-## Translations
-
-The CLI wallet is available in different languages. If you want to help translate it, see our self-hosted localization platform, Weblate, on [translate.getmonero.org](https://translate.getmonero.org/projects/monero/cli-wallet/). Every translation _must_ be uploaded on the platform, pull requests directly editing the code in this repository will be closed. If you need help with Weblate, you can find a guide with screenshots [here](https://github.com/monero-ecosystem/monero-translations/blob/master/weblate.md).
-&nbsp;
-
-If you need help/support/info about translations, contact the localization workgroup. You can find the complete list of contacts on the repository of the workgroup: [monero-translations](https://github.com/monero-ecosystem/monero-translations#contacts).
-
-## Coverage
-
-| Type      | Status                                                                                                                                                                       |
-| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Coverity  | [![Coverity Status](https://scan.coverity.com/projects/9657/badge.svg)](https://scan.coverity.com/projects/9657/)                                                            |
-| OSS Fuzz  | [![Fuzzing Status](https://oss-fuzz-build-logs.storage.googleapis.com/badges/monero.svg)](https://bugs.chromium.org/p/oss-fuzz/issues/list?sort=-opened&can=1&q=proj:monero) |
-| Coveralls | [![Coveralls Status](https://coveralls.io/repos/github/monero-project/monero/badge.svg?branch=master)](https://coveralls.io/github/monero-project/monero?branch=master)      |
-| License   | [![License](https://img.shields.io/badge/license-BSD3-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)                                                               |
 
 ## Introduction
 
-Monero is a private, secure, untraceable, decentralised digital currency. You are your bank, you control your funds, and nobody can trace your transfers unless you allow them to do so.
+Zephyr is a revolutionary digital currency that combines the principles of privacy and stability. Grounded firmly on the proven Minimal Djed protocol, Zephyr embodies the first over-collateralized, private stablecoin, seamlessly incorporating the privacy features of Monero into a stablecoin system. The Djed protocol, which draws inspiration from AgeUSD, is a collaborative brainchild of Emurgo, IOHK, and the Ergo Foundation.
 
-**Privacy:** Monero uses a cryptographically sound system to allow you to send and receive funds without your transactions being easily revealed on the blockchain (the ledger of transactions that everyone has). This ensures that your purchases, receipts, and all transfers remain private by default.
+In simple terms, Zephyr Protocol works as follows. Users can mint or redeem stable (ZEPHUSD) and reserve (ZEPHRSV) coins in exchange for the base coin (ZEPH). The price for stable coins is determined by a pricing oracle, the price for reserve coins is determined using a formula based on the current reserve data.
+
+When minting new stable/reserve coins the base coins that are exchanged (+ fee) get added to the Zephyr reserve. This reserve is the collateral backing for the stablecoin holders and is ensured to be above 400% collateral at all times. In the event that collateralization falls below 400% due to price decrease, new stable coins are unable to be minted, however the reserve coin price will drop giving incentive for users to buy reserve coins at a reduced rate.
+
+Reserve coin holders are entitled to redeem their reserve coins for the amount of equity in the reserve based on their proportion of reserve coin holdings. This means that as stablecoins are minted and redeemed, the accumulated fees will build up in the reserve as profit for holders of the reserve coin. There is a maximum reserve ratio of 800% to prevent dilution for the reserve coin holders.
+
+**Privacy:** Zephyr uses a cryptographically sound system to allow you to send and receive funds without your transactions being easily revealed on the blockchain (the ledger of transactions that everyone has). This ensures that your purchases, receipts, and all transfers remain private by default.
 
 **Security:** Using the power of a distributed peer-to-peer consensus network, every transaction on the network is cryptographically secured. Individual wallets have a 25-word mnemonic seed that is only displayed once and can be written down to backup the wallet. Wallet files should be encrypted with a strong passphrase to ensure they are useless if ever stolen.
 
-**Untraceability:** By taking advantage of ring signatures, a special property of a certain type of cryptography, Monero is able to ensure that transactions are not only untraceable but have an optional measure of ambiguity that ensures that transactions cannot easily be tied back to an individual user or computer.
+**Untraceability:** By taking advantage of ring signatures, a special property of a certain type of cryptography, Zephyr is able to ensure that transactions are not only untraceable but have an optional measure of ambiguity that ensures that transactions cannot easily be tied back to an individual user or computer.
 
-**Decentralization:** The utility of Monero depends on its decentralised peer-to-peer consensus network - anyone should be able to run the monero software, validate the integrity of the blockchain, and participate in all aspects of the monero network using consumer-grade commodity hardware. Decentralization of the monero network is maintained by software development that minimizes the costs of running the monero software and inhibits the proliferation of specialized, non-commodity hardware.
+**Decentralization:** The utility of Zephyr depends on its decentralised peer-to-peer consensus network - anyone should be able to run the zephyr software, validate the integrity of the blockchain, and participate in all aspects of the zephyr network using consumer-grade commodity hardware. Decentralization of the zephyr network is maintained by software development that minimizes the costs of running the zephyr software and inhibits the proliferation of specialized, non-commodity hardware.
 
 ## About this project
 
-This is the core implementation of Monero. It is open source and completely free to use without restrictions, except for those specified in the license agreement below. There are no restrictions on anyone creating an alternative implementation of Monero that uses the protocol and network in a compatible manner.
+This is the core implementation of Zephyr. It is open source and completely free to use without restrictions, except for those specified in the license agreement below. There are no restrictions on anyone creating an alternative implementation of Zephyr that uses the protocol and network in a compatible manner.
 
 As with many development projects, the repository on GitHub is considered to be the "staging" area for the latest changes. Before changes are merged into that branch on the main repository, they are tested by individual developers in their own branches, submitted as a pull request, and then subsequently tested by contributors who focus on testing and code reviews. That having been said, the repository should be carefully considered before using it in a production environment, unless there is a patch in the repository for a particular show-stopping issue you are experiencing. It is generally a better idea to use a tagged release for stability.
 
-**Anyone is welcome to contribute to Monero's codebase!** If you have a fix or code change, feel free to submit it as a pull request directly to the "master" branch. In cases where the change is relatively small or does not affect other parts of the codebase, it may be merged in immediately by any one of the collaborators. On the other hand, if the change is particularly large or complex, it is expected that it will be discussed at length either well in advance of the pull request being submitted, or even directly on the pull request.
-
-## Supporting the project
-
-Monero is a 100% community-sponsored endeavor. If you want to join our efforts, the easiest thing you can do is support the project financially. Both Monero and Bitcoin donations can be made to **donate.getmonero.org** if using a client that supports the [OpenAlias](https://openalias.org) standard. Alternatively, you can send XMR to the Monero donation address via the `donate` command (type `help` in the command-line wallet for details).
-
-The Monero donation address is:  
-`888tNkZrPN6JsEgekjMnABU4TBzc2Dt29EPAvkRxbANsAnjyPbb3iQ1YBRk1UXcdRsiKc9dhwMVgN5S9cQUiyoogDavup3H`  
-Viewkey:  
-`f359631075708155cc3d92a32b75a7d02a5dcf27756707b47a2b31b21c389501`  
-Base address for restoring with address and viewkey:
-`44AFFq5kSiGBoZ4NMDwYtN18obc8AemS33DBLWs3H7otXft3XjrpDtQGv7SqSsaBYBb98uNbr2VBBEt7f2wfn3RVGQBEP3A`
-
-The Bitcoin donation address is:  
-`1KTexdemPdxSBcG55heUuTjDRYqbC5ZL8H`
-
-Core development funding and/or some supporting services are also graciously provided by [sponsors](https://www.getmonero.org/community/sponsorships/):
-
-[<img width="150" src="https://www.getmonero.org/img/sponsors/tarilabs.png"/>](https://tarilabs.com/)
-[<img width="150" src="https://www.getmonero.org/img/sponsors/globee.png"/>](https://globee.com/)
-[<img width="150" src="https://www.getmonero.org/img/sponsors/symas.png"/>](https://symas.com/)
-[<img width="150" src="https://www.getmonero.org/img/sponsors/forked_logo.png"/>](http://www.forked.net/)
-[<img width="150" src="https://www.getmonero.org/img/sponsors/macstadium.png"/>](https://www.macstadium.com/)
-
-There are also several mining pools that kindly donate a portion of their fees, [a list of them can be found on our Bitcointalk post](https://bitcointalk.org/index.php?topic=583449.0).
+**Anyone is welcome to contribute to Zephyr's codebase!** If you have a fix or code change, feel free to submit it as a pull request directly to the "master" branch. In cases where the change is relatively small or does not affect other parts of the codebase, it may be merged in immediately by any one of the collaborators. On the other hand, if the change is particularly large or complex, it is expected that it will be discussed at length either well in advance of the pull request being submitted, or even directly on the pull request.
 
 ## License
 
@@ -120,40 +38,7 @@ See [LICENSE](LICENSE).
 
 If you want to help out, see [CONTRIBUTING](docs/CONTRIBUTING.md) for a set of guidelines.
 
-## Scheduled software/network upgrades
-
-Monero uses a scheduled software/network upgrade (hard fork) mechanism to implement new features into the Monero software and network. This means that users of Monero (end users and service providers) should run current versions and upgrade their software when new releases are available. Software upgrades occur when new features are developed and implemented in the codebase. Network upgrades occur in tandem with software upgrades that modify the consensus rules of the Monero network. The required software for network upgrades will be available prior to the scheduled network upgrade date. Please check the repository prior to this date for the proper Monero software version. Below is the historical schedule and the projected schedule for the next upgrade.
-
-Dates are provided in the format YYYY-MM-DD. The "Minimum" is the software version that follows the new consensus rules. The "Recommended" version may include bug fixes and other new features that do not affect the consensus rules.
-
-| Software upgrade block height | Date       | Fork version | Minimum Monero version | Recommended Monero version | Details                                                                                                                                                                                                      |
-| ----------------------------- | ---------- | ------------ | ---------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1009827                       | 2016-03-22 | v2           | v0.9.4                 | v0.9.4                     | Allow only >= ringsize 3, blocktime = 120 seconds, fee-free blocksize 60 kb                                                                                                                                  |
-| 1141317                       | 2016-09-21 | v3           | v0.9.4                 | v0.10.0                    | Splits coinbase into denominations                                                                                                                                                                           |
-| 1220516                       | 2017-01-05 | v4           | v0.10.1                | v0.10.2.1                  | Allow normal and RingCT transactions                                                                                                                                                                         |
-| 1288616                       | 2017-04-15 | v5           | v0.10.3.0              | v0.10.3.1                  | Adjusted minimum blocksize and fee algorithm                                                                                                                                                                 |
-| 1400000                       | 2017-09-16 | v6           | v0.11.0.0              | v0.11.0.0                  | Allow only RingCT transactions, allow only >= ringsize 5                                                                                                                                                     |
-| 1546000                       | 2018-04-06 | v7           | v0.12.0.0              | v0.12.3.0                  | Cryptonight variant 1, ringsize >= 7, sorted inputs                                                                                                                                                          |
-| 1685555                       | 2018-10-18 | v8           | v0.13.0.0              | v0.13.0.4                  | max transaction size at half the penalty free block size, bulletproofs enabled, cryptonight variant 2, fixed ringsize [11](https://youtu.be/KOO5S4vxi0o)                                                     |
-| 1686275                       | 2018-10-19 | v9           | v0.13.0.0              | v0.13.0.4                  | bulletproofs required                                                                                                                                                                                        |
-| 1788000                       | 2019-03-09 | v10          | v0.14.0.0              | v0.14.1.2                  | New PoW based on Cryptonight-R, new block weight algorithm, slightly more efficient RingCT format                                                                                                            |
-| 1788720                       | 2019-03-10 | v11          | v0.14.0.0              | v0.14.1.2                  | forbid old RingCT transaction format                                                                                                                                                                         |
-| 1978433                       | 2019-11-30 | v12          | v0.15.0.0              | v0.16.0.0                  | New PoW based on RandomX, only allow >= 2 outputs, change to the block median used to calculate penalty, v1 coinbases are forbidden, rct sigs in coinbase forbidden, 10 block lock time for incoming outputs |
-| 2210000                       | 2020-10-17 | v13          | v0.17.0.0              | v0.17.3.2                  | New CLSAG transaction format                                                                                                                                                                                 |
-| 2210720                       | 2020-10-18 | v14          | v0.17.1.1              | v0.17.3.2                  | forbid old MLSAG transaction format                                                                                                                                                                          |
-| 2688888                       | 2022-08-13 | v15          | v0.18.0.0              | v0.18.1.2                  | ringsize = 16, bulletproofs+, view tags, adjusted dynamic block weight algorithm                                                                                                                             |
-| 2689608                       | 2022-08-14 | v16          | v0.18.0.0              | v0.18.1.2                  | forbid old v14 transaction format                                                                                                                                                                            |
-| XXXXXXX                       | XXX-XX-XX  | XXX          | vX.XX.X.X              | vX.XX.X.X                  | XXX                                                                                                                                                                                                          |
-
-X's indicate that these details have not been determined as of commit date.
-
-\* indicates estimate as of commit date
-
-## Release staging schedule and protocol
-
-Approximately three months prior to a scheduled software upgrade, a branch from master will be created with the new release version tag. Pull requests that address bugs should then be made to both master and the new release branch. Pull requests that require extensive review and testing (generally, optimizations and new features) should _not_ be made to the release branch.
-
-## Compiling Monero from source
+## Compiling Zephyr from source
 
 ### Dependencies
 
@@ -245,7 +130,7 @@ pkg install git gmake cmake pkgconf boost-libs libzmq4 libsodium unbound
 Clone recursively to pull-in needed submodule(s):
 
 ```
-git clone --recursive https://github.com/ZephyrProtocol/Zephyr
+git clone --recursive https://github.com/ZephyrProtocol/zephyr
 ```
 
 If you already have a repo cloned, initialize and update:
@@ -260,7 +145,7 @@ to build successfully.
 
 ### Build instructions
 
-Monero uses the CMake build system and a top-level [Makefile](Makefile) that
+Zephyr uses the CMake build system and a top-level [Makefile](Makefile) that
 invokes cmake commands as needed.
 
 #### On Linux and macOS
@@ -269,8 +154,8 @@ invokes cmake commands as needed.
 - Change to the root of the source code directory, change to the most recent release branch, and build:
 
   ```bash
-  cd monero
-  git checkout release-v0.18
+  cd zephyr
+  git checkout <latest_release>
   make
   ```
 
@@ -280,16 +165,16 @@ invokes cmake commands as needed.
   available per thread.
 
   _Note_: The instructions above will compile the most stable release of the
-  Monero software. If you would like to use and test the most recent software,
+  Zephyr software. If you would like to use and test the most recent software,
   use `git checkout master`. The master branch may contain updates that are
   both unstable and incompatible with release software, though testing is always
   encouraged.
 
 - The resulting executables can be found in `build/release/bin`
 
-- Add `PATH="$PATH:$HOME/monero/build/release/bin"` to `.profile`
+- Add `PATH="$PATH:$HOME/zephyr/build/release/bin"` to `.profile`
 
-- Run Monero with `monerod --detach`
+- Run Zephyr with `zephyrd --detach`
 
 - **Optional**: build and run the test suite to verify the binaries:
 
@@ -319,7 +204,7 @@ Dependencies need to be built with -fPIC. Static libraries usually aren't, so yo
   HAVE_DOT=YES doxygen Doxyfile
   ```
 
-- **Optional**: use ccache not to rebuild translation units, that haven't really changed. Monero's CMakeLists.txt file automatically handles it
+- **Optional**: use ccache not to rebuild translation units, that haven't really changed. Zephyr's CMakeLists.txt file automatically handles it
 
   ```bash
   sudo apt install ccache
@@ -331,7 +216,7 @@ Tested on a Raspberry Pi Zero with a clean install of minimal Raspbian Stretch (
 
 - `apt-get update && apt-get upgrade` to install all of the latest software
 
-- Install the dependencies for Monero from the 'Debian' column in the table above.
+- Install the dependencies for Zephyr from the 'Debian' column in the table above.
 
 - Increase the system swap size:
 
@@ -344,12 +229,12 @@ Tested on a Raspberry Pi Zero with a clean install of minimal Raspbian Stretch (
 
 - If using an external hard disk without an external power supply, ensure it gets enough power to avoid hardware issues when syncing, by adding the line "max_usb_current=1" to /boot/config.txt
 
-- Clone Monero and checkout the most recent release version:
+- Clone Zephyr and checkout the most recent release version:
 
   ```bash
-  git clone https://github.com/monero-project/monero.git
-  cd monero
-  git checkout v0.18.1.2
+  git clone https://github.com/ZephyrProtocol/zephyr.git
+  cd zephyr
+  git checkout <latest_release>
   ```
 
 - Build:
@@ -362,17 +247,17 @@ Tested on a Raspberry Pi Zero with a clean install of minimal Raspbian Stretch (
 
 - The resulting executables can be found in `build/release/bin`
 
-- Add `export PATH="$PATH:$HOME/monero/build/release/bin"` to `$HOME/.profile`
+- Add `export PATH="$PATH:$HOME/zephyr/build/release/bin"` to `$HOME/.profile`
 
 - Run `source $HOME/.profile`
 
-- Run Monero with `monerod --detach`
+- Run Zephyr with `zephyrd --detach`
 
 - You may wish to reduce the size of the swap file after the build has finished, and delete the boost directory from your home directory
 
 #### _Note for Raspbian Jessie users:_
 
-If you are using the older Raspbian Jessie image, compiling Monero is a bit more complicated. The version of Boost available in the Debian Jessie repositories is too old to use with Monero, and thus you must compile a newer version yourself. The following explains the extra steps and has been tested on a Raspberry Pi 2 with a clean install of minimal Raspbian Jessie.
+If you are using the older Raspbian Jessie image, compiling Zephyr is a bit more complicated. The version of Boost available in the Debian Jessie repositories is too old to use with Zephyr, and thus you must compile a newer version yourself. The following explains the extra steps and has been tested on a Raspberry Pi 2 with a clean install of minimal Raspbian Jessie.
 
 - As before, `apt-get update && apt-get upgrade` to install all of the latest software, and increase the system swap size
 
@@ -383,7 +268,7 @@ If you are using the older Raspbian Jessie image, compiling Monero is a bit more
   sudo /etc/init.d/dphys-swapfile start
   ```
 
-- Then, install the dependencies for Monero except for `libunwind` and `libboost-all-dev`
+- Then, install the dependencies for Zephyr except for `libunwind` and `libboost-all-dev`
 
 - Install the latest version of boost (this may first require invoking `apt-get remove --purge libboost*-dev` to remove a previous version if you're not using a clean install):
 
@@ -404,7 +289,7 @@ If you are using the older Raspbian Jessie image, compiling Monero is a bit more
 
 - Wait ~4 hours
 
-- From here, follow the [general Raspberry Pi instructions](#on-the-raspberry-pi) from the "Clone Monero and checkout most recent release version" step.
+- From here, follow the [general Raspberry Pi instructions](#on-the-raspberry-pi) from the "Clone Zephyr and checkout most recent release version" step.
 
 #### On Windows:
 
@@ -455,7 +340,7 @@ application.
 - To git clone, run:
 
   ```bash
-  git clone --recursive https://github.com/monero-project/monero.git
+  git clone --recursive https://github.com/ZephyrProtocol/zephyr.git
   ```
 
 **Building**
@@ -463,10 +348,10 @@ application.
 - Change to the cloned directory, run:
 
   ```bash
-  cd monero
+  cd zephyr
   ```
 
-- If you would like a specific [version/tag](https://github.com/monero-project/monero/tags), do a git checkout for that version. eg. 'v0.18.1.2'. If you don't care about the version and just want binaries from master, skip this step:
+- If you would like a specific [version/tag](https://github.com/ZephyrProtocol/zephyr/tags), do a git checkout for that version. eg. 'v0.18.1.2'. If you don't care about the version and just want binaries from master, skip this step:
 
   ```bash
   git checkout v0.18.1.2
@@ -503,9 +388,9 @@ application.
 ### On FreeBSD:
 
 The project can be built from scratch by following instructions for Linux above(but use `gmake` instead of `make`).
-If you are running Monero in a jail, you need to add `sysvsem="new"` to your jail configuration, otherwise lmdb will throw the error message: `Failed to open lmdb environment: Function not implemented`.
+If you are running Zephyr in a jail, you need to add `sysvsem="new"` to your jail configuration, otherwise lmdb will throw the error message: `Failed to open lmdb environment: Function not implemented`.
 
-Monero is also available as a port or package as `monero-cli`.
+Zephyr is also available as a port or package as `zephyr-cli`.
 
 ### On OpenBSD:
 
@@ -514,9 +399,9 @@ You will need to add a few packages to your system. `pkg_add cmake gmake zeromq 
 The `doxygen` and `graphviz` packages are optional and require the xbase set.
 Running the test suite also requires `py3-requests` package.
 
-Build monero: `gmake`
+Build zephyr: `gmake`
 
-Note: you may encounter the following error when compiling the latest version of Monero as a normal user:
+Note: you may encounter the following error when compiling the latest version of Zephyr as a normal user:
 
 ```
 LLVM ERROR: out of memory
@@ -531,7 +416,7 @@ Check that the dependencies are present: `pkg_info -c libexecinfo boost-headers 
 
 Third-party dependencies are usually under `/usr/pkg/`, but if you have a custom setup, adjust the "/usr/pkg" (below) accordingly.
 
-Clone the monero repository recursively and checkout the most recent release as described above. Then build monero: `gmake BOOST_ROOT=/usr/pkg LDFLAGS="-Wl,-R/usr/pkg/lib" release`. The resulting executables can be found in `build/NetBSD/[Release version]/Release/bin/`.
+Clone the zephyr repository recursively and checkout the most recent release as described above. Then build zephyr: `gmake BOOST_ROOT=/usr/pkg LDFLAGS="-Wl,-R/usr/pkg/lib" release`. The resulting executables can be found in `build/NetBSD/[Release version]/Release/bin/`.
 
 ### On Solaris:
 
@@ -586,7 +471,7 @@ You can also cross-compile static binaries on Linux for Windows and macOS with t
 
 The required packages are the names for each toolchain on apt. Depending on your distro, they may have different names. The `depends` system has been tested on Ubuntu 18.04 and 20.04.
 
-Using `depends` might also be easier to compile Monero on Windows than using MSYS. Activate Windows Subsystem for Linux (WSL) with a distro (for example Ubuntu), install the apt build-essentials and follow the `depends` steps as depicted above.
+Using `depends` might also be easier to compile Zephyr on Windows than using MSYS. Activate Windows Subsystem for Linux (WSL) with a distro (for example Ubuntu), install the apt build-essentials and follow the `depends` steps as depicted above.
 
 The produced binaries still link libc dynamically. If the binary is compiled on a current distribution, it might not run on an older distribution with an older installation of libc. Passing `-DBACKCOMPAT=ON` to cmake will make sure that the binary will run on systems having at least libc version 2.17.
 
@@ -594,90 +479,17 @@ The produced binaries still link libc dynamically. If the binary is compiled on 
 
 See [contrib/gitian/README.md](contrib/gitian/README.md).
 
-## Installing Monero from a package
-
-**DISCLAIMER: These packages are not part of this repository or maintained by this project's contributors, and as such, do not go through the same review process to ensure their trustworthiness and security.**
-
-Packages are available for
-
-- Debian Buster
-
-  See the [instructions in the whonix/monero-gui repository](https://gitlab.com/whonix/monero-gui#how-to-install-monero-using-apt-get)
-
-- Debian Bullseye and Sid
-
-      ```bash
-      sudo apt install monero
-      ```
-
-  More info and versions in the [Debian package tracker](https://tracker.debian.org/pkg/monero).
-
-- Arch Linux [(via Community packages)](https://www.archlinux.org/packages/community/x86_64/monero/):
-
-  ```bash
-  sudo pacman -S monero
-  ```
-
-- Void Linux:
-
-  ```bash
-  xbps-install -S monero
-  ```
-
-- GuixSD
-
-  ```bash
-  guix package -i monero
-  ```
-
-- Gentoo [Monero overlay](https://github.com/gentoo-monero/gentoo-monero)
-
-  ```bash
-  emerge --noreplace eselect-repository
-  eselect repository enable monero
-  emaint sync -r monero
-  echo '*/*::monero ~amd64' >> /etc/portage/package.accept_keywords
-  emerge net-p2p/monero
-  ```
-
-- macOS [(homebrew)](https://brew.sh/)
-
-  ```bash
-  brew install monero
-  ```
-
-- Docker
-
-  ```bash
-  # Build using all available cores
-  docker build -t monero .
-
-  # or build using a specific number of cores (reduce RAM requirement)
-  docker build --build-arg NPROC=1 -t monero .
-
-  # either run in foreground
-  docker run -it -v /monero/chain:/home/monero/.bitmonero -v /monero/wallet:/wallet -p 18080:18080 monero
-
-  # or in background
-  docker run -it -d -v /monero/chain:/home/monero/.bitmonero -v /monero/wallet:/wallet -p 18080:18080 monero
-  ```
-
-- The build needs 3 GB space.
-- Wait one hour or more
-
-Packaging for your favorite distribution would be a welcome contribution!
-
-## Running monerod
+## Running zephyrd
 
 The build places the binary in `bin/` sub-directory within the build directory
 from which cmake was invoked (repository root by default). To run in the
 foreground:
 
 ```bash
-./bin/monerod
+./bin/zephyrd
 ```
 
-To list all available options, run `./bin/monerod --help`. Options can be
+To list all available options, run `./bin/zephyrd --help`. Options can be
 specified either on the command line or in a configuration file passed by the
 `--config-file` argument. To specify an option in the configuration file, add
 a line with the syntax `argumentname=value`, where `argumentname` is the name
@@ -686,18 +498,18 @@ of the argument without the leading dashes, for example, `log-level=1`.
 To run in background:
 
 ```bash
-./bin/monerod --log-file monerod.log --detach
+./bin/zephyrd --log-file zephyrd.log --detach
 ```
 
 To run as a systemd service, copy
-[monerod.service](utils/systemd/monerod.service) to `/etc/systemd/system/` and
-[monerod.conf](utils/conf/monerod.conf) to `/etc/`. The [example
-service](utils/systemd/monerod.service) assumes that the user `monero` exists
+[zephyrd.service](utils/systemd/zephyrd.service) to `/etc/systemd/system/` and
+[zephyrd.conf](utils/conf/zephyrd.conf) to `/etc/`. The [example
+service](utils/systemd/zephyrd.service) assumes that the user `zephyr` exists
 and its home is the data directory specified in the [example
-config](utils/conf/monerod.conf).
+config](utils/conf/zephyrd.conf).
 
 If you're on Mac, you may need to add the `--max-concurrency 1` option to
-monero-wallet-cli, and possibly monerod, if you get crashes refreshing.
+zephyr-wallet-cli, and possibly zephyrd, if you get crashes refreshing.
 
 ## Internationalization
 
@@ -711,36 +523,36 @@ See [README.i18n.md](docs/README.i18n.md).
 > used solely for relaying transactions received over local RPC. This provides
 > privacy and better protection against surrounding node (sybil) attacks.
 
-While Monero isn't made to integrate with Tor, it can be used wrapped with torsocks, by
+While Zephyr isn't made to integrate with Tor, it can be used wrapped with torsocks, by
 setting the following configuration parameters and environment variables:
 
 - `--p2p-bind-ip 127.0.0.1` on the command line or `p2p-bind-ip=127.0.0.1` in
-  monerod.conf to disable listening for connections on external interfaces.
-- `--no-igd` on the command line or `no-igd=1` in monerod.conf to disable IGD
+  zephyrd.conf to disable listening for connections on external interfaces.
+- `--no-igd` on the command line or `no-igd=1` in zephyrd.conf to disable IGD
   (UPnP port forwarding negotiation), which is pointless with Tor.
 - `DNS_PUBLIC=tcp` or `DNS_PUBLIC=tcp://x.x.x.x` where x.x.x.x is the IP of the
   desired DNS server, for DNS requests to go over TCP, so that they are routed
-  through Tor. When IP is not specified, monerod uses the default list of
+  through Tor. When IP is not specified, zephyrd uses the default list of
   servers defined in [src/common/dns_utils.cpp](src/common/dns_utils.cpp).
-- `TORSOCKS_ALLOW_INBOUND=1` to tell torsocks to allow monerod to bind to interfaces
+- `TORSOCKS_ALLOW_INBOUND=1` to tell torsocks to allow zephyrd to bind to interfaces
   to accept connections from the wallet. On some Linux systems, torsocks
   allows binding to localhost by default, so setting this variable is only
   necessary to allow binding to local LAN/VPN interfaces to allow wallets to
   connect from remote hosts. On other systems, it may be needed for local wallets
   as well.
 - Do NOT pass `--detach` when running through torsocks with systemd, (see
-  [utils/systemd/monerod.service](utils/systemd/monerod.service) for details).
+  [utils/systemd/zephyrd.service](utils/systemd/zephyrd.service) for details).
 - If you use the wallet with a Tor daemon via the loopback IP (eg, 127.0.0.1:9050),
   then use `--untrusted-daemon` unless it is your own hidden service.
 
-Example command line to start monerod through Tor:
+Example command line to start zephyrd through Tor:
 
 ```bash
-DNS_PUBLIC=tcp torsocks monerod --p2p-bind-ip 127.0.0.1 --no-igd
+DNS_PUBLIC=tcp torsocks zephyrd --p2p-bind-ip 127.0.0.1 --no-igd
 ```
 
-A helper script is in contrib/tor/monero-over-tor.sh. It assumes Tor is installed
-already, and runs Tor and Monero with the right configuration.
+A helper script is in contrib/tor/zephyr-over-tor.sh. It assumes Tor is installed
+already, and runs Tor and Zephyr with the right configuration.
 
 ### Using Tor on Tails
 
@@ -750,17 +562,17 @@ allow inbound connections. Full example:
 
 ```bash
 sudo iptables -I OUTPUT 2 -p tcp -d 127.0.0.1 -m tcp --dport 18081 -j ACCEPT
-DNS_PUBLIC=tcp torsocks ./monerod --p2p-bind-ip 127.0.0.1 --no-igd --rpc-bind-ip 127.0.0.1 \
+DNS_PUBLIC=tcp torsocks ./zephyrd --p2p-bind-ip 127.0.0.1 --no-igd --rpc-bind-ip 127.0.0.1 \
     --data-dir /home/amnesia/Persistent/your/directory/to/the/blockchain
 ```
 
 ## Pruning
 
-As of April 2022, the full Monero blockchain file is about 130 GB. One can store a pruned blockchain, which is about 45 GB.
+One can store a pruned blockchain in order to reduce needed hard disk space.
 A pruned blockchain can only serve part of the historical chain data to other peers, but is otherwise identical in
 functionality to the full blockchain.
 To use a pruned blockchain, it is best to start the initial sync with `--prune-blockchain`. However, it is also possible
-to prune an existing blockchain using the `monero-blockchain-prune` tool or using the `--prune-blockchain` `monerod` option
+to prune an existing blockchain using the `zephyr-blockchain-prune` tool or using the `--prune-blockchain` `zephyrd` option
 with an existing chain. If an existing chain exists, pruning will temporarily require disk space to store both the full
 and pruned blockchains.
 
@@ -768,7 +580,7 @@ For more detailed information see the ['Pruning' entry in the Moneropedia](https
 
 ## Debugging
 
-This section contains general instructions for debugging failed installs or problems encountered with Monero. First, ensure you are running the latest version built from the GitHub repo.
+This section contains general instructions for debugging failed installs or problems encountered with Zephyr. First, ensure you are running the latest version built from the GitHub repo.
 
 ### Obtaining stack traces and core dumps on Unix systems
 
@@ -781,7 +593,7 @@ Run the build.
 Once it stalls, enter the following command:
 
 ```bash
-gdb /path/to/monerod `pidof monerod`
+gdb /path/to/zephyrd `pidof zephyrd`
 ```
 
 Type `thread apply all bt` within gdb in order to obtain the stack trace
@@ -794,12 +606,12 @@ Enter `echo core | sudo tee /proc/sys/kernel/core_pattern` to stop cores from be
 
 Run the build.
 
-When it terminates with an output along the lines of "Segmentation fault (core dumped)", there should be a core dump file in the same directory as monerod. It may be named just `core`, or `core.xxxx` with numbers appended.
+When it terminates with an output along the lines of "Segmentation fault (core dumped)", there should be a core dump file in the same directory as zephyrd. It may be named just `core`, or `core.xxxx` with numbers appended.
 
 You can now analyse this core dump with `gdb` as follows:
 
 ```bash
-gdb /path/to/monerod /path/to/dumpfile`
+gdb /path/to/zephyrd /path/to/dumpfile`
 ```
 
 Print the stack trace with `bt`
@@ -810,13 +622,13 @@ Print the stack trace with `bt`
 coredumpctl -1 gdb
 ```
 
-#### To run Monero within gdb:
+#### To run Zephyr within gdb:
 
-Type `gdb /path/to/monerod`
+Type `gdb /path/to/zephyrd`
 
 Pass command-line options with `--args` followed by the relevant arguments
 
-Type `run` to run monerod
+Type `run` to run zephyrd
 
 ### Analysing memory corruption
 
@@ -824,17 +636,17 @@ There are two tools available:
 
 #### ASAN
 
-Configure Monero with the -D SANITIZE=ON cmake flag, eg:
+Configure Zephyr with the -D SANITIZE=ON cmake flag, eg:
 
 ```bash
 cd build/debug && cmake -D SANITIZE=ON -D CMAKE_BUILD_TYPE=Debug ../..
 ```
 
-You can then run the monero tools normally. Performance will typically halve.
+You can then run the zephyr tools normally. Performance will typically halve.
 
 #### valgrind
 
-Install valgrind and run as `valgrind /path/to/monerod`. It will be very slow.
+Install valgrind and run as `valgrind /path/to/zephyrd`. It will be very slow.
 
 ### LMDB
 
@@ -843,7 +655,7 @@ Instructions for debugging suspected blockchain corruption as per @HYC
 There is an `mdb_stat` command in the LMDB source that can print statistics about the database but it's not routinely built. This can be built with the following command:
 
 ```bash
-cd ~/monero/external/db_drivers/liblmdb && make
+cd ~/zephyr/external/db_drivers/liblmdb && make
 ```
 
 The output of `mdb_stat -ea <path to blockchain dir>` will indicate inconsistencies in the blocks, block_heights and block_info table.
@@ -858,13 +670,13 @@ These records are dumped as hex data, where the first line is the key and the se
 
 ### Socket-based
 
-Because of the nature of the socket-based protocols that drive monero, certain protocol weaknesses are somewhat unavoidable at this time. While these weaknesses can theoretically be fully mitigated, the effort required (the means) may not justify the ends. As such, please consider taking the following precautions if you are a monero node operator:
+Because of the nature of the socket-based protocols that drive zephyr, certain protocol weaknesses are somewhat unavoidable at this time. While these weaknesses can theoretically be fully mitigated, the effort required (the means) may not justify the ends. As such, please consider taking the following precautions if you are a zephyr node operator:
 
-- Run `monerod` on a "secured" machine. If operational security is not your forte, at a very minimum, have a dedicated a computer running `monerod` and **do not** browse the web, use email clients, or use any other potentially harmful apps on your `monerod` machine. **Do not click links or load URL/MUA content on the same machine**. Doing so may potentially exploit weaknesses in commands which accept "localhost" and "127.0.0.1".
-- If you plan on hosting a public "remote" node, start `monerod` with `--restricted-rpc`. This is a must.
+- Run `zephyrd` on a "secured" machine. If operational security is not your forte, at a very minimum, have a dedicated a computer running `zephyrd` and **do not** browse the web, use email clients, or use any other potentially harmful apps on your `zephyrd` machine. **Do not click links or load URL/MUA content on the same machine**. Doing so may potentially exploit weaknesses in commands which accept "localhost" and "127.0.0.1".
+- If you plan on hosting a public "remote" node, start `zephyrd` with `--restricted-rpc`. This is a must.
 
 ### Blockchain-based
 
 Certain blockchain "features" can be considered "bugs" if misused correctly. Consequently, please consider the following:
 
-- When receiving monero, be aware that it may be locked for an arbitrary time if the sender elected to, preventing you from spending that monero until the lock time expires. You may want to hold off acting upon such a transaction until the unlock time lapses. To get a sense of that time, you can consider the remaining blocktime until unlock as seen in the `show_transfers` command.
+- When receiving zephyr, be aware that it may be locked for an arbitrary time if the sender elected to, preventing you from spending that zephyr until the lock time expires. You may want to hold off acting upon such a transaction until the unlock time lapses. To get a sense of that time, you can consider the remaining blocktime until unlock as seen in the `show_transfers` command.
