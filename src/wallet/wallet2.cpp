@@ -796,10 +796,10 @@ size_t estimate_rct_tx_size(int n_inputs, int mixin, int n_outputs, size_t extra
   size += 1 + 6;
 
   // vin
-  size += n_inputs * (1+6+(mixin+1)*2+32);
+  size += n_inputs * (1+6+(mixin+1)*2+32+4);
 
   // vout
-  size += n_outputs * (6+32);
+  size += n_outputs * (6+32+4);
 
   // extra
   size += extra_size;
