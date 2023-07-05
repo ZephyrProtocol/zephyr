@@ -782,8 +782,76 @@ estim:
   return threshold_size;
 }
 
+boost::multiprecision::int128_t
+import_tally_from_cst(circ_supply_tally *cst)
+{
+  // rebuild the int128_t tally from the two stored uint64_t integers
+  boost::multiprecision::int128_t tally = cst->amount_hi;
+  tally <<= 64;
+  tally |= cst->amount_lo;
+
+  // The boolean is_negative is kept separate because Boost 128-bit signed integers
+  // use 128 bits of precision plus an extra sign bit. If tally is supposed to be negative, 
+  // need to flip tally to negative to get its correct value for subsequent arithmetic.
+  // See Boost docs on multiprecision ints for more ("Things you should know when using this type"):
+  // https://www.boost.org/doc/libs/1_72_0/libs/multiprecision/doc/html/boost_multiprecision/tut/ints/cpp_int.html
+  if (cst->is_negative)
+    tally = -tally;
+
+  return tally;
+}
+
+boost::multiprecision::int128_t
+read_circulating_supply_data(MDB_cursor *cur_circ_supply_tally, MDB_val idx)
+{
+  MDB_val vcst;
+  circ_supply_tally cst;
+  int result = mdb_cursor_get(cur_circ_supply_tally, &idx, &vcst, MDB_SET);
+  if (result == MDB_NOTFOUND) {
+    LOG_PRINT_L1("Failed to obtain circulating supply - must be first TX with this asset");
+
+    cst.is_negative = false;
+    cst.amount_hi = 0;
+    cst.amount_lo = 0;
+  } else if (!result) {
+    cst = *(circ_supply_tally*) vcst.mv_data;
+  } else {
+    throw0(DB_ERROR(lmdb_error("Failed to obtain tally for circulating supply: ", result).c_str()));
+  }
+
+  return import_tally_from_cst(&cst);
+}
+
+void write_circulating_supply_data(MDB_cursor *cur_circ_supply_tally, MDB_val idx, boost::multiprecision::int128_t tally)
+{
+  // packing the Boost 128-bit signed integer into 2 uint64's + a sign bit
+  circ_supply_tally cst;
+
+  // From the Boost docs, bitwise operations on negative values "Yields the value, but not the bit pattern, that would result from
+  // performing the operation on a 2's complement integer type." This means in order to keep bit patterns consistent during bitwise ops,
+  // we need to turn a negative Boost 128-bit integer into its positive value, perform bitwise operations on 
+  // the positive Boost 128 bit signed integer, and store the sign bit to keep track when reading back from the DB.
+  // https://www.boost.org/doc/libs/1_72_0/libs/multiprecision/doc/html/boost_multiprecision/tut/ints/cpp_int.html
+  if (tally < 0)
+  {
+    tally = -tally;
+    cst.is_negative = true;
+  }
+  else
+    cst.is_negative = false;
+
+  // export into two uint64_t integers to store in LMDB as familiar native types
+  cst.amount_hi = ((tally >> 64) & 0xffffffffffffffff).convert_to<uint64_t>();
+  cst.amount_lo = (tally & 0xffffffffffffffff).convert_to<uint64_t>();
+
+  MDB_val_set(nvs, cst);
+  int result = mdb_cursor_put(cur_circ_supply_tally, &idx, &nvs, 0);
+  if (result)
+    throw0(DB_ERROR(lmdb_error("Failed to update tally for source circulating supply: ", result).c_str()));
+}
+
 void BlockchainLMDB::add_block(const block& blk, size_t block_weight, uint64_t long_term_block_weight, const difficulty_type& cumulative_difficulty, const uint64_t& coins_generated,
-    uint64_t num_rct_outs, oracle::asset_type_counts& cum_rct_by_asset_type, const crypto::hash& blk_hash)
+    const uint64_t& reserve_reward, uint64_t num_rct_outs, oracle::asset_type_counts& cum_rct_by_asset_type, const crypto::hash& blk_hash)
 {
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
@@ -817,6 +885,7 @@ void BlockchainLMDB::add_block(const block& blk, size_t block_weight, uint64_t l
 
   CURSOR(blocks)
   CURSOR(block_info)
+  CURSOR(circ_supply_tally)
 
   // this call to mdb_cursor_put will change height()
   cryptonote::blobdata block_blob(block_to_blob(blk));
@@ -862,9 +931,17 @@ void BlockchainLMDB::add_block(const block& blk, size_t block_weight, uint64_t l
   // and often actually equal
   m_cum_size += block_weight;
   m_cum_count++;
+
+  uint64_t source_currency_type = std::find(oracle::ASSET_TYPES.begin(), oracle::ASSET_TYPES.end(), "ZEPH") - oracle::ASSET_TYPES.begin();
+  MDB_val_copy<uint64_t> source_idx(source_currency_type);
+  boost::multiprecision::int128_t source_tally = read_circulating_supply_data(m_cur_circ_supply_tally, source_idx);
+
+  boost::multiprecision::int128_t final_source_tally;
+  final_source_tally = source_tally + reserve_reward; // Add reserve reward ZEPH to reserve
+  write_circulating_supply_data(m_cur_circ_supply_tally, source_idx, final_source_tally);
 }
 
-void BlockchainLMDB::remove_block()
+void BlockchainLMDB::remove_block(const uint64_t& reserve_reward)
 {
   int result;
 
@@ -879,6 +956,7 @@ void BlockchainLMDB::remove_block()
   CURSOR(block_info)
   CURSOR(block_heights)
   CURSOR(blocks)
+  CURSOR(circ_supply_tally)
   MDB_val_copy<uint64_t> k(m_height - 1);
   MDB_val h = k;
   if ((result = mdb_cursor_get(m_cur_block_info, (MDB_val *)&zerokval, &h, MDB_GET_BOTH)))
@@ -899,74 +977,18 @@ void BlockchainLMDB::remove_block()
 
   if ((result = mdb_cursor_del(m_cur_block_info, 0)))
       throw1(DB_ERROR(lmdb_error("Failed to add removal of block info to db transaction: ", result).c_str()));
-}
 
-boost::multiprecision::int128_t
-import_tally_from_cst(circ_supply_tally *cst)
-{
-  // rebuild the int128_t tally from the two stored uint64_t integers
-  boost::multiprecision::int128_t tally = cst->amount_hi;
-  tally <<= 64;
-  tally |= cst->amount_lo;
 
-  // The boolean is_negative is kept separate because Boost 128-bit signed integers
-  // use 128 bits of precision plus an extra sign bit. If tally is supposed to be negative, 
-  // need to flip tally to negative to get its correct value for subsequent arithmetic.
-  // See Boost docs on multiprecision ints for more ("Things you should know when using this type"):
-  // https://www.boost.org/doc/libs/1_72_0/libs/multiprecision/doc/html/boost_multiprecision/tut/ints/cpp_int.html
-  if (cst->is_negative)
-    tally = -tally;
-
-  return tally;
-}
-
-boost::multiprecision::int128_t
-read_circulating_supply_data(MDB_cursor *cur_circ_supply_tally, MDB_val idx)
-{
-  MDB_val vcst;
-  circ_supply_tally cst;
-  int result = mdb_cursor_get(cur_circ_supply_tally, &idx, &vcst, MDB_SET);
-  if (result == MDB_NOTFOUND) {
-    LOG_PRINT_L1("Failed to obtain circulating supply - must be first TX with this asset");
-
-    cst.is_negative = false;
-    cst.amount_hi = 0;
-    cst.amount_lo = 0;
-  } else if (!result) {  
-    cst = *(circ_supply_tally*) vcst.mv_data;
-  } else {
-    throw0(DB_ERROR(lmdb_error("Failed to obtain tally for circulating supply: ", result).c_str()));      
+  uint64_t source_currency_type = std::find(oracle::ASSET_TYPES.begin(), oracle::ASSET_TYPES.end(), "ZEPH") - oracle::ASSET_TYPES.begin();
+  MDB_val_copy<uint64_t> source_idx(source_currency_type);
+  boost::multiprecision::int128_t source_tally = read_circulating_supply_data(m_cur_circ_supply_tally, source_idx);
+  boost::multiprecision::int128_t final_source_tally;
+  final_source_tally = source_tally - reserve_reward; // Undo adding reserve reward ZEPH to reserve
+  if (final_source_tally < 0) {
+    LOG_ERROR(__func__ << " : reserve underflow detected for ZEPH: correcting supply tally by " << final_source_tally);
+    final_source_tally = 0;
   }
-
-  return import_tally_from_cst(&cst);
-}
-
-void write_circulating_supply_data(MDB_cursor *cur_circ_supply_tally, MDB_val idx, boost::multiprecision::int128_t tally)
-{
-  // packing the Boost 128-bit signed integer into 2 uint64's + a sign bit
-  circ_supply_tally cst;
-
-  // From the Boost docs, bitwise operations on negative values "Yields the value, but not the bit pattern, that would result from
-  // performing the operation on a 2's complement integer type." This means in order to keep bit patterns consistent during bitwise ops,
-  // we need to turn a negative Boost 128-bit integer into its positive value, perform bitwise operations on 
-  // the positive Boost 128 bit signed integer, and store the sign bit to keep track when reading back from the DB.
-  // https://www.boost.org/doc/libs/1_72_0/libs/multiprecision/doc/html/boost_multiprecision/tut/ints/cpp_int.html
-  if (tally < 0)
-  {
-    tally = -tally;
-    cst.is_negative = true;
-  }
-  else
-    cst.is_negative = false;
-
-  // export into two uint64_t integers to store in LMDB as familiar native types
-  cst.amount_hi = ((tally >> 64) & 0xffffffffffffffff).convert_to<uint64_t>();
-  cst.amount_lo = (tally & 0xffffffffffffffff).convert_to<uint64_t>();
-
-  MDB_val_set(nvs, cst);
-  int result = mdb_cursor_put(cur_circ_supply_tally, &idx, &nvs, 0);
-  if (result)
-    throw0(DB_ERROR(lmdb_error("Failed to update tally for source circulating supply: ", result).c_str()));
+  write_circulating_supply_data(m_cur_circ_supply_tally, source_idx, final_source_tally);
 }
 
 uint64_t BlockchainLMDB::add_transaction_data(const crypto::hash& blk_hash, const std::pair<transaction, blobdata_ref>& txp, const crypto::hash& tx_hash, const crypto::hash& tx_prunable_hash, const bool miner_tx)
@@ -4398,7 +4420,7 @@ void BlockchainLMDB::block_rtxn_abort() const
 }
 
 uint64_t BlockchainLMDB::add_block(const std::pair<block, blobdata>& blk, size_t block_weight, uint64_t long_term_block_weight, const difficulty_type& cumulative_difficulty, const uint64_t& coins_generated,
-    const std::vector<std::pair<transaction, blobdata>>& txs)
+    const uint64_t& reserve_reward, const std::vector<std::pair<transaction, blobdata>>& txs)
 {
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
@@ -4416,7 +4438,7 @@ uint64_t BlockchainLMDB::add_block(const std::pair<block, blobdata>& blk, size_t
 
   try
   {
-    BlockchainDB::add_block(blk, block_weight, long_term_block_weight, cumulative_difficulty, coins_generated, txs);
+    BlockchainDB::add_block(blk, block_weight, long_term_block_weight, cumulative_difficulty, coins_generated, reserve_reward, txs);
   }
   catch (const DB_ERROR_TXN_START& e)
   {

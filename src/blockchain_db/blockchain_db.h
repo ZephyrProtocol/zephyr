@@ -407,6 +407,7 @@ private:
                 , uint64_t long_term_block_weight
                 , const difficulty_type& cumulative_difficulty
                 , const uint64_t& coins_generated
+                , const uint64_t& reserve_reward
                 , uint64_t num_rct_outs
                 , oracle::asset_type_counts& cum_rct_by_asset_type
                 , const crypto::hash& blk_hash
@@ -421,8 +422,11 @@ private:
    *
    * If any of this cannot be done, the subclass should throw the corresponding
    * subclass of DB_EXCEPTION
+   *
+   * @param reserve_reward the amount of zeph to be removed from the reserve
+   *
    */
-  virtual void remove_block() = 0;
+  virtual void remove_block(const uint64_t& reserve_reward) = 0;
 
   /**
    * @brief store the transaction and its metadata
@@ -861,6 +865,7 @@ public:
                             , uint64_t long_term_block_weight
                             , const difficulty_type& cumulative_difficulty
                             , const uint64_t& coins_generated
+                            , const uint64_t& reserve_reward
                             , const std::vector<std::pair<transaction, blobdata>>& txs
                             );
 

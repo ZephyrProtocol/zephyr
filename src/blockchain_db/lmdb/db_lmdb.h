@@ -333,6 +333,7 @@ public:
                             , uint64_t long_term_block_weight
                             , const difficulty_type& cumulative_difficulty
                             , const uint64_t& coins_generated
+                            , const uint64_t& reserve_reward
                             , const std::vector<std::pair<transaction, blobdata>>& txs
                             );
 
@@ -386,12 +387,13 @@ private:
                 , uint64_t long_term_block_weight
                 , const difficulty_type& cumulative_difficulty
                 , const uint64_t& coins_generated
+                , const uint64_t& reserve_reward
                 , uint64_t num_rct_outs
                 , oracle::asset_type_counts& cum_rct_by_asset_type
                 , const crypto::hash& block_hash
               );
 
-  virtual void remove_block();
+  virtual void remove_block(const uint64_t& reserve_reward);
 
   virtual uint64_t add_transaction_data(const crypto::hash& blk_hash, const std::pair<transaction, blobdata_ref>& tx, const crypto::hash& tx_hash, const crypto::hash& tx_prunable_hash, const bool miner_tx);
 

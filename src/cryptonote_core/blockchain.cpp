@@ -1417,7 +1417,7 @@ bool Blockchain::validate_miner_transaction(
       return false;
     }
 
-    uint64_t governance_reward = get_governance_reward(m_db->height(), base_reward);
+    uint64_t governance_reward = get_governance_reward(base_reward);
 
     if (b.miner_tx.vout[1].amount != governance_reward)
     {
@@ -1436,7 +1436,12 @@ bool Blockchain::validate_miner_transaction(
     // TODO: validate asset reward amounts
   }
 
-  if(money_in_use_map["ZEPH"] > (base_reward + fee_map["ZEPH"]))
+  uint64_t reserve_reward = 0;
+  if (version >= HF_VERSION_DJED) {
+    reserve_reward = get_reserve_reward(base_reward);
+  }
+
+  if(money_in_use_map["ZEPH"] > (base_reward + fee_map["ZEPH"] - reserve_reward))
   {
     MERROR_VER("coinbase transaction spend too much money (" << print_money(money_in_use_map["ZEPH"]) << "). Block reward is " << print_money(base_reward + fee_map["ZEPH"]) << "(" << print_money(base_reward) << "+" << print_money(fee_map["ZEPH"]) << ")");
     return false;
@@ -1445,7 +1450,7 @@ bool Blockchain::validate_miner_transaction(
   CHECK_AND_ASSERT_MES(money_in_use_map["ZEPH"] - fee_map["ZEPH"] <= base_reward, false, "base reward calculation bug");
   if(base_reward + fee_map["ZEPH"] != money_in_use_map["ZEPH"])
     partial_block_reward = true;
-  base_reward = money_in_use_map["ZEPH"] - fee_map["ZEPH"];
+  base_reward = money_in_use_map["ZEPH"] - fee_map["ZEPH"] + reserve_reward;
 
 
   if (version >= HF_VERSION_DJED) {
@@ -4529,6 +4534,11 @@ leave:
     goto leave;
   }
 
+  uint64_t reserve_reward = 0;
+  if (hf_version >= HF_VERSION_DJED) {
+    reserve_reward = get_reserve_reward(base_reward);
+  }
+
   TIME_MEASURE_FINISH(vmt);
   size_t block_weight;
   difficulty_type cumulative_difficulty;
@@ -4557,7 +4567,7 @@ leave:
     {
       uint64_t long_term_block_weight = get_next_long_term_block_weight(block_weight);
       cryptonote::blobdata bd = cryptonote::block_to_blob(bl);
-      new_height = m_db->add_block(std::make_pair(std::move(bl), std::move(bd)), block_weight, long_term_block_weight, cumulative_difficulty, already_generated_coins, txs);
+      new_height = m_db->add_block(std::make_pair(std::move(bl), std::move(bd)), block_weight, long_term_block_weight, cumulative_difficulty, already_generated_coins, reserve_reward, txs);
     }
     catch (const KEY_IMAGE_EXISTS& e)
     {

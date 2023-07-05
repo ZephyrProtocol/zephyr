@@ -150,10 +150,18 @@ namespace cryptonote
 #endif
 
     uint64_t governance_reward = 0;
+    uint64_t reserve_reward = 0;
     if (already_generated_coins != 0)
     {
-      governance_reward = get_governance_reward(height, block_reward);
+      governance_reward = get_governance_reward(block_reward);
+      if (hard_fork_version >= HF_VERSION_DJED) {
+        reserve_reward = get_reserve_reward(block_reward);
+      }
+
+      block_reward -= reserve_reward;
       block_reward -= governance_reward;
+
+      LOG_PRINT_L1("CREATING BLOCK reserve_reward " << reserve_reward << " height: " << height);
     }
     
     
@@ -280,9 +288,14 @@ namespace cryptonote
     return addr.m_view_public_key;
   }
   //---------------------------------------------------------------
-  uint64_t get_governance_reward(uint64_t height, uint64_t base_reward)
+  uint64_t get_governance_reward(uint64_t base_reward)
   {
-    return base_reward / 20;
+    return base_reward / 20; // 5% of base reward
+  }
+  //---------------------------------------------------------------
+  uint64_t get_reserve_reward(uint64_t base_reward)
+  {
+    return base_reward / 5; // 20% of base reward
   }
   //---------------------------------------------------------------
   bool validate_governance_reward_key(uint64_t height, const std::string& governance_wallet_address_str, size_t output_index, const crypto::public_key& output_key, cryptonote::network_type nettype)
