@@ -1836,41 +1836,57 @@ bool Blockchain::get_pricing_record(oracle::pricing_record& pr, uint64_t timesta
 {
   LOG_PRINT_L1("Requesting pricing record from Oracle - time : " << timestamp);
 
-  // bool r = false;
-
-  // epee::net_utils::http::http_simple_client http_client;
-  // COMMAND_RPC_GET_PRICING_RECORD::request req = AUTO_VAL_INIT(req);
-  // COMMAND_RPC_GET_PRICING_RECORD::response res = AUTO_VAL_INIT(res);
-  
-  // std::array<std::string, 3> oracle_urls = get_config(m_nettype).ORACLE_URLS;
-  // std::shuffle(oracle_urls.begin(), oracle_urls.end(), std::default_random_engine(crypto::rand<unsigned>()));
-  // for (size_t n = 0; n < oracle_urls.size(); n++) {
-  //   http_client.set_server(oracle_urls[n], boost::none, epee::net_utils::ssl_support_t::e_ssl_support_autodetect);
-  //   std::string url = "/price/?timestamp=" + boost::lexical_cast<std::string>(timestamp) + "&version=" + std::to_string(m_hardfork->get_current_version());
-  //   r = epee::net_utils::invoke_http_json(url, req, res, http_client, std::chrono::seconds(10), "GET");
-  //   if (r) {
-  //     LOG_PRINT_L1("Obtained pricing record from Oracle : " << oracle_urls[n]);
-  //     break;
-  //   }
-  //   LOG_PRINT_L1("Failed to obtain pricing record from Oracle : " << oracle_urls[n]);
-  // }
-    
-  // if (!r) {
-  //   LOG_PRINT_L0("Failed to get pricing record from Oracle - returning empty PR");
-  //   res.pr = oracle::pricing_record();
-  // }
-
-  pr = oracle::pricing_record();
-  pr.zEPHUSD = 0;
-  pr.zEPHRSV = 0;
-  pr.timestamp = 0;
-
   const uint8_t hf_version = m_hardfork->get_current_version();
   if (hf_version >= HF_VERSION_DJED) {
+    bool r = false;
+
+    epee::net_utils::http::http_simple_client http_client;
+    COMMAND_RPC_GET_PRICING_RECORD::request req = AUTO_VAL_INIT(req);
+    COMMAND_RPC_GET_PRICING_RECORD::response res = AUTO_VAL_INIT(res);
+    
+    std::array<std::string, 1> oracle_urls = get_config(m_nettype).ORACLE_URLS;
+    std::shuffle(oracle_urls.begin(), oracle_urls.end(), std::default_random_engine(crypto::rand<unsigned>()));
+    for (size_t n = 0; n < oracle_urls.size(); n++) {
+      http_client.set_server(oracle_urls[n], boost::none, epee::net_utils::ssl_support_t::e_ssl_support_autodetect);
+      std::string url = "/price/?timestamp=" + boost::lexical_cast<std::string>(timestamp) + "&version=" + std::to_string(m_hardfork->get_current_version());
+
+      r = epee::net_utils::invoke_http_json(url, req, res, http_client, std::chrono::seconds(10), "GET");
+      if (r) {
+        LOG_PRINT_L1("Obtained pricing record from Oracle : " << oracle_urls[n]);
+        break;
+      }
+      LOG_PRINT_L1("Failed to obtain pricing record from Oracle : " << oracle_urls[n]);
+    }
+
+    if (!r) {
+      LOG_PRINT_L0("Failed to get pricing record from Oracle - returning empty PR");
+      res.pr = oracle::pricing_record();
+    }
+
+    // Verify the signature
+    if (res.pr.verifySignature(get_config(m_nettype).ORACLE_PUBLIC_KEY)) {
+      pr = res.pr;
+    } else {
+      LOG_PRINT_L0("Failed to verify signature of pricing record from Oracle - returning empty PR");
+      pr = oracle::pricing_record();
+    }
+
     std::vector<std::pair<std::string, std::string>> circ_supply = get_db().get_circulating_supply();
-    pr.zEPHUSD = cryptonote::get_stable_coin_price(circ_supply, 2000000000000); // hardcode 2 USD for testing
-    pr.zEPHRSV = cryptonote::get_reserve_coin_price(circ_supply, pr);
-    pr.timestamp = timestamp;
+
+    pr.stable = cryptonote::get_stable_coin_price(circ_supply, pr.spot);
+    pr.stable_ma = cryptonote::get_stable_coin_price(circ_supply, pr.moving_average);
+    pr.reserve = cryptonote::get_reserve_coin_price(circ_supply, pr.spot);
+    pr.reserve_ma = cryptonote::get_reserve_coin_price(circ_supply, pr.moving_average);
+
+    std::string sig_hex;
+    for (size_t i = 0; i < 64; i++) {
+      std::stringstream ss;
+      ss << std::hex << std::setw(2) << std::setfill('0') << (0xff & pr.signature[i]);
+      sig_hex += ss.str();
+    }
+    LOG_PRINT_L1("Received pricing record - signature = " << sig_hex);
+  } else {
+    pr = oracle::pricing_record();
   }
 
   return true;
@@ -4132,6 +4148,31 @@ leave:
   }
   TIME_MEASURE_FINISH(pricing_record);
 
+  // validate pricing record values
+  if (hf_version >= HF_VERSION_DJED) {
+    TIME_MEASURE_START(pricing_record_values);
+    std::vector<std::pair<std::string, std::string>> circ_supply = get_db().get_circulating_supply();
+    uint64_t stable_price = cryptonote::get_stable_coin_price(circ_supply, bl.pricing_record.spot);
+    uint64_t stable_price_ma = cryptonote::get_stable_coin_price(circ_supply, bl.pricing_record.moving_average);
+    uint64_t reserve_price = cryptonote::get_reserve_coin_price(circ_supply, bl.pricing_record.spot);
+    uint64_t reserve_price_ma = cryptonote::get_reserve_coin_price(circ_supply, bl.pricing_record.moving_average);
+
+    MDEBUG("bl.pricing_record.stable: " << bl.pricing_record.stable << " bl.pricing_record.stable_ma: " << bl.pricing_record.stable_ma << " bl.pricing_record.reserve: " << bl.pricing_record.reserve << " bl.pricing_record.reserve_ma: " << bl.pricing_record.reserve_ma);
+    MDEBUG("stable_price: " << stable_price << " stable_price_ma: " << stable_price_ma << " reserve_price: " << reserve_price << " reserve_price_ma: " << reserve_price_ma);
+
+    if (
+      stable_price != bl.pricing_record.stable ||
+      stable_price_ma != bl.pricing_record.stable_ma ||
+      reserve_price != bl.pricing_record.reserve ||
+      reserve_price_ma != bl.pricing_record.reserve_ma
+    ){
+      MERROR_VER("Block with id: " << id << std::endl << "has invalid pricing record values!");
+      bvc.m_verifivation_failed = true;
+      goto leave;
+    }
+    TIME_MEASURE_FINISH(pricing_record_values);
+  }
+
   //check proof of work
   TIME_MEASURE_START(target_calculating_time);
 
@@ -4252,7 +4293,6 @@ leave:
 
   bool have_valid_pr = true;
   oracle::pricing_record latest_pr;
-  std::vector<std::pair<std::string, std::string>> supply_amounts;
   if (!get_latest_acceptable_pr(latest_pr)) {
     if (hf_version >= HF_VERSION_DJED) {
       MWARNING("Failed to find a pricing record in last 10 blocks.");
@@ -4387,13 +4427,13 @@ leave:
      // Validate tx pr height
     if (source != dest) {
        if (!have_valid_pr) {
-        LOG_PRINT_L2(" ofshore/onshore tx found in the block but no acceptable pricing record. Invlalid block." << tx.hash);
+        LOG_PRINT_L2(" tx found in the block but no acceptable pricing record. Invlalid block." << tx.hash);
         bvc.m_verifivation_failed = true;
         goto leave;
       }
       // Validate that pricing record has not grown too old since it was first included in the pool
       if (!tx_pr_height_valid(blockchain_height, tx.pricing_record_height, tx_id)) {
-        LOG_PRINT_L2("error : oracle/xAsset transaction references a pricing record that is too old (height " << tx.pricing_record_height << ", block " << blockchain_height << ")");
+        LOG_PRINT_L2("error : transaction references a pricing record that is too old (height " << tx.pricing_record_height << ", block " << blockchain_height << ")");
         bvc.m_verifivation_failed = true;
         goto leave;
       }
@@ -4406,8 +4446,6 @@ leave:
         goto leave;
       }
 
-      // This prolly needs to be diff
-      std::vector<std::pair<std::string, std::string>> circ_supply = get_db().get_circulating_supply();
 
       if (tx_type == tt::MINT_STABLE) {
         conversion_this_tx_zeph += tx.amount_burnt; // Added to the reserve
@@ -4430,6 +4468,7 @@ leave:
       int64_t tally_stables = total_conversion_stables + conversion_this_tx_stables;
       int64_t tally_reserves = total_conversion_reserves + conversion_this_tx_reserves;
 
+      std::vector<std::pair<std::string, std::string>> circ_supply = get_db().get_circulating_supply();
       if (!reserve_ratio_satisfied(circ_supply, bl.pricing_record, tx_type, tally_zeph, tally_stables, tally_reserves)) {
         LOG_PRINT_L2(" error: block included transaction that would make reserve ratio invalid " << tx.hash);
         bvc.m_verifivation_failed = true;

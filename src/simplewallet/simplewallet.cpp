@@ -290,7 +290,7 @@ namespace
   const char* USAGE_REDEEM_RESERVE("redeem_reserve [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] (<URI> | <address> <ZEPHRSV amount> [memo=<memo data>])");
   const char* USAGE_RESERVE_TRANSFER("reserve_transfer [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] (<URI> | <address> <ZEPHRSV amount> [memo=<memo data>])");
 
-  const char* USAGE_GET_PRICE("get_price <amount>");
+  const char* USAGE_RATES("rates <amount>");
 
   const char* USAGE_RESERVE_INFO("reserve_info");
   const char* USAGE_RESERVE_RATIO("reserve_ratio");
@@ -2255,12 +2255,12 @@ bool simple_wallet::reserve_transfer(const std::vector<std::string> &args_)
 bool simple_wallet::reserve_info(const std::vector<std::string> &args)
 {
   // Get the current blockchain height
-  uint64_t current_height = m_wallet->get_blockchain_current_height()-1;
+  uint64_t current_height = m_wallet->get_blockchain_current_height();
 
   // Get the pricing record for the current height
   oracle::pricing_record pr;
-  if (!m_wallet->get_pricing_record(pr, current_height)) {
-    fail_msg_writer() << boost::format(tr("Failed to get prices at height %d - maybe pricing record is missing?")) % current_height;
+  if (!m_wallet->get_pricing_record(pr, current_height - 1)) {
+    fail_msg_writer() << boost::format(tr("Failed to get prices at height %d - maybe pricing record is missing?")) % (current_height - 1);
     return false;
   }
 
@@ -2269,36 +2269,45 @@ bool simple_wallet::reserve_info(const std::vector<std::string> &args)
   uint64_t num_reserves;
 
   uint64_t assets;
+  uint64_t assets_ma;
   uint64_t liabilities;
   uint64_t equity;
+  uint64_t equity_ma;
 
   double reserve_ratio;
+  double reserve_ratio_ma;
 
-  m_wallet->get_reserve_info(pr, zeph_reserve, num_stables, num_reserves, assets, liabilities, equity, reserve_ratio);
+  m_wallet->get_reserve_info(pr, zeph_reserve, num_stables, num_reserves, assets, assets_ma, liabilities, equity, equity_ma, reserve_ratio, reserve_ratio_ma);
 
   message_writer(console_color_white, false) << "RESERVE INFO";
-  message_writer(console_color_white, false) << boost::format(tr("Current height: %d")) % current_height;
-  message_writer(console_color_white, false) << boost::format(tr("Current reserve: %d")) % print_money(zeph_reserve);
-  message_writer(console_color_white, false) << boost::format(tr("Current number of stables: %d")) % print_money(num_stables);
-  message_writer(console_color_white, false) << boost::format(tr("Current number of reserves: %d")) % print_money(num_reserves);
-  message_writer(console_color_white, false) << boost::format(tr("Current assets: %d")) % print_money(assets);
-  message_writer(console_color_white, false) << boost::format(tr("Current liabilities: %d")) % print_money(liabilities);
-  message_writer(console_color_white, false) << boost::format(tr("Current equity: %d")) % print_money(equity);
-  message_writer(console_color_white, false) << boost::format(tr("Current reserve ratio: %.2f")) % reserve_ratio;
+  message_writer(console_color_white, false) << boost::format(tr("height: %d")) % current_height;
+  message_writer(console_color_white, false) << boost::format(tr("reserve: %d")) % print_money(zeph_reserve);
+  message_writer(console_color_white, false) << boost::format(tr("number of stables: %d")) % print_money(num_stables);
+  message_writer(console_color_white, false) << boost::format(tr("number of reserves: %d")) % print_money(num_reserves);
+
+  message_writer(console_color_white, false) << "";
+  message_writer(console_color_white, false) << boost::format(tr("assets: %d")) % print_money(assets);
+  message_writer(console_color_white, false) << boost::format(tr("liabilities: %d")) % print_money(liabilities);
+  message_writer(console_color_white, false) << boost::format(tr("equity: %d")) % print_money(equity);
+  message_writer(console_color_white, false) << "";
+  message_writer(console_color_white, false) << boost::format(tr("assets (MA): %d")) % print_money(assets_ma);
+  message_writer(console_color_white, false) << boost::format(tr("liabilities: %d")) % print_money(liabilities);
+  message_writer(console_color_white, false) << boost::format(tr("equity (MA): %d")) % print_money(equity_ma);
+   message_writer(console_color_white, false) << "";
+  message_writer(console_color_white, false) << boost::format(tr("reserve ratio: %.2f")) % reserve_ratio;
+  message_writer(console_color_white, false) << boost::format(tr("reserve ratio (MA): %.2f")) % reserve_ratio_ma;
 
   message_writer(console_color_white, false) << "";
 
-  message_writer(console_color_white, false) << boost::format(tr("ZEPHUSD %d")) % print_money(pr.zEPHUSD);
-  message_writer(console_color_white, false) << boost::format(tr("ZEPHRSV %d")) % print_money(pr.zEPHRSV);
-
-  // Iterate over the provided currencies
-  // message_writer(console_color_white, false) << boost::format(tr("Current reserve ratio: %.2f")) % reserve_ratio;
-  // message_writer(console_color_green, false) << boost::format(tr("\t ZEPHUSD %d")) % print_money(pr.zEPHUSD * base_coin);
-  // message_writer(console_color_green, false) << boost::format(tr("\t ZEPHRSV %d")) % print_money(pr.zEPHRSV * base_coin);
+  message_writer(console_color_white, false) << boost::format(tr("spot: %d")) % print_money(pr.spot);
+  message_writer(console_color_white, false) << boost::format(tr("moving average: %d")) % print_money(pr.moving_average);
+  message_writer(console_color_white, false) << boost::format(tr("stable: %d")) % print_money(pr.stable);
+  message_writer(console_color_white, false) << boost::format(tr("stable (MA): %d")) % print_money(pr.stable_ma);
+  message_writer(console_color_white, false) << boost::format(tr("reserve: %d")) % print_money(pr.reserve);
+  message_writer(console_color_white, false) << boost::format(tr("reserve (MA): %d")) % print_money(pr.reserve_ma);
 
   return true;
 }
-
 bool simple_wallet::reserve_ratio(const std::vector<std::string> &args)
 { 
   // Get the current blockchain height
@@ -2311,19 +2320,17 @@ bool simple_wallet::reserve_ratio(const std::vector<std::string> &args)
     return false;
   }
 
-  double reserve_ratio = m_wallet->get_reserve_ratio(pr);
-
-  MERROR("RESERVE RATIO IS " << reserve_ratio);
+  double reserve_ratio_spot = m_wallet->get_spot_reserve_ratio(pr);
+  double reserve_ratio_ma = m_wallet->get_ma_reserve_ratio(pr);
 
   // Iterate over the provided currencies
-  message_writer(console_color_white, false) << boost::format(tr("Current reserve ratio: %.2f")) % reserve_ratio;
-  // message_writer(console_color_green, false) << boost::format(tr("\t ZEPHUSD %d")) % print_money(pr.zEPHUSD * base_coin);
-  // message_writer(console_color_green, false) << boost::format(tr("\t ZEPHRSV %d")) % print_money(pr.zEPHRSV * base_coin);
+  message_writer(console_color_white, false) << boost::format(tr("Spot reserve ratio: %.2f")) % reserve_ratio_spot;
+  message_writer(console_color_white, false) << boost::format(tr("MA reserve ratio: %.2f")) % reserve_ratio_ma;
 
   return true;
 }
 
-bool simple_wallet::get_price(const std::vector<std::string> &args)
+bool simple_wallet::rates(const std::vector<std::string> &args)
 {
   uint64_t base_coin = 0;
   // Verify the input argument is a number
@@ -2352,8 +2359,10 @@ bool simple_wallet::get_price(const std::vector<std::string> &args)
 
   // Iterate over the provided currencies
   message_writer(console_color_white, false) << boost::format(tr("Outputting value of %d ZEPH:")) % base_coin;
-  message_writer(console_color_green, false) << boost::format(tr("\t ZEPHUSD %d")) % print_money(pr.zEPHUSD * base_coin);
-  message_writer(console_color_green, false) << boost::format(tr("\t ZEPHRSV %d")) % print_money(pr.zEPHRSV * base_coin);
+  message_writer(console_color_green, false) << boost::format(tr("\t ZEPHUSD %d")) % print_money(pr.stable * base_coin);
+  message_writer(console_color_green, false) << boost::format(tr("\t ZEPHUSD_24h %d")) % print_money(pr.stable_ma * base_coin);
+  message_writer(console_color_green, false) << boost::format(tr("\t ZEPHRSV %d")) % print_money(pr.reserve * base_coin);
+  message_writer(console_color_green, false) << boost::format(tr("\t ZEPHRSV_24h %d")) % print_money(pr.reserve_ma * base_coin);
 
   return true;
 }
@@ -3747,9 +3756,9 @@ m_cmd_binder.set_handler("reserve_transfer",
                            boost::bind(&simple_wallet::on_command, this, &simple_wallet::scan_tx, _1),
                            tr(USAGE_SCAN_TX),
                            tr("Scan the transactions given by <txid>(s), processing them and looking for outputs"));
- m_cmd_binder.set_handler("get_price",
-                           boost::bind(&simple_wallet::get_price, this, _1),
-                           tr(USAGE_GET_PRICE),
+ m_cmd_binder.set_handler("rates",
+                           boost::bind(&simple_wallet::rates, this, _1),
+                           tr(USAGE_RATES),
                            tr("Displays the current value of <amount> converted to Stable (ZEPHUSD) and Reserve (ZEPHRSV)"));
   m_cmd_binder.set_unknown_command_handler(boost::bind(&simple_wallet::on_command, this, &simple_wallet::on_unknown_command, _1));
   m_cmd_binder.set_empty_command_handler(boost::bind(&simple_wallet::on_empty_command, this));
@@ -5607,8 +5616,8 @@ void simple_wallet::on_money_received(uint64_t height, const crypto::hash &txid,
   message_writer(console_color_green, false) << "\r" <<
     tr("Height ") << height << ", " <<
     tr("txid ") << txid << ", " <<
-    print_money(amount - burnt) << burn.str() << ", " <<
-    asset_type << " " <<
+    print_money(amount - burnt) << burn.str() << " " <<
+    asset_type << ", " <<
     tr("idx ") << subaddr_index;
 
   const uint64_t warn_height = m_wallet->nettype() == TESTNET ? 1000000 : m_wallet->nettype() == STAGENET ? 50000 : 1650000;
@@ -5655,14 +5664,15 @@ void simple_wallet::on_unconfirmed_money_received(uint64_t height, const crypto:
   // Not implemented in CLI wallet
 }
 //----------------------------------------------------------------------------------------------------
-void simple_wallet::on_money_spent(uint64_t height, const crypto::hash &txid, const cryptonote::transaction& in_tx, uint64_t amount, const cryptonote::transaction& spend_tx, const cryptonote::subaddress_index& subaddr_index)
+void simple_wallet::on_money_spent(uint64_t height, const crypto::hash &txid, const cryptonote::transaction& in_tx, uint64_t amount, const std::string& asset_type, const cryptonote::transaction& spend_tx, const cryptonote::subaddress_index& subaddr_index)
 {
   if (m_locked)
     return;
   message_writer(console_color_magenta, false) << "\r" <<
     tr("Height ") << height << ", " <<
     tr("txid ") << txid << ", " <<
-    tr("spent ") << print_money(amount) << ", " <<
+    tr("spent ") << print_money(amount) << " " <<
+    asset_type << ", " <<
     tr("idx ") << subaddr_index;
   if (m_auto_refresh_refreshing)
     m_cmd_binder.print_prompt();
@@ -6596,10 +6606,8 @@ bool simple_wallet::transfer_main(
     }
     else if (i + 1 < local_args.size())
     {
-      MDEBUG("DEALING WITH: " << de.amount);
       r = cryptonote::get_account_address_from_str_or_url(info, m_wallet->nettype(), local_args[i], oa_prompter);
       bool ok = cryptonote::parse_amount(de.amount, local_args[i + 1]);
-      MDEBUG("DEALING WITH: " << de.amount);
 
       if(!ok || 0 == de.amount)
       {
@@ -6608,7 +6616,6 @@ bool simple_wallet::transfer_main(
         return false;
       }
       de.original = local_args[i];
-      MDEBUG("DEALING WITH: " << de.amount);
 
       i += 2;
     }
@@ -6807,16 +6814,16 @@ bool simple_wallet::transfer_main(
           switch (tx_type)
           {
           case tt::MINT_STABLE:
-            prompt << boost::format(tr("Minting %s ZEPHUSD by burning %s ZEPH.\n")) % print_money(total_received) % print_money(total_sent);
+            prompt << boost::format(tr("Minting %s ZEPHUSD for %s ZEPH.\n")) % print_money(total_received) % print_money(total_sent);
             break;
           case tt::REDEEM_STABLE:
-            prompt << boost::format(tr("Redeeming %s ZEPH by burning %s ZEPHUSD.\n")) % print_money(total_received) % print_money(total_sent);
+            prompt << boost::format(tr("Redeeming %s ZEPH for %s ZEPHUSD.\n")) % print_money(total_received) % print_money(total_sent);
             break;
           case tt::MINT_RESERVE:
-            prompt << boost::format(tr("Minting %s ZEPHRSV by burning %s ZEPH.\n")) % print_money(total_received) % print_money(total_sent);
+            prompt << boost::format(tr("Minting %s ZEPHRSV for %s ZEPH.\n")) % print_money(total_received) % print_money(total_sent);
             break;
           case tt::REDEEM_RESERVE:
-            prompt << boost::format(tr("Redeeming %s ZEPH by burning %s ZEPHRSV.\n")) % print_money(total_received) % print_money(total_sent);
+            prompt << boost::format(tr("Redeeming %s ZEPH for %s ZEPHRSV.\n")) % print_money(total_received) % print_money(total_sent);
             break;
           default:
             break;

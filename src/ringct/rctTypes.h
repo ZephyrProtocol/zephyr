@@ -324,6 +324,7 @@ namespace rct {
         std::vector<ecdhTuple> ecdhInfo;
         ctkeyV outPk;
         xmr_amount txnFee; // contains b
+        keyV maskSums; // contains 2 elements. 1. is the sum of masks of inputs. 2. is the sum of masks of change outputs.
 
         template<bool W, template <bool> class Archive>
         bool serialize_rctsig_base(Archive<W> &ar, size_t inputs, size_t outputs)
@@ -389,6 +390,18 @@ namespace rct {
             if (outputs - i > 1)
               ar.delimit_array();
           }
+          ar.end_array();
+
+          if (maskSums.size() != 2)
+            return ar.good();
+
+          ar.tag("maskSums");
+          ar.begin_array();
+          PREPARE_CUSTOM_VECTOR_SERIALIZATION(2, maskSums);
+
+          FIELDS(maskSums[0])
+          ar.delimit_array();
+          FIELDS(maskSums[1])
           ar.end_array();
 
           return ar.good();

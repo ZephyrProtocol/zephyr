@@ -59,7 +59,7 @@ using epee::string_tools::pod_to_hex;
 using namespace crypto;
 
 // Increase when the DB structure changes
-#define VERSION 1
+#define VERSION 2
 
 namespace
 {
@@ -301,11 +301,26 @@ typedef struct mdb_block_info_1
   crypto::hash bi_hash;
   uint64_t bi_cum_rct;
   uint64_t bi_long_term_block_weight;
-  oracle::pricing_record bi_pricing_record;
+  oracle::pricing_record_pre bi_pricing_record;
   oracle::asset_type_counts bi_cum_rct_by_asset_type;
 } mdb_block_info_1;
 
-typedef mdb_block_info_1 mdb_block_info;
+typedef struct mdb_block_info_2
+{
+  uint64_t bi_height;
+  uint64_t bi_timestamp;
+  uint64_t bi_coins;
+  uint64_t bi_weight; // a size_t really but we need 32-bit compat
+  uint64_t bi_diff_lo;
+  uint64_t bi_diff_hi;
+  crypto::hash bi_hash;
+  uint64_t bi_cum_rct;
+  uint64_t bi_long_term_block_weight;
+  oracle::pricing_record bi_pricing_record;
+  oracle::asset_type_counts bi_cum_rct_by_asset_type;
+} mdb_block_info_2;
+
+typedef mdb_block_info_2 mdb_block_info;
 
 typedef struct blk_height {
     crypto::hash bh_hash;
@@ -1067,18 +1082,17 @@ uint64_t BlockchainLMDB::add_transaction_data(const crypto::hash& blk_hash, cons
     MDB_val_copy<uint64_t> source_idx(cs.source_currency_type);
     boost::multiprecision::int128_t source_tally = read_circulating_supply_data(m_cur_circ_supply_tally, source_idx);
     boost::multiprecision::int128_t final_source_tally;
-    
+
     if (strSource == "ZEPH") {
       final_source_tally = source_tally + cs.amount_burnt; // Adds burnt ZEPH to the Reserve
     } else {
       final_source_tally = source_tally - cs.amount_burnt; // Burn ZEPHUSD or ZEPHRSV
+      if (final_source_tally < 0) {
+        LOG_ERROR(__func__ << " : mint/burn underflow detected for " << strSource << " : correcting supply tally by " << final_source_tally);
+        final_source_tally = 0;
+      }
     }
-    boost::multiprecision::int128_t coinbase = get_block_already_generated_coins(m_height-1);
-    if ((strSource == "ZEPH" && (coinbase + final_source_tally < 0)) ||
-        (strSource != "ZEPH" && final_source_tally < 0)) {
-      LOG_ERROR(__func__ << " : mint/burn underflow detected for " << strSource << " : correcting supply tally by " << final_source_tally);
-      final_source_tally = 0;
-    }
+
     write_circulating_supply_data(m_cur_circ_supply_tally, source_idx, final_source_tally);
 
     // Get the current tally value for the dest currency type
@@ -1088,7 +1102,7 @@ uint64_t BlockchainLMDB::add_transaction_data(const crypto::hash& blk_hash, cons
 
     if (strDest == "ZEPH") {
       final_dest_tally = dest_tally - cs.amount_minted; // Remove minted ZEPH amount from the Reserve
-      if (coinbase + final_dest_tally < 0) {
+      if (final_dest_tally < 0) {
         LOG_ERROR(__func__ << " : mint/burn underflow detected for " << strDest << " : correcting supply tally by " << final_dest_tally);
         final_dest_tally = 0;
       }
@@ -1186,22 +1200,35 @@ void BlockchainLMDB::remove_transaction_data(const crypto::hash& tx_hash, const 
     cs.source_currency_type = std::find(oracle::ASSET_TYPES.begin(), oracle::ASSET_TYPES.end(), strSource) - oracle::ASSET_TYPES.begin();
     cs.dest_currency_type = std::find(oracle::ASSET_TYPES.begin(), oracle::ASSET_TYPES.end(), strDest) - oracle::ASSET_TYPES.begin();
 
-    // TODO: this is wrong
     // Update the tally by increasing the amount by how much we've burnt
     MDB_val_copy<uint64_t> source_idx(cs.source_currency_type);
     boost::multiprecision::int128_t source_tally = read_circulating_supply_data(m_cur_circ_supply_tally, source_idx);
-    boost::multiprecision::int128_t final_source_tally = source_tally + cs.amount_burnt;
+    boost::multiprecision::int128_t final_source_tally;
+
+    if (strSource == "ZEPH") {
+      final_source_tally = source_tally - cs.amount_burnt; // Undo the adding of burnt ZEPH to the Reserve
+      if (final_source_tally < 0) {
+        LOG_ERROR(__func__ << " : mint/burn underflow detected for " << strSource << " : correcting supply tally by " << final_source_tally);
+        final_source_tally = 0;
+      }
+    } else {
+      final_source_tally = source_tally + cs.amount_burnt;
+    }
+
     write_circulating_supply_data(m_cur_circ_supply_tally, source_idx, final_source_tally);
     
     // Update the tally by decreasing the amount by how much we've minted
     MDB_val_copy<uint64_t> dest_idx(cs.dest_currency_type);
     boost::multiprecision::int128_t dest_tally = read_circulating_supply_data(m_cur_circ_supply_tally, dest_idx);
-    boost::multiprecision::int128_t final_dest_tally = dest_tally - cs.amount_minted;
-    boost::multiprecision::int128_t coinbase = get_block_already_generated_coins(m_height-1);
-    if ((strDest == "ZEPH" && (coinbase + final_dest_tally < 0)) ||
-        (strDest != "ZEPH" && final_dest_tally < 0)) {
-      LOG_ERROR(__func__ << " : mint/burn underflow detected for " << strDest << " : correcting supply tally by " << final_dest_tally);
-      final_dest_tally = 0;
+    boost::multiprecision::int128_t final_dest_tally;
+    if (strDest == "ZEPH") {
+      final_dest_tally = dest_tally + cs.amount_minted; // Undo removing minted ZEPH amount from the Reserve
+      if (final_dest_tally < 0) {
+        LOG_ERROR(__func__ << " : mint/burn underflow detected for " << strDest << " : correcting supply tally by " << final_dest_tally);
+        final_dest_tally = 0;
+      }
+    } else {
+      final_dest_tally = dest_tally - cs.amount_minted;
     }
     write_circulating_supply_data(m_cur_circ_supply_tally, dest_idx, final_dest_tally);
 
@@ -4886,8 +4913,139 @@ uint64_t BlockchainLMDB::get_database_size() const
 
 #define LOGIF(y)    if (ELPP->vRegistry()->allowed(y, "global"))
 
+void BlockchainLMDB::migrate_1_2()
+{
+  LOG_PRINT_L3("BlockchainLMDB::" << __func__);
+  uint64_t i;
+  int result;
+  mdb_txn_safe txn(false);
+  MDB_val k, v;
+  char *ptr;
+
+  MGINFO_YELLOW("Migrating blockchain from DB version 1 to 2 - this may take a while:");
+
+  do {
+    LOG_PRINT_L1("migrating block info:");
+
+    result = mdb_txn_begin(m_env, NULL, 0, txn);
+    if (result)
+      throw0(DB_ERROR(lmdb_error("Failed to create a transaction for the db: ", result).c_str()));
+
+    MDB_stat db_stats;
+    if ((result = mdb_stat(txn, m_blocks, &db_stats)))
+      throw0(DB_ERROR(lmdb_error("Failed to query m_blocks: ", result).c_str()));
+    const uint64_t blockchain_height = db_stats.ms_entries;
+
+    /* the block_info table name is the same but the old version and new version
+     * have incompatible data. Create a new table. We want the name to be similar
+     * to the old name so that it will occupy the same location in the DB.
+     */
+    MDB_dbi o_block_info = m_block_info;
+    lmdb_db_open(txn, "block_infn", MDB_INTEGERKEY | MDB_CREATE | MDB_DUPSORT | MDB_DUPFIXED, m_block_info, "Failed to open db handle for block_infn");
+    mdb_set_dupsort(txn, m_block_info, compare_uint64);
+
+
+    MDB_cursor *c_blocks;
+    result = mdb_cursor_open(txn, m_blocks, &c_blocks);
+    if (result)
+      throw0(DB_ERROR(lmdb_error("Failed to open a cursor for blocks: ", result).c_str()));
+
+    MDB_cursor *c_old, *c_cur;
+    i = 0;
+    while(1) {
+      if (!(i % 1000)) {
+        if (i) {
+          LOGIF(el::Level::Info) {
+            std::cout << i << " / " << blockchain_height << "  \r" << std::flush;
+          }
+          txn.commit();
+          result = mdb_txn_begin(m_env, NULL, 0, txn);
+          if (result)
+            throw0(DB_ERROR(lmdb_error("Failed to create a transaction for the db: ", result).c_str()));
+        }
+        result = mdb_cursor_open(txn, m_block_info, &c_cur);
+        if (result)
+          throw0(DB_ERROR(lmdb_error("Failed to open a cursor for block_infn: ", result).c_str()));
+        result = mdb_cursor_open(txn, o_block_info, &c_old);
+        if (result)
+          throw0(DB_ERROR(lmdb_error("Failed to open a cursor for block_info: ", result).c_str()));
+        if (!i) {
+          MDB_stat db_stat;
+          result = mdb_stat(txn, m_block_info, &db_stats);
+          if (result)
+            throw0(DB_ERROR(lmdb_error("Failed to query m_block_info: ", result).c_str()));
+          i = db_stats.ms_entries;
+        }
+      }
+      result = mdb_cursor_get(c_old, &k, &v, MDB_NEXT);
+      if (result == MDB_NOTFOUND) {
+        txn.commit();
+        break;
+      }
+      else if (result)
+        throw0(DB_ERROR(lmdb_error("Failed to get a record from block_info: ", result).c_str()));
+      const mdb_block_info_1 *bi_old = (const mdb_block_info_1*)v.mv_data;
+      mdb_block_info_2 bi;
+      bi.bi_height = bi_old->bi_height;
+      bi.bi_timestamp = bi_old->bi_timestamp;
+      bi.bi_coins = bi_old->bi_coins;
+      bi.bi_weight = bi_old->bi_weight;
+      bi.bi_diff_lo = bi_old->bi_diff_lo;
+      bi.bi_diff_hi = bi_old->bi_diff_hi;
+      bi.bi_hash = bi_old->bi_hash;
+      bi.bi_cum_rct = bi_old->bi_cum_rct;
+      bi.bi_cum_rct_by_asset_type = bi_old->bi_cum_rct_by_asset_type;
+      bi.bi_long_term_block_weight = bi_old->bi_long_term_block_weight;
+      bi.bi_pricing_record = oracle::pricing_record();
+
+      MDB_val_set(nv, bi);
+      result = mdb_cursor_put(c_cur, (MDB_val *)&zerokval, &nv, MDB_APPENDDUP);
+      if (result)
+        throw0(DB_ERROR(lmdb_error("Failed to put a record into block_infn: ", result).c_str()));
+      /* we delete the old records immediately, so the overall DB and mapsize should not grow.
+       * This is a little slower than just letting mdb_drop() delete it all at the end, but
+       * it saves a significant amount of disk space.
+       */
+      result = mdb_cursor_del(c_old, 0);
+      if (result)
+        throw0(DB_ERROR(lmdb_error("Failed to delete a record from block_info: ", result).c_str()));
+      i++;
+    }
+
+    result = mdb_txn_begin(m_env, NULL, 0, txn);
+    if (result)
+      throw0(DB_ERROR(lmdb_error("Failed to create a transaction for the db: ", result).c_str()));
+    /* Delete the old table */
+    result = mdb_drop(txn, o_block_info, 1);
+    if (result)
+      throw0(DB_ERROR(lmdb_error("Failed to delete old block_info table: ", result).c_str()));
+
+    RENAME_DB("block_infn");
+    mdb_dbi_close(m_env, m_block_info);
+
+    lmdb_db_open(txn, "block_info", MDB_INTEGERKEY | MDB_CREATE | MDB_DUPSORT | MDB_DUPFIXED, m_block_info, "Failed to open db handle for block_infn");
+    mdb_set_dupsort(txn, m_block_info, compare_uint64);
+
+    txn.commit();
+  } while(0);
+
+  uint32_t version = 2;
+  v.mv_data = (void *)&version;
+  v.mv_size = sizeof(version);
+  MDB_val_str(vk, "version");
+  result = mdb_txn_begin(m_env, NULL, 0, txn);
+  if (result)
+    throw0(DB_ERROR(lmdb_error("Failed to create a transaction for the db: ", result).c_str()));
+  result = mdb_put(txn, m_properties, &vk, &v, 0);
+  if (result)
+    throw0(DB_ERROR(lmdb_error("Failed to update version for the db: ", result).c_str()));
+  txn.commit();
+}
+
 void BlockchainLMDB::migrate(const uint32_t oldversion)
 {
+  if (oldversion < 2)
+    migrate_1_2();
 }
 
 }  // namespace cryptonote

@@ -338,7 +338,6 @@ namespace cryptonote
     
     // Sanity check that we only have 1 source asset type
     if (sat.size() == 2) {
-      // this is only possible for an onshore tx.
       if ((sat[0] == "ZEPH" && sat[1] == "ZEPHUSD") || (sat[0] == "ZEPHUSD" && sat[1] == "ZEPH")) {
         source = "ZEPHUSD";
       } else {
@@ -528,7 +527,8 @@ namespace cryptonote
     uint64_t fee_estimate = (amount * 2) / 100; // 2% fee
     return fee_estimate;
   }
-  void get_reserve_info(const std::vector<std::pair<std::string, std::string>>& circ_amounts, const oracle::pricing_record& pr, uint64_t& zeph_reserve, uint64_t& num_stables, uint64_t& num_reserves, uint64_t& assets, uint64_t& liabilities, uint64_t& equity, double& reserve_ratio)
+
+  void get_reserve_info(const std::vector<std::pair<std::string, std::string>>& circ_amounts, const oracle::pricing_record& pr, uint64_t& zeph_reserve, uint64_t& num_stables, uint64_t& num_reserves, uint64_t& assets, uint64_t& assets_ma, uint64_t& liabilities, uint64_t& equity, uint64_t& equity_ma, double& reserve_ratio, double& reserve_ratio_ma)
   {
     zeph_reserve = 0;
     for (auto circ_amount : circ_amounts) {
@@ -556,36 +556,51 @@ namespace cryptonote
     
     if (num_reserves == 0 || zeph_reserve == 0) {
       assets = 0;
+      assets_ma = 0;
       liabilities = 0;
       equity = 0;
+      equity_ma = 0;
       reserve_ratio = 0;
+      reserve_ratio_ma = 0;
       return;
     }
 
-    boost::multiprecision::uint128_t exchange_128 = pr.zEPHUSD;
     boost::multiprecision::uint128_t assets_128 = zeph_reserve;
-    boost::multiprecision::uint128_t liabilities_128 = num_stables; // Convert to ZEPH
-    liabilities_128 *= COIN;
-    liabilities_128 /= exchange_128;
+    boost::multiprecision::uint128_t assets_ma_128 = zeph_reserve;
 
-    MDEBUG("num_stables: " << num_stables);
-    MDEBUG("LIABILITIES: " << liabilities_128);
+    assets_128 *= pr.spot;
+    assets_ma_128 *= pr.moving_average;
+
+    boost::multiprecision::uint128_t liabilities_128 = num_stables;
 
     // use boost floating point to calculate the ratio
     boost::multiprecision::cpp_dec_float_100 reserve_ratio_128 = boost::multiprecision::cpp_dec_float_100(assets_128) / boost::multiprecision::cpp_dec_float_100(liabilities_128);
+    boost::multiprecision::cpp_dec_float_100 reserve_ratio_ma_128 = boost::multiprecision::cpp_dec_float_100(assets_ma_128) / boost::multiprecision::cpp_dec_float_100(liabilities_128);
 
-    // convert to double
-    // assets_128 /= COIN;
+    assets_128 /= COIN;
+    assets_ma_128 /= COIN;
     assets = assets_128.convert_to<uint64_t>();
+    assets_ma = assets_ma_128.convert_to<uint64_t>();
 
-    // liabilities_128 /= COIN;
     liabilities = liabilities_128.convert_to<uint64_t>();
     equity = assets - liabilities;
-    reserve_ratio = reserve_ratio_128.convert_to<double>();
+    equity_ma = assets_ma - liabilities;
 
+    reserve_ratio_128 /= COIN;
+    reserve_ratio_ma_128 /= COIN;
+    reserve_ratio = reserve_ratio_128.convert_to<double>();
+    reserve_ratio_ma = reserve_ratio_ma_128.convert_to<double>();
     return;
   }
-  double get_reserve_ratio(const std::vector<std::pair<std::string, std::string>>& circ_amounts, const oracle::pricing_record& pr)
+  double get_spot_reserve_ratio(const std::vector<std::pair<std::string, std::string>>& circ_amounts, const oracle::pricing_record& pr)
+  {
+    return get_reserve_ratio(circ_amounts, pr.spot);
+  }
+  double get_ma_reserve_ratio(const std::vector<std::pair<std::string, std::string>>& circ_amounts, const oracle::pricing_record& pr)
+  {
+    return get_reserve_ratio(circ_amounts, pr.moving_average);
+  }
+  double get_reserve_ratio(const std::vector<std::pair<std::string, std::string>>& circ_amounts, const uint64_t oracle_price)
   {
     uint64_t zeph_reserve = 0;
     for (auto circ_amount : circ_amounts) {
@@ -615,7 +630,7 @@ namespace cryptonote
       return 0;
     }
 
-    boost::multiprecision::uint128_t exchange_128 = pr.zEPHUSD;
+    boost::multiprecision::uint128_t exchange_128 = oracle_price;
     boost::multiprecision::uint128_t assets = zeph_reserve;
     boost::multiprecision::uint128_t liabilities = num_stable; // already in USD
     liabilities *= COIN;
@@ -632,7 +647,6 @@ namespace cryptonote
     std::string error_reason;
     return reserve_ratio_satisfied(circ_amounts, pr, tx_type, tally_zeph, tally_stables, tally_reserves, error_reason);
   }
-
   //---------------------------------------------------------------
   bool reserve_ratio_satisfied(std::vector<std::pair<std::string, std::string>> circ_amounts, const oracle::pricing_record& pr, const transaction_type& tx_type, int64_t tally_zeph, int64_t tally_stables, int64_t tally_reserves, std::string& error_reason)
   {
@@ -675,39 +689,49 @@ namespace cryptonote
     uint64_t new_num_stable = num_stable + tally_stables;
     uint64_t new_num_reserve = num_reserve + tally_reserves;
 
-    boost::multiprecision::uint128_t exchange_128 = pr.zEPHUSD;
-
     boost::multiprecision::uint128_t assets = new_zeph_reserve;
-    boost::multiprecision::uint128_t liabilities = new_num_stable; // already in USD
-    liabilities *= COIN;
-    liabilities /= exchange_128;
+    boost::multiprecision::uint128_t liabilities_spot = new_num_stable;
+    boost::multiprecision::uint128_t liabilities_MA = new_num_stable;
+    liabilities_spot *= COIN;
+    liabilities_MA *= COIN;
+
+    liabilities_spot /= pr.spot;
+    liabilities_MA /= pr.moving_average;
 
     // use boost floating point to calculate the ratio
-    boost::multiprecision::cpp_dec_float_100 reserve_ratio = boost::multiprecision::cpp_dec_float_100(assets) / boost::multiprecision::cpp_dec_float_100(liabilities);
-
-    MDEBUG("RSV RATIO: " << assets << " / " << liabilities << " = " << reserve_ratio);
+    boost::multiprecision::cpp_dec_float_100 reserve_ratio_spot = boost::multiprecision::cpp_dec_float_100(assets) / boost::multiprecision::cpp_dec_float_100(liabilities_spot);
+    boost::multiprecision::cpp_dec_float_100 reserve_ratio_MA = boost::multiprecision::cpp_dec_float_100(assets) / boost::multiprecision::cpp_dec_float_100(liabilities_MA);
 
     if (tx_type == transaction_type::MINT_STABLE) {
       // Make sure the reserve ratio is at least 4.0
-      if (reserve_ratio < 4.0) {
-        error_reason = "Reserve ratio not satisfied. " + std::to_string((double)reserve_ratio) + " is less than 4.0";
-        LOG_ERROR("Reserve ratio not satisfied. " << reserve_ratio << " is less than 4.0");
+      if (reserve_ratio_spot < 4.0) {
+        error_reason = "Spot reserve ratio not satisfied. New reserve ratio would be " + std::to_string((double)reserve_ratio_spot) + " which is less than minimum 4.0";
+        LOG_ERROR(error_reason);
+        return false;
+      }
+      if (reserve_ratio_MA < 4.0) {
+        error_reason = "MA reserve ratio not satisfied. New reserve ratio would be " + std::to_string((double)reserve_ratio_MA) + " which is less than minimum 4.0";
+        LOG_ERROR(error_reason);
         return false;
       }
       return true;
     }
 
     if (tx_type == transaction_type::REDEEM_STABLE) {
-      // Always possible but we need to make sure values hold up 
-      // since if rsv ratio is below 4 we need to use R/Nsc price
+      // Always possible
       return true;
     }
 
     if (tx_type == transaction_type::MINT_RESERVE) {
       // Make sure the reserve ratio has not exceeded max of 8.0
-      if (reserve_ratio >= 8.0) {
-        error_reason = "Reserve ratio not satisfied. " + std::to_string((double)reserve_ratio) + " is above max 8.0";
-        LOG_ERROR("Reserve ratio not satisfied. " << reserve_ratio << " is above max 8.0");
+      if (reserve_ratio_spot >= 8.0) {
+        error_reason = "Spot reserve ratio not satisfied. New reserve ratio would be " + std::to_string((double)reserve_ratio_spot) + " which is above the maximum 8.0";
+        LOG_ERROR(error_reason);
+        return false;
+      }
+      if (reserve_ratio_MA >= 8.0) {
+        error_reason = "MA reserve ratio not satisfied. New reserve ratio would be " + std::to_string((double)reserve_ratio_MA) + " which is above the maximum 8.0";
+        LOG_ERROR(error_reason);
         return false;
       }
       return true;
@@ -715,21 +739,34 @@ namespace cryptonote
 
     if (tx_type == transaction_type::REDEEM_RESERVE) {
       // Make sure the reserve ratio is at least 4.0
-      if (reserve_ratio < 4.0) {
-        error_reason = "Reserve ratio not satisfied. " + std::to_string((double)reserve_ratio) + " is less than 4.0";
-        LOG_ERROR("Reserve ratio not satisfied. " << reserve_ratio << " is less than 4.0");
+      if (reserve_ratio_spot < 4.0) {
+        error_reason = "Reserve ratio not satisfied. New reserve ratio would be " + std::to_string((double)reserve_ratio_spot) + " which is less than the minimum 4.0";
+        LOG_ERROR(error_reason);
+        return false;
+      }
+      if (reserve_ratio_MA < 4.0) {
+        error_reason = "Reserve ratio not satisfied. New reserve ratio would be " + std::to_string((double)reserve_ratio_MA) + " which is less than the minimum 4.0";
+        LOG_ERROR(error_reason);
         return false;
       }
       return true;
     }
 
-    error_reason = "Reserve ratio not satisfied. " + std::to_string((double)reserve_ratio);
-    LOG_ERROR("Reserve ratio not satisfied. " << reserve_ratio);
+    error_reason = "Reserve ratios not satisfied. Spot: " + std::to_string((double)reserve_ratio_spot) + " | MA: " + std::to_string((double)reserve_ratio_MA);
+    LOG_ERROR(error_reason);
     return false;
   }
-  //---------------------------------------------------------------
+   //---------------------------------------------------------------
   uint64_t get_stable_coin_price(std::vector<std::pair<std::string, std::string>> circ_amounts, uint64_t oracle_price)
   {
+    if (oracle_price == 0) {
+      return 0;
+    }
+
+    boost::multiprecision::uint128_t rate = COIN;
+    rate *= COIN;
+    rate /= oracle_price;
+
     uint64_t zeph_reserve = 0;
     for (auto circ_amount : circ_amounts) {
       if (circ_amount.first == "ZEPH") {
@@ -746,23 +783,32 @@ namespace cryptonote
       }
     }
 
-    if (num_stable == 0) {
-      return oracle_price;
+    if (num_stable == 0 || zeph_reserve == 0) {
+      return (uint64_t)rate;
     }
 
-    // Calculate the worst case stable price
+    // Calculate the reserve ratio
     boost::multiprecision::uint128_t exchange_128 = oracle_price;
     boost::multiprecision::uint128_t assets = zeph_reserve;
+    boost::multiprecision::uint128_t stable_rate_128 = num_stable;
+    stable_rate_128 *= COIN;
+    stable_rate_128 /= exchange_128;
+
     assets *= COIN;
 
-    boost::multiprecision::uint128_t worst_case_stable_price = assets / num_stable;
+    boost::multiprecision::cpp_dec_float_100 reserve_ratio = boost::multiprecision::cpp_dec_float_100(assets) / boost::multiprecision::cpp_dec_float_100(stable_rate_128);
 
-    worst_case_stable_price -= (worst_case_stable_price % 10000);
+    if (reserve_ratio < 1.0) {
+      // Calculate the worst case stable price
+      boost::multiprecision::uint128_t num_stable_128 = num_stable;
+      boost::multiprecision::uint128_t worst_case_stable_rate = assets / num_stable_128;
+      return worst_case_stable_rate.convert_to<uint64_t>();
+    }
 
-    return std::min(oracle_price, (uint64_t)worst_case_stable_price);
+    return (uint64_t)rate;
   }
   //---------------------------------------------------------------
-  uint64_t get_reserve_coin_price(std::vector<std::pair<std::string, std::string>> circ_amounts, const oracle::pricing_record& pr)
+  uint64_t get_reserve_coin_price(std::vector<std::pair<std::string, std::string>> circ_amounts, uint64_t exchange_rate)
   {
     uint64_t zeph_reserve = 0;
     for (auto circ_amount : circ_amounts) {
@@ -794,37 +840,31 @@ namespace cryptonote
       return (uint64_t)price_r_min;
     }
 
-    if (!pr.zEPHUSD) {
+    if (!exchange_rate) {
       MERROR("No price data available. Reserve price cannot be calculated.");
       return 0;
     }
 
-    boost::multiprecision::uint128_t exchange_128 = pr.zEPHUSD;
+    boost::multiprecision::uint128_t exchange_128 = exchange_rate;
 
     boost::multiprecision::uint128_t assets = zeph_reserve;
     boost::multiprecision::uint128_t liabilities = num_stable; // already in USD
     liabilities *= COIN;
     liabilities /= exchange_128;
     boost::multiprecision::uint128_t equity = assets - liabilities;
-
-    MDEBUG("equity calc (price only): " << assets << " - " << liabilities << " = " << equity);
-
-    MDEBUG("Nrc (price only): " << num_reserve);
     equity *= COIN;
+
     boost::multiprecision::uint128_t reserve_coin_price = equity / num_reserve;
-
-    MDEBUG("rsv (price only): " << reserve_coin_price);
-
     reserve_coin_price -= (reserve_coin_price % 10000);
     
     return std::max((uint64_t)reserve_coin_price, (uint64_t)price_r_min);
   }
   //---------------------------------------------------------------
+  // ZEPH -> ZEPHRSV
   uint64_t get_reserve_amount(const uint64_t amount, const oracle::pricing_record& pr)
   {
-    // pr.zEPHRSV is price of 1 zEPHRSV in ZEPH
     boost::multiprecision::uint128_t amount_128 = amount;
-    boost::multiprecision::uint128_t reserve_coin_price = pr.zEPHRSV;
+    boost::multiprecision::uint128_t reserve_coin_price = std::max(pr.reserve, pr.reserve_ma);
 
     // for rct precision
     boost::multiprecision::uint128_t rate_128 = COIN;
@@ -838,43 +878,50 @@ namespace cryptonote
     return (uint64_t)reserve_amount_128;
   }
   //---------------------------------------------------------------
+  // ZEPHRSV -> ZEPH
   uint64_t get_zeph_amount_from_reserve(const uint64_t amount, const oracle::pricing_record& pr)
   {
     boost::multiprecision::uint128_t amount_128 = amount;
-    boost::multiprecision::uint128_t reserve_amount_128 = amount_128 * pr.zEPHRSV;
-    reserve_amount_128 /= 1000000000000;
+    boost::multiprecision::uint128_t reserve_coin_price = std::min(pr.reserve, pr.reserve_ma);
+    boost::multiprecision::uint128_t conversion_fee = (reserve_coin_price * 2) / 100; // 2% fee
+    reserve_coin_price -= conversion_fee;
 
-    MDEBUG("get_zeph_amount_from_reserve: reserve_amount_128: " << reserve_amount_128);
+    boost::multiprecision::uint128_t reserve_amount_128 = amount_128 * reserve_coin_price;
+    reserve_amount_128 /= COIN;
 
     return (uint64_t)reserve_amount_128;
   }
   //---------------------------------------------------------------
+  // ZEPH -> ZEPHUSD
   uint64_t get_stable_amount(const uint64_t amount, const oracle::pricing_record& pr)
   {
     boost::multiprecision::uint128_t amount_128 = amount;
-    boost::multiprecision::uint128_t stable_128 = amount_128 * pr.zEPHUSD;
-    // boost::multiprecision::uint128_t conversion_fee = (stable_128 * 2) / 100; // 2% fee
-    // stable_128 -= conversion_fee;
-    stable_128 /= 1000000000000;
-    return (uint64_t)stable_128;
-  }
-  //---------------------------------------------------------------
-  uint64_t get_zeph_amount(const uint64_t amount, const oracle::pricing_record& pr)
-  {
-    // Now work out the amount
-    boost::multiprecision::uint128_t stable_128 = amount;
-    // boost::multiprecision::uint128_t conversion_fee = (stable_128 * 2) / 100; // 2% fee
-    // stable_128 -= conversion_fee;
-    boost::multiprecision::uint128_t exchange_128 = pr.zEPHUSD;
+    boost::multiprecision::uint128_t exchange_128 = std::max(pr.stable, pr.stable_ma); 
 
     // for rct precision
     boost::multiprecision::uint128_t rate_128 = COIN;
     rate_128 *= COIN;
     rate_128 /= exchange_128;
+
+    boost::multiprecision::uint128_t conversion_fee = (rate_128 * 2) / 100; // 2% fee
+    rate_128 -= conversion_fee;
     rate_128 -= (rate_128 % 100000000);
-   
+
+    boost::multiprecision::uint128_t stable_128 = amount_128 * rate_128;
+    stable_128 /= COIN;
+
+    return (uint64_t)stable_128;
+  }
+  //---------------------------------------------------------------
+  // ZEPHUSD -> ZEPH
+  uint64_t get_zeph_amount(const uint64_t amount, const oracle::pricing_record& pr)
+  {
+    boost::multiprecision::uint128_t stable_128 = amount;
+    boost::multiprecision::uint128_t exchange_128 = std::min(pr.stable, pr.stable_ma);
+    boost::multiprecision::uint128_t conversion_fee = (exchange_128 * 2) / 100; // 2% fee
+    exchange_128 -= conversion_fee;
     
-    boost::multiprecision::uint128_t zeph_128 = stable_128 * rate_128;
+    boost::multiprecision::uint128_t zeph_128 = stable_128 * exchange_128;
     zeph_128 /= COIN;
 
     return (uint64_t)zeph_128;
@@ -1155,7 +1202,7 @@ namespace cryptonote
                                            use_view_tags, view_tag);
 
       tx_out out;
-      cryptonote::set_tx_out(dst_entr.dest_asset_type, dst_entr.amount, out_eph_public_key, use_view_tags, view_tag, out);
+      cryptonote::set_tx_out(dst_entr.dest_asset_type, dst_entr.dest_amount, out_eph_public_key, use_view_tags, view_tag, out);
       tx.vout.push_back(out);
       output_index++;
 

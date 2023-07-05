@@ -30,6 +30,7 @@
 
 #pragma once
 
+#include <array>
 #include <stdexcept>
 #include <string>
 #include <boost/uuid/uuid.hpp>
@@ -41,7 +42,7 @@
 #define CRYPTONOTE_MAX_TX_PER_BLOCK                     0x10000000
 #define CRYPTONOTE_PUBLIC_ADDRESS_TEXTBLOB_VER          0
 #define CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW            60
-#define CURRENT_TRANSACTION_VERSION                     2
+#define CURRENT_TRANSACTION_VERSION                     3
 #define DJED_TRANSACTION_VERSION                        3
 #define CURRENT_BLOCK_MAJOR_VERSION                     1
 #define CURRENT_BLOCK_MINOR_VERSION                     1
@@ -251,6 +252,12 @@ namespace config
 
   std::string const GOVERNANCE_WALLET_ADDRESS = "ZEPHYR2jZrZXenfKejCcCmEkRzUYwXjgWfJF4yzdCznKQ8yQ3g3PsWUbZjzfzHbeTPMgXVmEuDKQUB9rPkgtVwyWRh9knU4EpfJ57";
 
+  std::array<std::string, 1> const ORACLE_URLS = {{"170.64.173.105:7779"}}; // oracle test server
+
+  std::string const ORACLE_PUBLIC_KEY = "-----BEGIN PUBLIC KEY-----\n"
+    "MFwwDQYJKoZIhvcNAQEBBQADSwAwSAJBAMdjZLVtXH/nK3L+fXyaquZFrkHpKimc\n"
+    "681dPqESb8CCZrckTyd3O0xGegU8dVIFUWM8mzylv09zlgrzigkfedECAwEAAQ==\n"
+    "-----END PUBLIC KEY-----\n"; // oracle test server key
 
   namespace testnet
   {
@@ -308,6 +315,8 @@ namespace cryptonote
     boost::uuids::uuid const NETWORK_ID;
     std::string const GENESIS_TX;
     uint32_t const GENESIS_NONCE;
+    std::array<std::string, 1> const ORACLE_URLS;
+    std::string const ORACLE_PUBLIC_KEY;
   };
   inline const config_t& get_config(network_type nettype)
   {
@@ -320,7 +329,9 @@ namespace cryptonote
       ::config::ZMQ_RPC_DEFAULT_PORT,
       ::config::NETWORK_ID,
       ::config::GENESIS_TX,
-      ::config::GENESIS_NONCE
+      ::config::GENESIS_NONCE,
+      ::config::ORACLE_URLS,
+      ::config::ORACLE_PUBLIC_KEY
     };
     static const config_t testnet = {
       ::config::testnet::CRYPTONOTE_PUBLIC_ADDRESS_BASE58_PREFIX,

@@ -237,14 +237,18 @@ namespace cryptonote
   uint64_t get_mint_reserve_fee(const std::vector<cryptonote::tx_destination_entry>& dsts);
   uint64_t get_redeem_reserve_fee(const std::vector<cryptonote::tx_destination_entry>& dsts);
 
-  void get_reserve_info(const std::vector<std::pair<std::string, std::string>>& circ_amounts, const oracle::pricing_record& pricing_record, uint64_t& zeph_reserve, uint64_t& num_stables, uint64_t& num_reserves, uint64_t& assets, uint64_t& liabilities, uint64_t& equity, double& reserve_ratio);
-  double get_reserve_ratio(const std::vector<std::pair<std::string, std::string>>& circ_amounts, const oracle::pricing_record& pr);
+  void get_reserve_info(const std::vector<std::pair<std::string, std::string>>& circ_amounts, const oracle::pricing_record& pricing_record, uint64_t& zeph_reserve, uint64_t& num_stables, uint64_t& num_reserves, uint64_t& assets, uint64_t& assets_ma, uint64_t& liabilities, uint64_t& equity, uint64_t& equity_ma, double& reserve_ratio, double& reserve_ratio_ma);
+
+  double get_reserve_ratio(const std::vector<std::pair<std::string, std::string>>& circ_amounts, const uint64_t oracle_price);
+  double get_spot_reserve_ratio(const std::vector<std::pair<std::string, std::string>>& circ_amounts, const oracle::pricing_record& pr);
+  double get_ma_reserve_ratio(const std::vector<std::pair<std::string, std::string>>& circ_amounts, const oracle::pricing_record& pr);
+
 
   bool reserve_ratio_satisfied(std::vector<std::pair<std::string, std::string>> circ_amounts, const oracle::pricing_record& pr, const transaction_type& tx_type, int64_t tally_zeph, int64_t tally_stables, int64_t tally_reserves);
   bool reserve_ratio_satisfied(std::vector<std::pair<std::string, std::string>> circ_amounts, const oracle::pricing_record& pr, const transaction_type& tx_type, int64_t tally_zeph, int64_t tally_stables, int64_t tally_reserves, std::string& error_reason);
 
   uint64_t get_stable_coin_price(std::vector<std::pair<std::string, std::string>> circ_amounts, uint64_t oracle_price);
-  uint64_t get_reserve_coin_price(std::vector<std::pair<std::string, std::string>> circ_amounts, const oracle::pricing_record& pr);
+  uint64_t get_reserve_coin_price(std::vector<std::pair<std::string, std::string>> circ_amounts, uint64_t exchange_rate);
 
   uint64_t get_zeph_amount_from_reserve(const uint64_t amount, const oracle::pricing_record& pr);
   uint64_t get_reserve_amount(const uint64_t amount, const oracle::pricing_record& pr);

@@ -41,16 +41,33 @@
 template <template <bool> class Archive>
 bool do_serialize(Archive<false> &ar, oracle::pricing_record &pr, uint8_t version)
 {
-  // very basic sanity check
-  if (ar.remaining_bytes() < sizeof(oracle::pricing_record)) {
-    ar.stream().setstate(std::ios::failbit);
-    return false;
+  if (version < HF_VERSION_DJED)
+  {
+    // very basic sanity check
+    if (ar.remaining_bytes() < sizeof(oracle::pricing_record_v1)) {
+      return false;
+    }
+
+    oracle::pricing_record_v1 pr_v1;
+    ar.serialize_blob(&pr_v1, sizeof(oracle::pricing_record_v1), "");
+    if (!ar.good())
+      return false;
+
+    if (!pr_v1.write_to_pr(pr))
+      return false;
+  }
+  else
+  {
+    // very basic sanity check
+    if (ar.remaining_bytes() < sizeof(oracle::pricing_record)) {
+      return false;
+    }
+
+    ar.serialize_blob(&pr, sizeof(oracle::pricing_record), "");
+    if (!ar.good())
+      return false;
   }
 
-  ar.serialize_blob(&pr, sizeof(oracle::pricing_record), "");
-  if (!ar.stream().good())
-    return false;
-  
   return true;
 }
 
@@ -60,9 +77,19 @@ bool do_serialize(Archive<true> &ar, oracle::pricing_record &pr, uint8_t version
 {
   ar.begin_string();
 
-  ar.serialize_blob(&pr, sizeof(oracle::pricing_record), "");
-  
-  if (!ar.stream().good())
+  if (version < HF_VERSION_DJED)
+  {
+    oracle::pricing_record_v1 pr_v1;
+    if (!pr_v1.read_from_pr(pr))
+      return false;
+    ar.serialize_blob(&pr_v1, sizeof(oracle::pricing_record_v1), "");
+  }
+  else
+  {
+    ar.serialize_blob(&pr, sizeof(oracle::pricing_record), "");
+  }
+
+  if (!ar.good())
     return false;
   ar.end_string();
   return true;

@@ -139,7 +139,7 @@ private:
     virtual void on_reorg(uint64_t height, uint64_t blocks_detached, size_t transfers_detached) {}
     virtual void on_money_received(uint64_t height, const crypto::hash &txid, const cryptonote::transaction& tx, uint64_t amount, const std::string& asset_type, uint64_t burnt, const cryptonote::subaddress_index& subaddr_index, bool is_change, uint64_t unlock_time) {}
     virtual void on_unconfirmed_money_received(uint64_t height, const crypto::hash &txid, const cryptonote::transaction& tx, uint64_t amount, const cryptonote::subaddress_index& subaddr_index) {}
-    virtual void on_money_spent(uint64_t height, const crypto::hash &txid, const cryptonote::transaction& in_tx, uint64_t amount, const cryptonote::transaction& spend_tx, const cryptonote::subaddress_index& subaddr_index) {}
+    virtual void on_money_spent(uint64_t height, const crypto::hash &txid, const cryptonote::transaction& in_tx, uint64_t amount, const std::string& asset_type, const cryptonote::transaction& spend_tx, const cryptonote::subaddress_index& subaddr_index) {}
     virtual void on_skip_transaction(uint64_t height, const crypto::hash &txid, const cryptonote::transaction& tx) {}
     virtual boost::optional<epee::wipeable_string> on_get_password(const char *reason) { return boost::none; }
     // Device callbacks
@@ -1095,8 +1095,21 @@ private:
     bool load_tx(const std::string &signed_filename, std::vector<tools::wallet2::pending_tx> &ptx, std::function<bool(const signed_tx_set&)> accept_func = NULL);
     bool parse_tx_from_str(const std::string &signed_tx_st, std::vector<tools::wallet2::pending_tx> &ptx, std::function<bool(const signed_tx_set &)> accept_func);
     
-    void get_reserve_info(const oracle::pricing_record& pricing_record, uint64_t& zeph_reserve, uint64_t& num_stables, uint64_t& num_reserves, uint64_t& assets, uint64_t& liabilities, uint64_t& equity, double& reserve_ratio);
-    double get_reserve_ratio(const oracle::pricing_record& pricing_record);
+    void get_reserve_info(
+      const oracle::pricing_record& pricing_record,
+      uint64_t& zeph_reserve,
+      uint64_t& num_stables,
+      uint64_t& num_reserves,
+      uint64_t& assets,
+      uint64_t& assets_ma,
+      uint64_t& liabilities,
+      uint64_t& equity,
+      uint64_t& equity_ma,
+      double& reserve_ratio,
+      double& reserve_ratio_ma
+    );
+    double get_spot_reserve_ratio(const oracle::pricing_record& pricing_record);
+    double get_ma_reserve_ratio(const oracle::pricing_record& pricing_record);
 
     std::vector<wallet2::pending_tx> create_transactions_2(
       std::vector<cryptonote::tx_destination_entry> dsts,

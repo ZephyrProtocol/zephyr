@@ -484,7 +484,7 @@ namespace cryptonote
       VARINT_FIELD(timestamp)
       FIELD(prev_id)
       FIELD(nonce)
-      FIELD(pricing_record)
+      FIELD_CUSTOM_VAL(pricing_record, major_version)
     END_SERIALIZE()
   };
 

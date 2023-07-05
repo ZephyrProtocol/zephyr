@@ -211,7 +211,7 @@ namespace cryptonote
     // check whether this is a conversion tx.
     if (source != dest) {
 
-      if (tx.version < HF_VERSION_DJED) {
+      if (version < HF_VERSION_DJED) {
         LOG_ERROR("Conversion txs are only allowed after HF_VERSION_DJED");
         tvc.m_verifivation_failed = true;
         return false;
@@ -240,7 +240,7 @@ namespace cryptonote
         tvc.pr = bl.pricing_record;
       }
 
-      if (!tvc.pr.zEPHUSD || !tvc.pr.zEPHRSV) {
+      if (!tvc.pr.spot || !tvc.pr.moving_average || !tvc.pr.stable || !tvc.pr.stable_ma || !tvc.pr.reserve || !tvc.pr.reserve_ma) {
         LOG_ERROR("error: empty exchange rate. Conversion not possible.");
         tvc.m_verifivation_failed = true;
         return false;
@@ -1852,7 +1852,7 @@ namespace cryptonote
       {
         // Validate that pricing record has not grown too old since it was first included in the pool
         if (!tx_pr_height_valid(m_blockchain.get_current_blockchain_height(), tx.pricing_record_height, sorted_it->second)) {
-          LOG_PRINT_L2("error : oracle/xAsset transaction references a pricing record that is too old (height " << tx.pricing_record_height << ")");
+          LOG_PRINT_L2("error : transaction references a pricing record that is too old (height " << tx.pricing_record_height << ")");
           continue;
         }
         // get pricing record

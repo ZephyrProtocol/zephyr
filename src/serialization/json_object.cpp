@@ -1055,10 +1055,14 @@ void toJsonValue(rapidjson::Writer<epee::byte_stream>& dest, const oracle::prici
 {
   dest.StartObject();
 
-
-  INSERT_INTO_JSON_OBJECT(dest, zEPHUSD, pricing_record.zEPHUSD);
-  INSERT_INTO_JSON_OBJECT(dest, zEPHRSV, pricing_record.zEPHRSV);
+  INSERT_INTO_JSON_OBJECT(dest, spot, pricing_record.spot);
+  INSERT_INTO_JSON_OBJECT(dest, moving_average, pricing_record.moving_average);
+  INSERT_INTO_JSON_OBJECT(dest, stable, pricing_record.stable);
+  INSERT_INTO_JSON_OBJECT(dest, stable_ma, pricing_record.stable_ma);
+  INSERT_INTO_JSON_OBJECT(dest, reserve, pricing_record.reserve);
+  INSERT_INTO_JSON_OBJECT(dest, reserve_ma, pricing_record.reserve_ma);
   INSERT_INTO_JSON_OBJECT(dest, timestamp, pricing_record.timestamp);
+  INSERT_INTO_JSON_OBJECT(dest, signature, pricing_record.signature);
 
   dest.EndObject();
 }
@@ -1070,10 +1074,14 @@ void fromJsonValue(const rapidjson::Value& val, oracle::pricing_record& pricing_
     throw WRONG_TYPE("json object");
   }
 
-  
-  GET_FROM_JSON_OBJECT(val, pricing_record.zEPHUSD, zEPHUSD);
-  GET_FROM_JSON_OBJECT(val, pricing_record.zEPHRSV, zEPHRSV);
+  GET_FROM_JSON_OBJECT(val, pricing_record.spot, spot);
+  GET_FROM_JSON_OBJECT(val, pricing_record.moving_average, moving_average);
+  GET_FROM_JSON_OBJECT(val, pricing_record.stable, stable);
+  GET_FROM_JSON_OBJECT(val, pricing_record.stable_ma, stable_ma);
+  GET_FROM_JSON_OBJECT(val, pricing_record.reserve, reserve);
+  GET_FROM_JSON_OBJECT(val, pricing_record.reserve_ma, reserve_ma);
   GET_FROM_JSON_OBJECT(val, pricing_record.timestamp, timestamp);
+  GET_FROM_JSON_OBJECT(val, boost::lexical_cast<std::string>(pricing_record.signature), signature);
 }
 
 void toJsonValue(rapidjson::Writer<epee::byte_stream>& dest, const cryptonote::rpc::BlockHeaderResponse& response)

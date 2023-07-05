@@ -2443,7 +2443,7 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
         LOG_PRINT_L0("Spent money: " << print_money(amount) << ", with tx: " << txid);
         set_spent(in_to_key.asset_type, it->second, height);
         if (0 != m_callback)
-          m_callback->on_money_spent(height, txid, tx, amount, tx, td.m_subaddr_index);
+          m_callback->on_money_spent(height, txid, tx, amount, in_to_key.asset_type, tx, td.m_subaddr_index);
       }
     }
 
@@ -9747,18 +9747,24 @@ static uint32_t get_count_above(const std::vector<wallet2::transfer_details> &tr
 }
 
 
-void wallet2::get_reserve_info(const oracle::pricing_record& pricing_record, uint64_t& zeph_reserve, uint64_t& num_stables, uint64_t& num_reserves, uint64_t& assets, uint64_t& liabilities, uint64_t& equity, double& reserve_ratio)
+void wallet2::get_reserve_info(const oracle::pricing_record& pricing_record, uint64_t& zeph_reserve, uint64_t& num_stables, uint64_t& num_reserves, uint64_t& assets, uint64_t& assets_ma, uint64_t& liabilities, uint64_t& equity, uint64_t& equity_ma, double& reserve_ratio, double& reserve_ratio_ma)
 {
   std::vector<std::pair<std::string, std::string>> circ_amounts;
   THROW_WALLET_EXCEPTION_IF(!get_circulating_supply(circ_amounts), error::wallet_internal_error, "Failed to get circulating supply");
-  return cryptonote::get_reserve_info(circ_amounts, pricing_record, zeph_reserve, num_stables, num_reserves, assets, liabilities, equity, reserve_ratio);
+  return cryptonote::get_reserve_info(circ_amounts, pricing_record, zeph_reserve, num_stables, num_reserves, assets, assets_ma, liabilities, equity, equity_ma, reserve_ratio, reserve_ratio_ma);
 }
 
-double wallet2::get_reserve_ratio(const oracle::pricing_record& pricing_record)
+double wallet2::get_spot_reserve_ratio(const oracle::pricing_record& pricing_record)
 {
   std::vector<std::pair<std::string, std::string>> circ_amounts;
   THROW_WALLET_EXCEPTION_IF(!get_circulating_supply(circ_amounts), error::wallet_internal_error, "Failed to get circulating supply");
-  return cryptonote::get_reserve_ratio(circ_amounts, pricing_record);
+  return cryptonote::get_spot_reserve_ratio(circ_amounts, pricing_record);
+}
+double wallet2::get_ma_reserve_ratio(const oracle::pricing_record& pricing_record)
+{
+  std::vector<std::pair<std::string, std::string>> circ_amounts;
+  THROW_WALLET_EXCEPTION_IF(!get_circulating_supply(circ_amounts), error::wallet_internal_error, "Failed to get circulating supply");
+  return cryptonote::get_ma_reserve_ratio(circ_amounts, pricing_record);
 }
 
 // Another implementation of transaction creation that is hopefully better
@@ -9791,8 +9797,6 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(
   boost::unique_lock<hw::device> hwdev_lock (hwdev);
   hw::reset_mode rst(hwdev);  
   using tt = cryptonote::transaction_type;
-
-  auto original_dsts = dsts;
 
   std::vector<std::pair<uint32_t, std::vector<size_t>>> unused_transfers_indices_per_subaddr;
   std::vector<std::pair<uint32_t, std::vector<size_t>>> unused_dust_indices_per_subaddr;
@@ -9946,6 +9950,8 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(
       THROW_WALLET_EXCEPTION_IF(true, error::wallet_internal_error, error_reason);
     }
   }
+
+  auto original_dsts = dsts;
 
   // throw if attempting a transaction with no money
   THROW_WALLET_EXCEPTION_IF(needed_money == 0, error::zero_amount);
@@ -12990,7 +12996,7 @@ uint64_t wallet2::import_key_images(const std::vector<std::pair<crypto::key_imag
           LOG_PRINT_L0("Spent money: " << print_money(amount) << ", with tx: " << *spent_txid);
           set_spent("ZEPH", it->second, e.block_height);
           if (m_callback)
-            m_callback->on_money_spent(e.block_height, *spent_txid, spent_tx, amount, spent_tx, td.m_subaddr_index);
+            m_callback->on_money_spent(e.block_height, *spent_txid, spent_tx, amount, "ZEPH", spent_tx, td.m_subaddr_index);
           if (subaddr_account != (uint32_t)-1 && subaddr_account != td.m_subaddr_index.major)
             LOG_PRINT_L0("WARNING: This tx spends outputs received by different subaddress accounts, which isn't supposed to happen");
           subaddr_account = td.m_subaddr_index.major;
