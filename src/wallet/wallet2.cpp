@@ -871,26 +871,6 @@ uint64_t estimate_tx_weight(bool use_rct, int n_inputs, int mixin, int n_outputs
   return size;
 }
 
-uint8_t get_bulletproof_fork()
-{
-  return 1;
-}
-
-uint8_t get_bulletproof_plus_fork()
-{
-  return 1;
-}
-
-uint8_t get_clsag_fork()
-{
-  return 1;
-}
-
-uint8_t get_view_tag_fork()
-{
-  return 1;
-}
-
 uint64_t calculate_fee(bool use_per_byte_fee, const cryptonote::transaction &tx, size_t blob_size, uint64_t base_fee, uint64_t fee_quantization_mask)
 {
   if (use_per_byte_fee)
@@ -3963,7 +3943,12 @@ void wallet2::refresh(bool trusted_daemon, uint64_t start_height, uint64_t & blo
 
   m_first_refresh_done = true;
 
-  LOG_PRINT_L1("Refresh done, blocks received: " << blocks_fetched << ", balance (all accounts): " << print_money(balance_all("ZEPH", false)) << ", unlocked: " << print_money(unlocked_balance_all("ZEPH", false)));
+  LOG_PRINT_L1("Refresh done, blocks received: " << blocks_fetched);
+  std::map<std::string, uint64_t> balances = balance_all(false);
+  std::map<std::string, uint64_t> unlocked_balances = unlocked_balance_all(false);
+  for (auto &entry: balances) {
+    LOG_PRINT_L1(entry.first << " : " << print_money(entry.second) << ", unlocked: " << print_money(unlocked_balances[entry.first]));
+  }
 }
 //----------------------------------------------------------------------------------------------------
 bool wallet2::refresh(bool trusted_daemon, uint64_t & blocks_fetched, bool& received_money, bool& ok)
@@ -6234,6 +6219,32 @@ boost::optional<wallet2::cache_file_data> wallet2::get_cache_file_data(const epe
   }
 }
 //----------------------------------------------------------------------------------------------------
+std::map<uint32_t, std::map<std::string, uint64_t>> wallet2::balance(uint32_t index_major, bool strict)
+{
+  std::map<uint32_t, std::map<std::string, uint64_t>> amounts;
+  for (const auto &asset_type : oracle::ASSET_TYPES) {
+    for (const auto& i : balance_per_subaddress(asset_type, index_major, strict)) {
+      amounts[i.first][asset_type] += i.second;
+    }
+  }
+  return amounts;
+}
+//----------------------------------------------------------------------------------------------------
+std::map<uint32_t, std::map<std::string, uint64_t>> wallet2::unlocked_balance(uint32_t index_major, bool strict, std::map<std::string, uint64_t> *blocks_to_unlock, std::map<std::string, uint64_t> *time_to_unlock)
+{
+  std::map<uint32_t, std::map<string, uint64_t>> amounts;
+  for (const auto &asset_type : oracle::ASSET_TYPES) {
+    for (const auto& i : unlocked_balance_per_subaddress(asset_type, index_major, strict)) {
+      amounts[i.first][asset_type] += i.second.first;
+      if (blocks_to_unlock && i.second.second.first > (*blocks_to_unlock)[asset_type])
+	      (*blocks_to_unlock)[asset_type] = i.second.second.first;
+      if (time_to_unlock && i.second.second.second > (*time_to_unlock)[asset_type])
+	      (*time_to_unlock)[asset_type] = i.second.second.second;
+    }
+  }
+  return amounts;
+}
+//----------------------------------------------------------------------------------------------------
 uint64_t wallet2::balance(const std::string& asset_type, uint32_t index_major, bool strict) const
 {
   uint64_t amount = 0;
@@ -6261,8 +6272,9 @@ uint64_t wallet2::unlocked_balance(const std::string& asset_type, uint32_t index
 }
 //----------------------------------------------------------------------------------------------------
 std::map<uint32_t, uint64_t> wallet2::balance_per_subaddress(const std::string& asset_type, uint32_t index_major, bool strict) const
-{  
+{ 
   std::map<uint32_t, uint64_t> amount_per_subaddr;
+  if (m_transfers.find(asset_type) == m_transfers.end()) return amount_per_subaddr;
   for (const auto& td: m_transfers.at(asset_type))
   {
     if (td.m_subaddr_index.major == index_major && !is_spent(td, strict) && !td.m_frozen)
@@ -6316,6 +6328,7 @@ std::map<uint32_t, uint64_t> wallet2::balance_per_subaddress(const std::string& 
 std::map<uint32_t, std::pair<uint64_t, std::pair<uint64_t, uint64_t>>> wallet2::unlocked_balance_per_subaddress(const std::string& asset_type, uint32_t index_major, bool strict)
 {
   std::map<uint32_t, std::pair<uint64_t, std::pair<uint64_t, uint64_t>>> amount_per_subaddr;
+  if (m_transfers.find(asset_type) == m_transfers.end()) return amount_per_subaddr;
   const uint64_t blockchain_height = get_blockchain_current_height();
   const uint64_t now = time(NULL);
   for(const transfer_details& td: m_transfers.at(asset_type))
@@ -6353,31 +6366,30 @@ std::map<uint32_t, std::pair<uint64_t, std::pair<uint64_t, uint64_t>>> wallet2::
   return amount_per_subaddr;
 }
 //----------------------------------------------------------------------------------------------------
-uint64_t wallet2::balance_all(const std::string& asset_type, bool strict) const
+std::map<std::string, uint64_t> wallet2::balance_all(bool strict) const
 {
-  uint64_t r = 0;
-  for (uint32_t index_major = 0; index_major < get_num_subaddress_accounts(); ++index_major)
-    r += balance(asset_type, index_major, strict);
-  return r;
+  std::map<std::string, uint64_t> balances;
+  for (auto &asset_type: oracle::ASSET_TYPES) {
+    for (uint32_t index_major = 0; index_major < get_num_subaddress_accounts(); ++index_major)
+      balances[asset_type] += balance(asset_type, index_major, strict);
+  }
+  return balances;
 }
 //----------------------------------------------------------------------------------------------------
-uint64_t wallet2::unlocked_balance_all(const std::string& asset_type, bool strict, uint64_t *blocks_to_unlock, uint64_t *time_to_unlock)
+std::map<std::string, uint64_t> wallet2::unlocked_balance_all(bool strict, std::map<std::string, uint64_t> *blocks_to_unlock, std::map<std::string, uint64_t> *time_to_unlock)
 {
-  uint64_t r = 0;
-  if (blocks_to_unlock)
-    *blocks_to_unlock = 0;
-  if (time_to_unlock)
-    *time_to_unlock = 0;
-  for (uint32_t index_major = 0; index_major < get_num_subaddress_accounts(); ++index_major)
-  {
-    uint64_t local_blocks_to_unlock, local_time_to_unlock;
-    r += unlocked_balance(asset_type, index_major, strict, blocks_to_unlock ? &local_blocks_to_unlock : NULL, time_to_unlock ? &local_time_to_unlock : NULL);
-    if (blocks_to_unlock)
-      *blocks_to_unlock = std::max(*blocks_to_unlock, local_blocks_to_unlock);
-    if (time_to_unlock)
-      *time_to_unlock = std::max(*time_to_unlock, local_time_to_unlock);
+  std::map<std::string, uint64_t> balances;
+  for (auto &asset_type: oracle::ASSET_TYPES) {
+    for (uint32_t index_major = 0; index_major < get_num_subaddress_accounts(); ++index_major) {
+      uint64_t local_blocks_to_unlock = 0, local_time_to_unlock = 0;
+      balances[asset_type] += unlocked_balance(asset_type, index_major, strict, blocks_to_unlock ? &local_blocks_to_unlock : NULL, time_to_unlock ? &local_time_to_unlock : NULL);
+      if (blocks_to_unlock)
+        (*blocks_to_unlock)[asset_type] = std::max((*blocks_to_unlock)[asset_type], local_blocks_to_unlock);
+      if (time_to_unlock)
+        (*time_to_unlock)[asset_type] = std::max((*time_to_unlock)[asset_type], local_time_to_unlock);
+    }
   }
-  return r;
+  return balances;
 }
 //----------------------------------------------------------------------------------------------------
 void wallet2::get_transfers(wallet2::transfer_container& incoming_transfers) const
@@ -11976,7 +11988,7 @@ bool wallet2::check_tx_proof(const cryptonote::transaction &tx, const cryptonote
 std::string wallet2::get_reserve_proof(const boost::optional<std::pair<uint32_t, uint64_t>> &account_minreserve, const std::string &message)
 {
   THROW_WALLET_EXCEPTION_IF(m_watch_only || m_multisig, error::wallet_internal_error, "Reserve proof can only be generated by a full wallet");
-  THROW_WALLET_EXCEPTION_IF(balance_all("ZEPH", true) == 0, error::wallet_internal_error, "Zero balance");
+  THROW_WALLET_EXCEPTION_IF(balance_all(true)["ZEPH"] == 0, error::wallet_internal_error, "Zero balance");
   THROW_WALLET_EXCEPTION_IF(account_minreserve && balance("ZEPH", account_minreserve->first, true) < account_minreserve->second, error::wallet_internal_error,
     "Not enough balance in this account for the requested minimum reserve amount");
 

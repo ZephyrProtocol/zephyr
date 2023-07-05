@@ -1043,6 +1043,9 @@ private:
     bool get_pricing_record(oracle::pricing_record& pr, const uint64_t height);
     bool get_circulating_supply(std::vector<std::pair<std::string, std::string>> &amounts);
 
+     // locked & unlocked balance of given or current subaddress account
+    std::map<uint32_t, std::map<std::string, uint64_t>> balance(uint32_t subaddr_index_major, bool strict);
+    std::map<uint32_t, std::map<std::string, uint64_t>> unlocked_balance(uint32_t subaddr_index_major, bool strict, std::map<std::string, uint64_t> *blocks_to_unlock = NULL, std::map<std::string, uint64_t> *time_to_unlock = NULL);
     // locked & unlocked balance of given or current subaddress account
     uint64_t balance(const std::string& asset_type, uint32_t subaddr_index_major, bool strict) const;
     uint64_t unlocked_balance(const std::string& asset_type, uint32_t subaddr_index_major, bool strict, uint64_t *blocks_to_unlock = NULL, uint64_t *time_to_unlock = NULL);
@@ -1050,8 +1053,9 @@ private:
     std::map<uint32_t, uint64_t> balance_per_subaddress(const std::string& asset_type, uint32_t subaddr_index_major, bool strict) const;
     std::map<uint32_t, std::pair<uint64_t, std::pair<uint64_t, uint64_t>>> unlocked_balance_per_subaddress(const std::string& asset_type, uint32_t subaddr_index_major, bool strict);
     // all locked & unlocked balances of all subaddress accounts
-    uint64_t balance_all(const std::string& asset_type, bool strict) const;
-    uint64_t unlocked_balance_all(const std::string& asset_type, bool strict, uint64_t *blocks_to_unlock = NULL, uint64_t *time_to_unlock = NULL);
+    std::map<std::string, uint64_t> balance_all(bool strict) const;
+    std::map<std::string, uint64_t> unlocked_balance_all(bool strict, std::map<std::string, uint64_t>  *blocks_to_unlock = NULL, std::map<std::string, uint64_t>  *time_to_unlock = NULL);
+
     template<typename T>
     void transfer_selected(const std::vector<cryptonote::tx_destination_entry>& dsts, const std::vector<size_t>& selected_transfers, size_t fake_outputs_count,
       std::vector<std::vector<tools::wallet2::get_outs_entry>> &outs, std::unordered_set<crypto::public_key> &valid_public_keys_cache,

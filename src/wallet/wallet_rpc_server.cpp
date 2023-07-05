@@ -472,12 +472,20 @@ namespace tools
 
     try
     {
+      std::map<std::string, uint64_t> local_blocks_to_unlock, local_time_to_unlock;
       for (const auto& asset: assets) {
         wallet_rpc::COMMAND_RPC_GET_BALANCE::balance_info balance_info;
-        balance_info.balance = req.all_accounts ? m_wallet->balance_all(asset, req.strict) : m_wallet->balance(asset, req.account_index, req.strict);
+        balance_info.balance = req.all_accounts ? m_wallet->balance_all(req.strict)[asset] : m_wallet->balance(asset, req.account_index, req.strict);
         if (!balance_info.balance)
           continue;
-        balance_info.unlocked_balance = req.all_accounts ? m_wallet->unlocked_balance_all(asset, req.strict, &balance_info.blocks_to_unlock, &balance_info.time_to_unlock) : m_wallet->unlocked_balance(asset, req.account_index, req.strict, &balance_info.blocks_to_unlock, &balance_info.time_to_unlock);
+        balance_info.unlocked_balance = req.all_accounts ? m_wallet->unlocked_balance_all(req.strict, &local_blocks_to_unlock, &local_time_to_unlock)[asset] : m_wallet->unlocked_balance(asset, req.account_index, req.strict, &balance_info.blocks_to_unlock, &balance_info.time_to_unlock);
+
+        if (req.all_accounts) {
+          // Copy the values for the correct currency from the map to the response
+          balance_info.blocks_to_unlock = local_blocks_to_unlock[req.asset_type];
+          balance_info.time_to_unlock = local_time_to_unlock[req.asset_type];
+        }
+
         balance_info.multisig_import_needed = m_wallet->multisig() && m_wallet->has_multisig_partial_key_images();
         std::map<uint32_t, std::map<uint32_t, uint64_t>> balance_per_subaddress_per_account;
         std::map<uint32_t, std::map<uint32_t, std::pair<uint64_t, std::pair<uint64_t, uint64_t>>>> unlocked_balance_per_subaddress_per_account;

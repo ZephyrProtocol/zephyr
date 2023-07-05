@@ -238,9 +238,6 @@ namespace cryptonote
   //---------------------------------------------------------------
   bool parse_and_validate_tx_from_blob(const blobdata_ref& tx_blob, transaction& tx)
   {
-    // print tx
-    LOG_PRINT_L1("tx" << ENDL << obj_to_json_str(tx));
-
     binary_archive<false> ba{epee::strspan<std::uint8_t>(tx_blob)};
     bool r = ::serialization::serialize(ba, tx);
     CHECK_AND_ASSERT_MES(r, false, "Failed to parse transaction from blob");
@@ -276,9 +273,6 @@ namespace cryptonote
     CHECK_AND_ASSERT_MES(r, false, "Failed to parse transaction from blob");
     CHECK_AND_ASSERT_MES(expand_transaction_1(tx, false), false, "Failed to expand transaction data");
     tx.invalidate_hashes();
-    //TODO: validate tx
-
-    MDEBUG("tx: " << ENDL << obj_to_json_str(tx));
 
     return get_transaction_hash(tx, tx_hash);
   }

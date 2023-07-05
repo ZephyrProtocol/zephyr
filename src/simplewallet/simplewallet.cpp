@@ -9513,8 +9513,13 @@ void simple_wallet::print_accounts()
   if (num_untagged_accounts > 0)
     print_accounts("");
 
-  if (num_untagged_accounts < m_wallet->get_num_subaddress_accounts())
-    success_msg_writer() << tr("\nGrand total:\n  Balance: ") << print_money(m_wallet->balance_all("ZEPH", false)) << tr(", unlocked balance: ") << print_money(m_wallet->unlocked_balance_all("ZEPH", false));
+  if (num_untagged_accounts < m_wallet->get_num_subaddress_accounts()) {
+    std::map<std::string, uint64_t> balances_all = m_wallet->balance_all(false);
+    std::map<std::string, uint64_t> unlocked_balances_all = m_wallet->unlocked_balance_all(false);
+    for (auto &balance : balances_all) {
+      success_msg_writer() << tr("\nGrand total:\n Currency: ") << balance.first << tr(" Balance: ") << print_money(balance.second) << tr(", unlocked balance: ") << print_money(unlocked_balances_all[balance.first]);
+    }
+  }
 }
 //----------------------------------------------------------------------------------------------------
 void simple_wallet::print_accounts(const std::string& tag)
