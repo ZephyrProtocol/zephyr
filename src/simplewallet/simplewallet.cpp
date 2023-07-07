@@ -6865,23 +6865,7 @@ bool simple_wallet::transfer_main(
         }
         if (!process_ring_members(ptx_vector, prompt, m_wallet->print_ring_members()))
           return false;
-        bool default_ring_size = true;
-        for (const auto &ptx: ptx_vector)
-        {
-          for (const auto &vin: ptx.tx.vin)
-          {
-            if (vin.type() == typeid(txin_zephyr_key))
-            {
-              const txin_zephyr_key& in_to_key = boost::get<txin_zephyr_key>(vin);
-              if (in_to_key.key_offsets.size() != min_ring_size)
-                default_ring_size = false;
-            }
-          }
-        }
-        if (m_wallet->confirm_non_default_ring_size() && !default_ring_size)
-        {
-          prompt << tr("WARNING: this is a non default ring size, which may harm your privacy. Default is recommended.");
-        }
+
         prompt << ENDL << tr("Is this okay?");
         
         std::string accepted = input_line(prompt.str(), true);
