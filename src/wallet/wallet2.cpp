@@ -6503,6 +6503,8 @@ std::map<uint32_t, uint64_t> wallet2::balance_per_subaddress(const std::string& 
   std::map<uint32_t, uint64_t> amount_per_subaddr;
   for (const auto& td: m_transfers)
   {
+    if (td.amount() > m_ignore_outputs_above || td.amount() < m_ignore_outputs_below)
+      continue;
     if (td.m_subaddr_index.major == index_major && td.asset_type == asset_type && !is_spent(td, strict) && !td.m_frozen)
     {
       auto found = amount_per_subaddr.find(td.m_subaddr_index.minor);
@@ -6558,6 +6560,8 @@ std::map<uint32_t, std::pair<uint64_t, std::pair<uint64_t, uint64_t>>> wallet2::
   const uint64_t now = time(NULL);
   for(const transfer_details& td: m_transfers)
   {
+    if (td.amount() > m_ignore_outputs_above || td.amount() < m_ignore_outputs_below)
+      continue;
     if(td.m_subaddr_index.major == index_major && td.asset_type == asset_type && !is_spent(td, strict) && !td.m_frozen)
     {
       uint64_t amount = 0, blocks_to_unlock = 0, time_to_unlock = 0;
