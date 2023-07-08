@@ -209,9 +209,9 @@ namespace config
   uint64_t const DEFAULT_DUST_THRESHOLD = ((uint64_t)2000000000); // 2 * pow(10, 9)
   uint64_t const BASE_REWARD_CLAMP_THRESHOLD = ((uint64_t)100000000); // pow(10, 8)
 
-  uint64_t const CRYPTONOTE_PUBLIC_ADDRESS_BASE58_PREFIX = 0x6241d18c0;
-  uint64_t const CRYPTONOTE_PUBLIC_INTEGRATED_ADDRESS_BASE58_PREFIX = 0xc4f7d18c0;
-  uint64_t const CRYPTONOTE_PUBLIC_SUBADDRESS_BASE58_PREFIX = 0x8dd58c0;
+  uint64_t const CRYPTONOTE_PUBLIC_ADDRESS_BASE58_PREFIX = 0x6241d18c0; // ZEPHYR
+  uint64_t const CRYPTONOTE_PUBLIC_INTEGRATED_ADDRESS_BASE58_PREFIX = 0xc4f7d18c0; // ZEPHii
+  uint64_t const CRYPTONOTE_PUBLIC_SUBADDRESS_BASE58_PREFIX = 0x8dd58c0; // ZEPHs
   uint16_t const P2P_DEFAULT_PORT = 17766;
   uint16_t const RPC_DEFAULT_PORT = 17767;
   uint16_t const ZMQ_RPC_DEFAULT_PORT = 17768;
@@ -261,37 +261,51 @@ namespace config
 
   namespace testnet
   {
-    uint64_t const CRYPTONOTE_PUBLIC_ADDRESS_BASE58_PREFIX = 53;
-    uint64_t const CRYPTONOTE_PUBLIC_INTEGRATED_ADDRESS_BASE58_PREFIX = 54;
-    uint64_t const CRYPTONOTE_PUBLIC_SUBADDRESS_BASE58_PREFIX = 63;
-    uint16_t const P2P_DEFAULT_PORT = 28080;
-    uint16_t const RPC_DEFAULT_PORT = 28081;
-    uint16_t const ZMQ_RPC_DEFAULT_PORT = 28082;
+    uint64_t const CRYPTONOTE_PUBLIC_ADDRESS_BASE58_PREFIX = 0x334e41; // ZPHT
+    uint64_t const CRYPTONOTE_PUBLIC_INTEGRATED_ADDRESS_BASE58_PREFIX = 0xa8f330e41; // ZPHTii
+    uint64_t const CRYPTONOTE_PUBLIC_SUBADDRESS_BASE58_PREFIX = 0xf1fce41; // ZPHts
+    uint16_t const P2P_DEFAULT_PORT = 27766;
+    uint16_t const RPC_DEFAULT_PORT = 27767;
+    uint16_t const ZMQ_RPC_DEFAULT_PORT = 27768;
     boost::uuids::uuid const NETWORK_ID = { {
-        0x12 ,0x30, 0xF1, 0x71 , 0x61, 0x04 , 0x41, 0x61, 0x17, 0x31, 0x00, 0x82, 0x16, 0xA1, 0xA1, 0x11
+        0x12 ,0x20, 0xF1, 0x73 , 0x63, 0x02 , 0x44, 0x61, 0x17, 0x31, 0x00, 0x82, 0x16, 0xB1, 0xB2, 0x11
       } }; // Bender's daydream
-    std::string const GENESIS_TX = "013c01ff0001ffffffffffff03029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd08807121017767aafcde9be00dcfd098715ebcf7f410daebc582fda69d24a28e9d0bc890d1";
+    std::string const GENESIS_TX = "023c01ff00018080c89d9deb96f80602004bb5fb36025afd27661ec402eb31044d9e2a1b49b1b04406070293c7a2cd9a045a455048052101baa0a1b0d8d4e8372e44889e24c6652c8c272d9f60c142363a5e4f147f2f333c00000000";
     uint32_t const GENESIS_NONCE = 10001;
 
-    std::string const GOVERNANCE_WALLET_ADDRESS = "44hBFjQxAJ84oGpVdhh6ThGPmYttsAGeESyVKGCcCs3Pa9M44XaZHi63gzqp14tYtgUEbMzmAPrKQJSkYUc25hVwCKnTYVn";
+    std::string const GOVERNANCE_WALLET_ADDRESS = "ZPHTjbspy3MQWHUVsnRVWUhcWEKnaEiK3FBpsuwPzcCN1zDAuWGjFskcHC9jo6e8fF4UDzFbe5LGnU4ychM48E8D8ukYphLM6qu";
+
+    std::array<std::string, 1> const ORACLE_URLS = {{"170.64.173.105:7779"}}; // oracle test server
+
+    std::string const ORACLE_PUBLIC_KEY = "-----BEGIN PUBLIC KEY-----\n"
+      "MFwwDQYJKoZIhvcNAQEBBQADSwAwSAJBAMdjZLVtXH/nK3L+fXyaquZFrkHpKimc\n"
+      "681dPqESb8CCZrckTyd3O0xGegU8dVIFUWM8mzylv09zlgrzigkfedECAwEAAQ==\n"
+      "-----END PUBLIC KEY-----\n"; // oracle test server key
   }
 
   namespace stagenet
   {
-    uint64_t const CRYPTONOTE_PUBLIC_ADDRESS_BASE58_PREFIX = 24;
-    uint64_t const CRYPTONOTE_PUBLIC_INTEGRATED_ADDRESS_BASE58_PREFIX = 25;
-    uint64_t const CRYPTONOTE_PUBLIC_SUBADDRESS_BASE58_PREFIX = 36;
-    uint16_t const P2P_DEFAULT_PORT = 38080;
-    uint16_t const RPC_DEFAULT_PORT = 38081;
-    uint16_t const ZMQ_RPC_DEFAULT_PORT = 38082;
+    uint64_t const CRYPTONOTE_PUBLIC_ADDRESS_BASE58_PREFIX = 0x32ce41; // ZPHS
+    uint64_t const CRYPTONOTE_PUBLIC_INTEGRATED_ADDRESS_BASE58_PREFIX = 0x6cef28e41; // ZPHSii
+    uint64_t const CRYPTONOTE_PUBLIC_SUBADDRESS_BASE58_PREFIX = 0xedf4e41; // ZPHss
+    uint16_t const P2P_DEFAULT_PORT = 37766;
+    uint16_t const RPC_DEFAULT_PORT = 37767;
+    uint16_t const ZMQ_RPC_DEFAULT_PORT = 37768;
     boost::uuids::uuid const NETWORK_ID = { {
-        0x12 ,0x30, 0xF1, 0x71 , 0x61, 0x04 , 0x41, 0x61, 0x17, 0x31, 0x00, 0x82, 0x16, 0xA1, 0xA1, 0x12
+        0x12 ,0x20, 0xF1, 0x73 , 0x63, 0x02 , 0x44, 0x61, 0x17, 0x31, 0x00, 0x82, 0x16, 0xB1, 0xB2, 0x12
       } }; // Bender's daydream
-    std::string const GENESIS_TX = "013c01ff0001ffffffffffff0302df5d56da0c7d643ddd1ce61901c7bdc5fb1738bfe39fbe69c28a3a7032729c0f2101168d0c4ca86fb55a4cf6a36d31431be1c53a3bd7411bb24e8832410289fa6f3b";
+    std::string const GENESIS_TX = "023c01ff00018080c89d9deb96f80602cb168051e11f7c09388a2cbbf536c4e3bf9b59cf7dd9ba33986ad45b6870cbeb045a45504833210176e9c35428a7b35b25c6d34b8ab963843d19d932c80b197589d6b33323fece4300000000";
     uint32_t const GENESIS_NONCE = 10002;
 
-    std::string const GOVERNANCE_WALLET_ADDRESS = "44hBFjQxAJ84oGpVdhh6ThGPmYttsAGeESyVKGCcCs3Pa9M44XaZHi63gzqp14tYtgUEbMzmAPrKQJSkYUc25hVwCKnTYVn";
-  }
+    std::string const GOVERNANCE_WALLET_ADDRESS = "ZPHSjoq9e8pB41HgzKLJ94HPWN9eKhZhqYdFrvf51KUjcevE8SUhh8CYw65g5KYDBqaUsZZLu1NhnL3CvGikQGFEjdGV1hNzVL5";
+
+    std::array<std::string, 1> const ORACLE_URLS = {{"testnet-oracle.zephyrprotocol.com:443"}};
+
+    std::string const ORACLE_PUBLIC_KEY = "-----BEGIN PUBLIC KEY-----\n"
+      "MFwwDQYJKoZIhvcNAQEBBQADSwAwSAJBAMdjZLVtXH/nK3L+fXyaquZFrkHpKimc\n"
+      "681dPqESb8CCZrckTyd3O0xGegU8dVIFUWM8mzylv09zlgrzigkfedECAwEAAQ==\n"
+      "-----END PUBLIC KEY-----\n";
+    }
 }
 
 namespace cryptonote
@@ -342,7 +356,9 @@ namespace cryptonote
       ::config::testnet::ZMQ_RPC_DEFAULT_PORT,
       ::config::testnet::NETWORK_ID,
       ::config::testnet::GENESIS_TX,
-      ::config::testnet::GENESIS_NONCE
+      ::config::testnet::GENESIS_NONCE,
+      ::config::testnet::ORACLE_URLS,
+      ::config::testnet::ORACLE_PUBLIC_KEY
     };
     static const config_t stagenet = {
       ::config::stagenet::CRYPTONOTE_PUBLIC_ADDRESS_BASE58_PREFIX,
@@ -353,7 +369,9 @@ namespace cryptonote
       ::config::stagenet::ZMQ_RPC_DEFAULT_PORT,
       ::config::stagenet::NETWORK_ID,
       ::config::stagenet::GENESIS_TX,
-      ::config::stagenet::GENESIS_NONCE
+      ::config::stagenet::GENESIS_NONCE,
+      ::config::stagenet::ORACLE_URLS,
+      ::config::stagenet::ORACLE_PUBLIC_KEY
     };
     switch (nettype)
     {

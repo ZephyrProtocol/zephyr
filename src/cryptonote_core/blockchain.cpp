@@ -382,7 +382,7 @@ bool Blockchain::init(BlockchainDB* db, const network_type nettype, bool offline
     transaction tx_mine_1;
     std::map<std::string, uint64_t> fee_map;
     fee_map["ZEPH"] = 0;
-    construct_miner_tx(0, 0, 0, 0, fee_map, governance_wallet_address.address, tx_mine_1, blobdata(), 1);
+    construct_miner_tx(0, 0, 0, 0, fee_map, governance_wallet_address.address, tx_mine_1, blobdata(), 1, m_nettype);
 
     LOG_PRINT_L1("genesis miner tx: " << obj_to_json_str(tx_mine_1));
 
@@ -1776,7 +1776,7 @@ bool Blockchain::create_block_template(block& b, const crypto::hash *from_block,
   //make blocks coin-base tx looks close to real coinbase tx to get truthful blob weight
   uint8_t hf_version = b.major_version;
   size_t max_outs = 1;
-  bool r = construct_miner_tx(height, median_weight, already_generated_coins, txs_weight, fee_map, miner_address, b.miner_tx, ex_nonce, max_outs, hf_version);
+  bool r = construct_miner_tx(height, median_weight, already_generated_coins, txs_weight, fee_map, miner_address, b.miner_tx, ex_nonce, max_outs, hf_version, m_nettype);
   CHECK_AND_ASSERT_MES(r, false, "Failed to construct miner tx, first chance");
   size_t cumulative_weight = txs_weight + get_transaction_weight(b.miner_tx);
 #if defined(DEBUG_CREATE_BLOCK_TEMPLATE)
@@ -1785,7 +1785,7 @@ bool Blockchain::create_block_template(block& b, const crypto::hash *from_block,
 #endif
   for (size_t try_count = 0; try_count != 10; ++try_count)
   {
-    r = construct_miner_tx(height, median_weight, already_generated_coins, cumulative_weight, fee_map, miner_address, b.miner_tx, ex_nonce, max_outs, hf_version);
+    r = construct_miner_tx(height, median_weight, already_generated_coins, cumulative_weight, fee_map, miner_address, b.miner_tx, ex_nonce, max_outs, hf_version, m_nettype);
 
     CHECK_AND_ASSERT_MES(r, false, "Failed to construct miner tx, second chance");
     size_t coinbase_weight = get_transaction_weight(b.miner_tx);

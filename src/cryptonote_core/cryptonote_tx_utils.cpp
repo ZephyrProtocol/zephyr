@@ -119,7 +119,7 @@ namespace cryptonote
     return k;
   }
   //---------------------------------------------------------------
-  bool construct_miner_tx(size_t height, size_t median_weight, uint64_t already_generated_coins, size_t current_block_weight, std::map<std::string, uint64_t> fee_map, const account_public_address &miner_address, transaction& tx, const blobdata& extra_nonce, size_t max_outs, uint8_t hard_fork_version) {
+  bool construct_miner_tx(size_t height, size_t median_weight, uint64_t already_generated_coins, size_t current_block_weight, std::map<std::string, uint64_t> fee_map, const account_public_address &miner_address, transaction& tx, const blobdata& extra_nonce, size_t max_outs, uint8_t hard_fork_version, cryptonote::network_type nettype) {
     tx.vin.clear();
     tx.vout.clear();
     tx.extra.clear();
@@ -194,7 +194,6 @@ namespace cryptonote
     cryptonote::address_parse_info governance_wallet_address;
     if (already_generated_coins != 0)
     {
-      cryptonote::network_type nettype = cryptonote::network_type::MAINNET; // todo: testnet governance
       add_tx_pub_key_to_extra(tx, gov_key.pub);
       cryptonote::get_account_address_from_str(governance_wallet_address, nettype, get_governance_address(nettype));
 
@@ -240,8 +239,6 @@ namespace cryptonote
 
         tx_out out;
         cryptonote::set_tx_out(fee_map_entry.first, fee_map_entry.second, out_eph_public_key, use_view_tags, view_tag, out);
-        LOG_PRINT_L1("GOT AN OUT: " << obj_to_json_str(out));
-        LOG_PRINT_L1("GOT AN OUT: " << boost::get<cryptonote::txout_zephyr_tagged_key>(out.target).asset_type);
         tx.vout.push_back(out);
         idx++;
       }
