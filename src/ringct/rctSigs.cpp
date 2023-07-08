@@ -613,8 +613,9 @@ namespace rct {
       CHECK_AND_ASSERT_THROW_MES(!rv.mixRing.empty(), "Empty mixRing");
       const size_t inputs = is_rct_simple(rv.type) ? rv.mixRing.size() : rv.mixRing[0].size();
       const size_t outputs = rv.ecdhInfo.size();
+      const bool conversion_tx = rv.maskSums.size() == 2;
       key prehash;
-      CHECK_AND_ASSERT_THROW_MES(const_cast<rctSig&>(rv).serialize_rctsig_base(ba, inputs, outputs),
+      CHECK_AND_ASSERT_THROW_MES(const_cast<rctSig&>(rv).serialize_rctsig_base(ba, inputs, outputs, conversion_tx),
           "Failed to serialize rctSigBase");
       cryptonote::get_blob_hash(ss.str(), h);
       hashes.push_back(hash2rct(h));
@@ -1125,10 +1126,6 @@ namespace rct {
       const RCTConfig &rct_config,
       hw::device &hwdev
     ) {
-        MDEBUG("genRctSimple");
-        MDEBUG("rct_config.range_proof_type: " << rct_config.range_proof_type);
-        MDEBUG("rct_config.bp_version: " << rct_config.bp_version);
-
         const bool bulletproof_or_plus = rct_config.range_proof_type > RangeProofBorromean;
         CHECK_AND_ASSERT_THROW_MES(inamounts.size() > 0, "Empty inamounts");
         CHECK_AND_ASSERT_THROW_MES(inamounts.size() == inSk.size(), "Different number of inamounts/inSk");
@@ -1156,15 +1153,14 @@ namespace rct {
         else
           ASSERT_MES_AND_THROW("Unsupported BP version: " << rct_config.bp_version);
 
-        using tt = cryptonote::transaction_type;
-        bool conversion_tx = tx_type == tt::MINT_STABLE || tx_type == tt::REDEEM_STABLE || tx_type == tt::MINT_RESERVE || tx_type == tt::REDEEM_RESERVE;
-
         rv.message = message;
         rv.outPk.resize(destinations.size());
         if (!bulletproof_or_plus)
           rv.p.rangeSigs.resize(destinations.size());
         rv.ecdhInfo.resize(destinations.size());
 
+        using tt = cryptonote::transaction_type;
+        bool conversion_tx = tx_type == tt::MINT_STABLE || tx_type == tt::REDEEM_STABLE || tx_type == tt::MINT_RESERVE || tx_type == tt::REDEEM_RESERVE;
         if (conversion_tx) {
           rv.maskSums.resize(2);
           rv.maskSums[0] = zero();

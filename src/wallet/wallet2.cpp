@@ -2919,8 +2919,8 @@ void wallet2::process_parsed_blocks(uint64_t start_height, const std::vector<cry
 
     if (m_blockchain[0] == get_block_hash(genesis)) {
       LOG_PRINT_L2("Processing genesis transaction: " << string_tools::pod_to_hex(get_transaction_hash(genesis.miner_tx)));
-      std::vector<uint64_t> o_indices_genesis = {0}; //genesis transaction output
-      std::vector<uint64_t> a_indices_genesis = {}; //genesis transaction asset output
+      std::vector<uint64_t> o_indices_genesis = {}; //genesis transaction output
+      std::vector<uint64_t> a_indices_genesis = {0}; //genesis transaction asset output
       process_new_transaction(get_transaction_hash(genesis.miner_tx), genesis.miner_tx, o_indices_genesis, a_indices_genesis, 0, 0, genesis.timestamp, true, false, false, {} );
     } else {
       LOG_ERROR("Skip processing of genesis transaction, genesis block hash does not match: " << string_tools::pod_to_hex(get_block_hash(genesis)));
@@ -10479,6 +10479,8 @@ skip_tx:
   }
 
   THROW_WALLET_EXCEPTION_IF(!sanity_check(ptx_vector, original_dsts), error::wallet_internal_error, "Created transaction(s) failed sanity check");
+
+  LOG_PRINT_L1("ptx_vector:" << ENDL << obj_to_json_str(ptx_vector));
 
   // if we made it this far, we're OK to actually send the transactions
   return ptx_vector;

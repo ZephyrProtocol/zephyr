@@ -308,8 +308,9 @@ namespace cryptonote
         ar.tag("rct_signatures");
         if (!vin.empty())
         {
+          const bool conversion_tx = this->amount_burnt > 0 && this->amount_minted > 0;
           ar.begin_object();
-          bool r = rct_signatures.serialize_rctsig_base(ar, vin.size(), vout.size());
+          bool r = rct_signatures.serialize_rctsig_base(ar, vin.size(), vout.size(), conversion_tx);
           if (!r || !ar.good()) return false;
           ar.end_object();
 
@@ -344,8 +345,9 @@ namespace cryptonote
         ar.tag("rct_signatures");
         if (!vin.empty())
         {
+          const bool conversion_tx = this->amount_burnt > 0 && this->amount_minted > 0;
           ar.begin_object();
-          bool r = rct_signatures.serialize_rctsig_base(ar, vin.size(), vout.size());
+          bool r = rct_signatures.serialize_rctsig_base(ar, vin.size(), vout.size(), conversion_tx);
           if (!r || !ar.good()) return false;
           ar.end_object();
         }

@@ -327,7 +327,7 @@ namespace rct {
         keyV maskSums; // contains 2 elements. 1. is the sum of masks of inputs. 2. is the sum of masks of change outputs.
 
         template<bool W, template <bool> class Archive>
-        bool serialize_rctsig_base(Archive<W> &ar, size_t inputs, size_t outputs)
+        bool serialize_rctsig_base(Archive<W> &ar, size_t inputs, size_t outputs, const bool conversion_tx)
         {
           FIELD(type)
           if (type == RCTTypeNull)
@@ -392,17 +392,18 @@ namespace rct {
           }
           ar.end_array();
 
-          if (maskSums.size() != 2)
-            return ar.good();
+          if (conversion_tx) {
+            ar.tag("maskSums");
+            ar.begin_array();
+            PREPARE_CUSTOM_VECTOR_SERIALIZATION(2, maskSums);
+            if (maskSums.size() != 2)
+              return false;
 
-          ar.tag("maskSums");
-          ar.begin_array();
-          PREPARE_CUSTOM_VECTOR_SERIALIZATION(2, maskSums);
-
-          FIELDS(maskSums[0])
-          ar.delimit_array();
-          FIELDS(maskSums[1])
-          ar.end_array();
+            FIELDS(maskSums[0])
+            ar.delimit_array();
+            FIELDS(maskSums[1])
+            ar.end_array();
+          }
 
           return ar.good();
         }

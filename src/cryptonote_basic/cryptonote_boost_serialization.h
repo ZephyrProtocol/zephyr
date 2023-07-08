@@ -378,6 +378,9 @@ namespace boost
     a & x.ecdhInfo;
     serializeOutPk(a, x.outPk, ver);
     a & x.txnFee;
+    if (ver >= 3u) {
+      a & x.maskSums;
+    }
     //--------------
     a & x.p.rangeSigs;
     if (x.p.rangeSigs.empty())
@@ -444,5 +447,5 @@ namespace boost
 
 BOOST_CLASS_VERSION(rct::rctSigPrunable, 2)
 BOOST_CLASS_VERSION(rct::rctSigBase, 2)
-BOOST_CLASS_VERSION(rct::rctSig, 2)
+BOOST_CLASS_VERSION(rct::rctSig, 3)
 BOOST_CLASS_VERSION(rct::multisig_out, 1)
