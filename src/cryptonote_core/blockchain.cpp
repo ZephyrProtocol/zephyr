@@ -1872,7 +1872,8 @@ bool Blockchain::get_pricing_record(oracle::pricing_record& pr, uint64_t timesta
 
     if (!r) {
       LOG_PRINT_L0("Failed to get pricing record from Oracle - returning empty PR");
-      res.pr = oracle::pricing_record();
+      pr = oracle::pricing_record();
+      return true;
     }
 
     // Verify the signature
@@ -1881,6 +1882,7 @@ bool Blockchain::get_pricing_record(oracle::pricing_record& pr, uint64_t timesta
     } else {
       LOG_PRINT_L0("Failed to verify signature of pricing record from Oracle - returning empty PR");
       pr = oracle::pricing_record();
+      return true;
     }
 
     std::vector<std::pair<std::string, std::string>> circ_supply = get_db().get_circulating_supply();
@@ -4161,7 +4163,7 @@ leave:
   TIME_MEASURE_FINISH(pricing_record);
 
   // validate pricing record values
-  if (hf_version >= HF_VERSION_DJED) {
+  if (hf_version >= HF_VERSION_DJED && !bl.pricing_record.empty()) {
     TIME_MEASURE_START(pricing_record_values);
     std::vector<std::pair<std::string, std::string>> circ_supply = get_db().get_circulating_supply();
     uint64_t stable_price = cryptonote::get_stable_coin_price(circ_supply, bl.pricing_record.spot);
