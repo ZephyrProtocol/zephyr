@@ -966,20 +966,11 @@ namespace cryptonote
   void set_tx_out(const std::string& asset_type, const uint64_t amount, const crypto::public_key& output_public_key, const bool use_view_tags, const crypto::view_tag& view_tag, tx_out& out)
   {
     out.amount = amount;
-    // if (use_view_tags)
-    // {
-      txout_zephyr_tagged_key ttk;
-      ttk.key = output_public_key;
-      ttk.view_tag = view_tag;
-      ttk.asset_type = asset_type;
-      out.target = ttk;
-    // }
-    // else
-    // {
-    //   txout_to_key tk;
-    //   tk.key = output_public_key;
-    //   out.target = tk;
-    // }
+    txout_zephyr_tagged_key ttk;
+    ttk.key = output_public_key;
+    ttk.view_tag = view_tag;
+    ttk.asset_type = asset_type;
+    out.target = ttk;
   }
   //---------------------------------------------------------------
   bool check_output_types(const transaction& tx, const uint8_t hf_version)

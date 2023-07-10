@@ -6566,7 +6566,7 @@ bool simple_wallet::transfer_main(
     return false;
   }
 
-    // adjust priority
+  // adjust priority
   if (tx_type == tt::STABLE_TRANSFER || tx_type == tt::RESERVE_TRANSFER) {
     if (priority > 1) {
       message_writer() << boost::format(tr("Reducing priority from %d to 1 - Transfers do not permit other priorities\n")) % priority;

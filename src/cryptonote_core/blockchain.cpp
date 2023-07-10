@@ -1363,7 +1363,6 @@ bool Blockchain::validate_miner_transaction(
   std::map<std::string, uint64_t>& fee_map,
   uint64_t& base_reward,
   uint64_t already_generated_coins,
-  bool &partial_block_reward,
   uint8_t version
 ){
   LOG_PRINT_L3("Blockchain::" << __func__);
@@ -1376,10 +1375,9 @@ bool Blockchain::validate_miner_transaction(
   }
 
   // check output size
-  // it must be number of unique assets times 2 and + 2 for zeph.
-  // For now we have 2 + unique_assets.size() until hardfork
   const size_t output_size = b.miner_tx.vout.size();
-  if (already_generated_coins != 0 && output_size != ((2 + unique_assets.size()))  ) {
+  const size_t expected_output_size = 2 + unique_assets.size();
+  if (already_generated_coins != 0 && output_size != expected_output_size) {
     MERROR("Miner tx has invalid output size!");
     return false;
   }
@@ -1395,7 +1393,6 @@ bool Blockchain::validate_miner_transaction(
       return false;
     }
   }
-  partial_block_reward = false;
 
   uint64_t median_weight = m_current_block_cumul_weight_median;
   
@@ -1408,7 +1405,7 @@ bool Blockchain::validate_miner_transaction(
 
   if (already_generated_coins != 0)
   {
-    // validate first & second outputs are ZEPH
+    // validate first & second outputs are ZEPH (miner tx and governance reward)
     std::string first_output_asset_type, second_output_asset_type;
     bool ok = cryptonote::get_output_asset_type(b.miner_tx.vout[0], first_output_asset_type);
     ok     |= cryptonote::get_output_asset_type(b.miner_tx.vout[1], second_output_asset_type);
@@ -1418,14 +1415,12 @@ bool Blockchain::validate_miner_transaction(
     }
 
     uint64_t governance_reward = get_governance_reward(base_reward);
-
     if (b.miner_tx.vout[1].amount != governance_reward)
     {
       MERROR("Governance reward amount incorrect.  Should be: " << print_money(governance_reward) << ", is: " << print_money(b.miner_tx.vout[1].amount));
       return false;
     }
-    
-    // get the governance wallet address and validate zeph reward
+
     std::string governance_wallet_address_str = cryptonote::get_governance_address(m_nettype);
     if (!validate_governance_reward_key(m_db->height(), governance_wallet_address_str, 1, boost::get<txout_zephyr_tagged_key>(b.miner_tx.vout[1].target).key, m_nettype))
     {
@@ -1433,7 +1428,25 @@ bool Blockchain::validate_miner_transaction(
       return false;
     }
 
-    // TODO: validate asset reward amounts
+    if (unique_assets.size() > 0) {
+      for (uint64_t idx = 2; idx < output_size; idx++) {
+        ok = cryptonote::get_output_asset_type(b.miner_tx.vout[idx], first_output_asset_type);
+        if (!ok) {
+          MERROR("Failed to get output asset type from miner TX vout[" << idx << "]");
+          return false;
+        }
+
+        if (first_output_asset_type == "ZEPH") {
+          MERROR("ZEPH not allowed in additional asset types for miner TX : tx.vout[" << idx << "]");
+          return false;
+        }
+
+        if (b.miner_tx.vout[idx].amount != fee_map[first_output_asset_type]) {
+          MERROR("Miner reward amount for " << first_output_asset_type << " is incorrect. Should be: " << print_money(fee_map[first_output_asset_type]) << ", is: " << print_money(b.miner_tx.vout[idx].amount));
+          return false;
+        }
+      }
+    }
   }
 
   uint64_t reserve_reward = 0;
@@ -1441,17 +1454,11 @@ bool Blockchain::validate_miner_transaction(
     reserve_reward = get_reserve_reward(base_reward);
   }
 
-  if(money_in_use_map["ZEPH"] > (base_reward + fee_map["ZEPH"] - reserve_reward))
+  if(money_in_use_map["ZEPH"] != base_reward - reserve_reward + fee_map["ZEPH"])
   {
-    MERROR_VER("coinbase transaction spend too much money (" << print_money(money_in_use_map["ZEPH"]) << "). Block reward is " << print_money(base_reward + fee_map["ZEPH"]) << "(" << print_money(base_reward) << "+" << print_money(fee_map["ZEPH"]) << ")");
+    MERROR_VER("coinbase transaction amount mismatch (" << print_money(money_in_use_map["ZEPH"]) << "). Block reward is " << print_money(base_reward - reserve_reward + fee_map["ZEPH"]) << "(" << print_money(base_reward - reserve_reward) << "+" << print_money(fee_map["ZEPH"]) << ")");
     return false;
   }
-
-  CHECK_AND_ASSERT_MES(money_in_use_map["ZEPH"] - fee_map["ZEPH"] <= base_reward, false, "base reward calculation bug");
-  if(base_reward + fee_map["ZEPH"] != money_in_use_map["ZEPH"])
-    partial_block_reward = true;
-  base_reward = money_in_use_map["ZEPH"] - fee_map["ZEPH"] + reserve_reward;
-
 
   if (version >= HF_VERSION_DJED) {
     for (auto &money_in_use_map_entry: money_in_use_map) {
@@ -4526,7 +4533,7 @@ leave:
   TIME_MEASURE_START(vmt);
   uint64_t base_reward = 0;
   uint64_t already_generated_coins = blockchain_height ? m_db->get_block_already_generated_coins(blockchain_height - 1) : 0;
-  if(!validate_miner_transaction(bl, cumulative_block_weight, fee_map, base_reward, already_generated_coins, bvc.m_partial_block_reward, m_hardfork->get_current_version()))
+  if(!validate_miner_transaction(bl, cumulative_block_weight, fee_map, base_reward, already_generated_coins, m_hardfork->get_current_version()))
   {
     MERROR_VER("Block with id: " << id << " has incorrect miner transaction");
     bvc.m_verifivation_failed = true;

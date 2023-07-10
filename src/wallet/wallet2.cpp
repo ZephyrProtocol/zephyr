@@ -9955,7 +9955,6 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(
     std::vector<std::pair<std::string, std::string>> circ_amounts;
     THROW_WALLET_EXCEPTION_IF(!get_circulating_supply(circ_amounts), error::wallet_internal_error, "Failed to get circulating supply");
 
-   
     std::string error_reason;
     if (!reserve_ratio_satisfied(circ_amounts, pricing_record, tx_type, conversion_this_tx_zeph, conversion_this_tx_stables, conversion_this_tx_reserves, error_reason)) {
       LOG_ERROR("reserve ratio not satisfied");

@@ -1743,7 +1743,6 @@ namespace cryptonote
         continue;
       }
 
-      // MADNESS: RIGHT HERE CASUE OF STUCK PENDING 
       LOG_PRINT_L2("Considering " << sorted_it->second << ", weight " << meta.weight << ", current block weight " << total_weight << "/" << max_total_weight << ", current coinbase " << print_money(best_coinbase) << ", relay method " << (unsigned)meta.get_relay_method());
 
       if (!meta.matches(relay_category::legacy) && !(m_mine_stem_txes && meta.get_relay_method() == relay_method::stem))
@@ -1827,7 +1826,7 @@ namespace cryptonote
       oracle::pricing_record latest_pr;
       if (!m_blockchain.get_latest_acceptable_pr(latest_pr)) {
         if (version >= HF_VERSION_DJED) {
-          MWARNING("Failed to find a pricing record in last 10 block.");
+          MWARNING("Failed to find a pricing record in last 10 blocks.");
         }
         have_valid_pr = false;
       }
