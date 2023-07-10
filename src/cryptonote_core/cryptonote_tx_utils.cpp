@@ -776,6 +776,7 @@ namespace cryptonote
     boost::multiprecision::uint128_t rate = COIN;
     rate *= COIN;
     rate /= oracle_price;
+    rate -= (rate % 10000);
 
     uint64_t zeph_reserve = 0;
     for (auto circ_amount : circ_amounts) {
@@ -812,6 +813,7 @@ namespace cryptonote
       // Calculate the worst case stable price
       boost::multiprecision::uint128_t num_stable_128 = num_stable;
       boost::multiprecision::uint128_t worst_case_stable_rate = assets / num_stable_128;
+      worst_case_stable_rate -= (worst_case_stable_rate % 10000);
       return worst_case_stable_rate.convert_to<uint64_t>();
     }
 
@@ -880,7 +882,7 @@ namespace cryptonote
     boost::multiprecision::uint128_t rate_128 = COIN;
     rate_128 *= COIN;
     rate_128 /= reserve_coin_price;
-    rate_128 -= (rate_128 % 100000000);
+    rate_128 -= (rate_128 % 10000);
 
     boost::multiprecision::uint128_t reserve_amount_128 = amount_128 * rate_128;
     reserve_amount_128 /= COIN;
@@ -915,7 +917,7 @@ namespace cryptonote
 
     boost::multiprecision::uint128_t conversion_fee = (rate_128 * 2) / 100; // 2% fee
     rate_128 -= conversion_fee;
-    rate_128 -= (rate_128 % 100000000);
+    rate_128 -= (rate_128 % 10000);
 
     boost::multiprecision::uint128_t stable_128 = amount_128 * rate_128;
     stable_128 /= COIN;

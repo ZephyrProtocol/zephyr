@@ -1285,7 +1285,7 @@ namespace rct {
                 rate_128 /= exchange_128;
                 boost::multiprecision::uint128_t conversion_fee = (rate_128 * 2) / 100; // 2% fee
                 rate_128 -= conversion_fee;
-                rate_128 -= (rate_128 % 100000000);
+                rate_128 -= (rate_128 % 10000);
 
                 key inverse_rate = invert(d2h((uint64_t)rate_128));
                 sc_mul(tempkey.bytes, outSk[i].mask.bytes, atomic.bytes);
@@ -1313,7 +1313,7 @@ namespace rct {
                 boost::multiprecision::uint128_t rate_128 = COIN;
                 rate_128 *= COIN;
                 rate_128 /= reserve_coin_price;
-                rate_128 -= (rate_128 % 100000000);
+                rate_128 -= (rate_128 % 10000);
                 
                 key inverse_rate = invert(d2h((uint64_t)rate_128));
 
@@ -1606,7 +1606,7 @@ namespace rct {
           rate_128 /= exchange_128;
           boost::multiprecision::uint128_t conversion_fee = (rate_128 * 2) / 100; // 2% fee
           rate_128 -= conversion_fee;
-          rate_128 -= (rate_128 % 100000000);
+          rate_128 -= (rate_128 % 10000);
 
           key D_scaled = scalarmultKey(sumD, d2h(COIN));
           key yC_invert = invert(d2h((uint64_t)rate_128));
@@ -1627,7 +1627,7 @@ namespace rct {
           boost::multiprecision::uint128_t rate_128 = COIN;
           rate_128 *= COIN;
           rate_128 /= reserve_coin_price;
-          rate_128 -= (rate_128 % 100000000);
+          rate_128 -= (rate_128 % 10000);
 
           key D_scaled = scalarmultKey(sumD, d2h(COIN));
           key yC_invert = invert(d2h((uint64_t)rate_128));
@@ -1861,7 +1861,7 @@ namespace rct {
         rate_128 /= exchange_128;
         boost::multiprecision::uint128_t conversion_fee = (rate_128 * 2) / 100; // 2% fee
         rate_128 -= conversion_fee;
-        rate_128 -= (rate_128 % 100000000);
+        rate_128 -= (rate_128 % 10000);
 
         boost::multiprecision::uint128_t stable_128 = zeph_128 * rate_128;
         stable_128 /= COIN;
@@ -1889,7 +1889,7 @@ namespace rct {
         boost::multiprecision::uint128_t rate_128 = COIN;
         rate_128 *= COIN;
         rate_128 /= exchange_128;
-        rate_128 -= (rate_128 % 100000000);
+        rate_128 -= (rate_128 % 10000);
 
         boost::multiprecision::uint128_t reserve_amount_128 = zeph_128 * rate_128;
         reserve_amount_128 /= COIN;
