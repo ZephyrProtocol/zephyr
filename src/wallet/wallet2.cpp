@@ -10571,8 +10571,19 @@ bool wallet2::sanity_check(const std::vector<wallet2::pending_tx> &ptx_vector, s
   return true;
 }
 
-std::vector<wallet2::pending_tx> wallet2::create_transactions_all(uint64_t below, const cryptonote::account_public_address &address, bool is_subaddress, const size_t outputs, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t>& extra, uint32_t subaddr_account, std::set<uint32_t> subaddr_indices)
-{
+std::vector<wallet2::pending_tx> wallet2::create_transactions_all(
+  uint64_t below,
+  const std::string &asset_type,
+  const cryptonote::account_public_address &address,
+  bool is_subaddress,
+  const size_t outputs,
+  const size_t fake_outs_count,
+  const uint64_t unlock_time,
+  uint32_t priority,
+  const std::vector<uint8_t>& extra,
+  uint32_t subaddr_account,
+  std::set<uint32_t> subaddr_indices
+){
   std::vector<size_t> unused_transfers_indices;
   std::vector<size_t> unused_dust_indices;
   const bool use_rct = true;
@@ -10591,15 +10602,17 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_all(uint64_t below
   const uint64_t fractional_threshold = (base_fee * tx_weight_per_ring) / (use_per_byte_fee ? 1 : 1024);
   std::unordered_set<crypto::public_key> valid_public_keys_cache;
 
-  THROW_WALLET_EXCEPTION_IF(unlocked_balance("ZEPH", subaddr_account, false) == 0, error::wallet_internal_error, "No unlocked balance in the specified account");
+  THROW_WALLET_EXCEPTION_IF(unlocked_balance(asset_type, subaddr_account, false) == 0, error::wallet_internal_error, "No unlocked balance in the specified account");
+
+  wallet2::transfer_container specific_transfers = get_specific_transfers(asset_type);
 
   std::map<uint32_t, std::pair<std::vector<size_t>, std::vector<size_t>>> unused_transfer_dust_indices_per_subaddr;
 
   // gather all dust and non-dust outputs of specified subaddress (if any) and below specified threshold (if any)
   bool fund_found = false;
-  for (size_t i = 0; i < m_transfers.at("ZEPH").size(); ++i)
+  for (size_t i = 0; i < specific_transfers.size(); ++i)
   {
-    const transfer_details& td = m_transfers.at("ZEPH")[i];
+    const transfer_details& td = specific_transfers[i];
     if (m_ignore_fractional_outputs && td.amount() < fractional_threshold)
     {
       MDEBUG("Ignoring output " << i << " of amount " << print_money(td.amount()) << " which is below threshold " << print_money(fractional_threshold));
@@ -10641,7 +10654,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_all(uint64_t below
     }
   }
 
-  return create_transactions_from(address, is_subaddress, outputs, unused_transfers_indices, unused_dust_indices, fake_outs_count, unlock_time, priority, extra);
+  return create_transactions_from(address, asset_type, is_subaddress, outputs, unused_transfers_indices, unused_dust_indices, fake_outs_count, unlock_time, priority, extra);
 }
 
 std::vector<wallet2::pending_tx> wallet2::create_transactions_single(const crypto::key_image &ki, const cryptonote::account_public_address &address, bool is_subaddress, const size_t outputs, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t>& extra)
@@ -10649,10 +10662,11 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_single(const crypt
   std::vector<size_t> unused_transfers_indices;
   std::vector<size_t> unused_dust_indices;
   const bool use_rct = true;
+  std::string asset_type = "ZEPH";
   // find output with the given key image
-  for (size_t i = 0; i < m_transfers.at("ZEPH").size(); ++i)
+  for (size_t i = 0; i < m_transfers.at(asset_type).size(); ++i)
   {
-    const transfer_details& td = m_transfers.at("ZEPH")[i];
+    const transfer_details& td = m_transfers.at(asset_type)[i];
     if (td.m_key_image_known && td.m_key_image == ki && !is_spent(td, false) && !td.m_frozen && (use_rct ? true : !td.is_rct()) && is_transfer_unlocked(td))
     {
       if (td.is_rct() || is_valid_decomposed_amount(td.amount()))
@@ -10662,11 +10676,21 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_single(const crypt
       break;
     }
   }
-  return create_transactions_from(address, is_subaddress, outputs, unused_transfers_indices, unused_dust_indices, fake_outs_count, unlock_time, priority, extra);
+  return create_transactions_from(address, asset_type, is_subaddress, outputs, unused_transfers_indices, unused_dust_indices, fake_outs_count, unlock_time, priority, extra);
 }
 
-std::vector<wallet2::pending_tx> wallet2::create_transactions_from(const cryptonote::account_public_address &address, bool is_subaddress, const size_t outputs, std::vector<size_t> unused_transfers_indices, std::vector<size_t> unused_dust_indices, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t>& extra)
-{
+std::vector<wallet2::pending_tx> wallet2::create_transactions_from(
+  const cryptonote::account_public_address &address,
+  const std::string &asset_type,
+  bool is_subaddress,
+  const size_t outputs,
+  std::vector<size_t> unused_transfers_indices,
+  std::vector<size_t> unused_dust_indices,
+  const size_t fake_outs_count,
+  const uint64_t unlock_time,
+  uint32_t priority,
+  const std::vector<uint8_t>& extra
+){
   //ensure device is let in NONE mode in any case
   hw::device &hwdev = m_account.get_device();
   boost::unique_lock<hw::device> hwdev_lock (hwdev);
@@ -10730,14 +10754,14 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(const crypton
 
     size_t idx =
       unused_transfers_indices.empty()
-        ? pop_best_value("ZEPH", unused_dust_indices, tx.selected_transfers)
+        ? pop_best_value(asset_type, unused_dust_indices, tx.selected_transfers)
       : unused_dust_indices.empty()
-        ? pop_best_value("ZEPH", unused_transfers_indices, tx.selected_transfers)
+        ? pop_best_value(asset_type, unused_transfers_indices, tx.selected_transfers)
       : ((tx.selected_transfers.size() & 1) || accumulated_outputs > fee_dust_threshold)
-        ? pop_best_value("ZEPH", unused_dust_indices, tx.selected_transfers)
-      : pop_best_value("ZEPH", unused_transfers_indices, tx.selected_transfers);
+        ? pop_best_value(asset_type, unused_dust_indices, tx.selected_transfers)
+      : pop_best_value(asset_type, unused_transfers_indices, tx.selected_transfers);
 
-    const transfer_details &td = m_transfers.at("ZEPH")[idx];
+    const transfer_details &td = m_transfers.at(asset_type)[idx];
     LOG_PRINT_L2("Picking output " << idx << ", amount " << print_money(td.amount()));
 
     // add this output to the list to spend
@@ -10758,7 +10782,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(const crypton
       cryptonote::transaction test_tx;
       pending_tx test_ptx;
 
-      const size_t num_outputs = get_num_outputs(tx.dsts, m_transfers.at("ZEPH"), tx.selected_transfers);
+      const size_t num_outputs = get_num_outputs(tx.dsts, m_transfers.at(asset_type), tx.selected_transfers);
       needed_fee = estimate_fee(use_per_byte_fee, use_rct, tx.selected_transfers.size(), fake_outs_count, num_outputs, extra.size(), bulletproof, clsag, bulletproof_plus, use_view_tags, base_fee, fee_quantization_mask);
 
       // add N - 1 outputs for correct initial fee estimation
@@ -10769,7 +10793,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(const crypton
         tx.selected_transfers.size() << " outputs");
       if (use_rct)
         transfer_selected_rct(tx.dsts, tx.selected_transfers, fake_outs_count, outs, valid_public_keys_cache, unlock_time, needed_fee, extra,
-          test_tx, test_ptx, rct_config, use_view_tags, "ZEPH", "ZEPH", oracle::pricing_record());
+          test_tx, test_ptx, rct_config, use_view_tags, asset_type, asset_type, oracle::pricing_record());
       else
         transfer_selected(tx.dsts, tx.selected_transfers, fake_outs_count, outs, valid_public_keys_cache, unlock_time, needed_fee, extra,
           detail::digit_split_strategy, tx_dust_policy(::config::DEFAULT_DUST_THRESHOLD), test_tx, test_ptx, use_view_tags);
@@ -10802,11 +10826,12 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(const crypton
             dt_residue = 1;
             residue -= 1;
           }
-          dt.amount = dt_amount + dt_residue;
+          dt.amount = dt.dest_amount = dt_amount + dt_residue;
+          dt.dest_asset_type = asset_type;
         }
         if (use_rct)
           transfer_selected_rct(tx.dsts, tx.selected_transfers, fake_outs_count, outs, valid_public_keys_cache, unlock_time, needed_fee, extra, 
-            test_tx, test_ptx, rct_config, use_view_tags, "ZEPH", "ZEPH", oracle::pricing_record());
+            test_tx, test_ptx, rct_config, use_view_tags, asset_type, asset_type, oracle::pricing_record());
         else
           transfer_selected(tx.dsts, tx.selected_transfers, fake_outs_count, outs, valid_public_keys_cache, unlock_time, needed_fee, extra,
             detail::digit_split_strategy, tx_dust_policy(::config::DEFAULT_DUST_THRESHOLD), test_tx, test_ptx, use_view_tags);
@@ -10845,7 +10870,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(const crypton
     pending_tx test_ptx;
     if (use_rct) {
       transfer_selected_rct(tx.dsts, tx.selected_transfers, fake_outs_count, tx.outs, valid_public_keys_cache, unlock_time, tx.needed_fee, extra,
-        test_tx, test_ptx, rct_config, use_view_tags, "ZEPH", "ZEPH", oracle::pricing_record());
+        test_tx, test_ptx, rct_config, use_view_tags, asset_type, asset_type, oracle::pricing_record());
     } else {
       transfer_selected(tx.dsts, tx.selected_transfers, fake_outs_count, tx.outs, valid_public_keys_cache, unlock_time, tx.needed_fee, extra,
         detail::digit_split_strategy, tx_dust_policy(::config::DEFAULT_DUST_THRESHOLD), test_tx, test_ptx, use_view_tags);
@@ -10862,7 +10887,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(const crypton
     TX &tx = *i;
     uint64_t tx_money = 0;
     for (size_t idx: tx.selected_transfers)
-      tx_money += m_transfers.at("ZEPH")[idx].amount();
+      tx_money += m_transfers.at(asset_type)[idx].amount();
     LOG_PRINT_L1("  Transaction " << (1+std::distance(txes.begin(), i)) << "/" << txes.size() <<
       " " << get_transaction_hash(tx.ptx.tx) << ": " << get_weight_string(tx.weight) << ", sending " << print_money(tx_money) << " in " << tx.selected_transfers.size() <<
       " outputs to " << tx.dsts.size() << " destination(s), including " <<
@@ -10875,12 +10900,15 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(const crypton
   {
     for (size_t idx: tx.selected_transfers)
     {
-      a += m_transfers.at("ZEPH")[idx].amount();
+      a += m_transfers.at(asset_type)[idx].amount();
     }
     a -= tx.ptx.fee;
   }
 
   std::vector<cryptonote::tx_destination_entry> synthetic_dsts(1, cryptonote::tx_destination_entry("", a, address, is_subaddress));
+  tx_destination_entry& de = synthetic_dsts.back();
+  de.dest_amount = de.amount;
+  de.dest_asset_type = asset_type;
   THROW_WALLET_EXCEPTION_IF(!sanity_check(ptx_vector, synthetic_dsts), error::wallet_internal_error, "Created transaction(s) failed sanity check");
 
   // if we made it this far, we're OK to actually send the transactions
@@ -11149,7 +11177,7 @@ std::vector<wallet2::pending_tx> wallet2::create_unmixable_sweep_transactions()
       unmixable_transfer_outputs.push_back(n);
   }
 
-  return create_transactions_from(m_account_public_address, false, 1, unmixable_transfer_outputs, unmixable_dust_outputs, 0 /*fake_outs_count */, 0 /* unlock_time */, 1 /*priority */, std::vector<uint8_t>());
+  return create_transactions_from(m_account_public_address, "ZEPH", false, 1, unmixable_transfer_outputs, unmixable_dust_outputs, 0 /*fake_outs_count */, 0 /* unlock_time */, 1 /*priority */, std::vector<uint8_t>());
 }
 //----------------------------------------------------------------------------------------------------
 void wallet2::discard_unmixable_outputs()
