@@ -10309,6 +10309,18 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(
       // Try to carve the estimated fee from the partial payment (if there is one)
       available_for_fee = try_carving_from_partial_payment(needed_fee, available_for_fee);
 
+      if (!dsts.empty()) {
+        THROW_WALLET_EXCEPTION_IF(source_asset != dest_asset, error::wallet_internal_error, "Cannot split conversion transaction - use a smaller amount or consolidate your inputs");
+        for (auto &txdt: tx.dsts) {
+          if (txdt.amount != txdt.dest_amount) {
+            // Sanity check that the amount sums to what we want
+            THROW_WALLET_EXCEPTION_IF(txdt.amount + dsts[0].amount != dsts[0].dest_amount, error::wallet_internal_error, "Split transaction sum error");
+            txdt.dest_amount = txdt.amount;
+            dsts[0].dest_amount = dsts[0].amount;
+          }
+        }
+      }
+
       uint64_t inputs = 0, outputs = needed_fee;
       for (size_t idx: tx.selected_transfers) inputs += specific_transfers[idx].amount();
       for (const auto &o: tx.dsts) outputs += o.amount;
