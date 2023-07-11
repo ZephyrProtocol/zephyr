@@ -822,6 +822,10 @@ namespace cryptonote
   //---------------------------------------------------------------
   uint64_t get_reserve_coin_price(std::vector<std::pair<std::string, std::string>> circ_amounts, uint64_t exchange_rate)
   {
+    if (!exchange_rate) {
+      return 0;
+    }
+
     uint64_t zeph_reserve = 0;
     for (auto circ_amount : circ_amounts) {
       if (circ_amount.first == "ZEPH") {
@@ -850,11 +854,6 @@ namespace cryptonote
     if (num_reserve == 0) {
       MDEBUG("No reserve amount detected. Using price_r_min..");
       return (uint64_t)price_r_min;
-    }
-
-    if (!exchange_rate) {
-      MERROR("No price data available. Reserve price cannot be calculated.");
-      return 0;
     }
 
     boost::multiprecision::uint128_t exchange_128 = exchange_rate;

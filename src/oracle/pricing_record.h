@@ -90,6 +90,7 @@ namespace oracle
       bool equal(const pricing_record& other) const noexcept;
       bool empty() const noexcept;
       bool verifySignature(const std::string& public_key) const;
+      bool has_missing_rates() const noexcept;
       bool valid(cryptonote::network_type nettype, uint32_t hf_version, uint64_t bl_timestamp, uint64_t last_bl_timestamp) const;
 
       pricing_record& operator=(const pricing_record& orig) noexcept;

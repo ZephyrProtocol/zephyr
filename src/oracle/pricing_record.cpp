@@ -216,6 +216,11 @@ namespace oracle
     return false;
   }
 
+  bool pricing_record::has_missing_rates() const noexcept
+  {
+    return (spot == 0) || (moving_average == 0) || (stable == 0) || (stable_ma == 0) || (reserve == 0) || (reserve_ma == 0);
+  }
+
   // overload for pr validation for block
   bool pricing_record::valid(cryptonote::network_type nettype, uint32_t hf_version, uint64_t bl_timestamp, uint64_t last_bl_timestamp) const 
   {
@@ -226,6 +231,11 @@ namespace oracle
 
     if (this->empty())
         return true;
+
+    if (this->has_missing_rates()) {
+      LOG_ERROR("Pricing record has missing rates.");
+      return false;
+    }
 
     if (!verifySignature(get_config(nettype).ORACLE_PUBLIC_KEY)) {
       LOG_ERROR("Invalid pricing record signature.");

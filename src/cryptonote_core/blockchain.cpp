@@ -1892,6 +1892,12 @@ bool Blockchain::get_pricing_record(oracle::pricing_record& pr, uint64_t timesta
     pr.reserve = cryptonote::get_reserve_coin_price(circ_supply, pr.spot);
     pr.reserve_ma = cryptonote::get_reserve_coin_price(circ_supply, pr.moving_average);
 
+    if (!pr.spot || !pr.moving_average || !pr.stable || !pr.stable_ma || !pr.reserve || !pr.reserve_ma) {
+      LOG_PRINT_L0("Failed to calculate stable and reserve prices - returning empty PR");
+      pr = oracle::pricing_record();
+      return true;
+    }
+
     std::string sig_hex;
     for (size_t i = 0; i < 64; i++) {
       std::stringstream ss;
