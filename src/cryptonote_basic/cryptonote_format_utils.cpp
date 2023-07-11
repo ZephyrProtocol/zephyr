@@ -913,11 +913,15 @@ namespace cryptonote
     return true;
   }
   //---------------------------------------------------------------
-  uint64_t get_outs_money_amount(const transaction& tx)
+  uint64_t get_outs_money_amount(const transaction& tx, const std::string& asset_type)
   {
     uint64_t outputs_amount = 0;
-    for(const auto& o: tx.vout)
-      outputs_amount += o.amount;
+    for(const auto& o: tx.vout) {
+      std::string output_asset_type;
+      bool ok = cryptonote::get_output_asset_type(o, output_asset_type);
+      if (ok && output_asset_type == asset_type)
+        outputs_amount += o.amount;
+    }
     return outputs_amount;
   }
   //---------------------------------------------------------------
