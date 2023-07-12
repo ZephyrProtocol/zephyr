@@ -478,66 +478,6 @@ namespace cryptonote
     return true;
   }
   //---------------------------------------------------------------
-  uint64_t get_mint_stable_fee(const std::vector<cryptonote::tx_destination_entry>& dsts) {
-
-    // Calculate the amount being sent
-    uint64_t amount = 0;
-    for (auto dt: dsts) {
-      // Filter out the change, which is never converted
-      if (dt.dest_asset_type == "ZEPHUSD") {
-        amount += dt.amount;
-      }
-    }
-
-    uint64_t fee_estimate = (amount * 2) / 100; // 2% fee
-    return fee_estimate;
-  }
-  //---------------------------------------------------------------
-  uint64_t get_redeem_stable_fee(const std::vector<cryptonote::tx_destination_entry>& dsts) {
-
-    // Calculate the amount being sent
-    uint64_t amount = 0;
-    for (auto dt: dsts) {
-      // Filter out the change, which is never converted
-      if (dt.dest_asset_type == "ZEPH") {
-        amount += dt.dest_amount;
-      }
-    }
-
-    uint64_t fee_estimate = (amount * 2) / 100; // 2% fee
-    return fee_estimate;
-  }
-  //---------------------------------------------------------------
-  uint64_t get_mint_reserve_fee(const std::vector<cryptonote::tx_destination_entry>& dsts) {
-
-    // Calculate the amount being sent
-    uint64_t amount = 0;
-    for (auto dt: dsts) {
-      // Filter out the change, which is never converted
-      if (dt.dest_asset_type == "ZEPHRSV") {
-        amount += dt.amount;
-      }
-    }
-
-    uint64_t fee_estimate = (amount * 2) / 100; // 2% fee
-    return fee_estimate;
-  }
-  //---------------------------------------------------------------
-  uint64_t get_redeem_reserve_fee(const std::vector<cryptonote::tx_destination_entry>& dsts) {
-
-    // Calculate the amount being sent
-    uint64_t amount = 0;
-    for (auto dt: dsts) {
-      // Filter out the change, which is never converted
-      if (dt.dest_asset_type == "ZEPH") {
-        amount += dt.dest_amount;
-      }
-    }
-
-    uint64_t fee_estimate = (amount * 2) / 100; // 2% fee
-    return fee_estimate;
-  }
-
   void get_reserve_info(const std::vector<std::pair<std::string, std::string>>& circ_amounts, const oracle::pricing_record& pr, uint64_t& zeph_reserve, uint64_t& num_stables, uint64_t& num_reserves, uint64_t& assets, uint64_t& assets_ma, uint64_t& liabilities, uint64_t& equity, uint64_t& equity_ma, double& reserve_ratio, double& reserve_ratio_ma)
   {
     zeph_reserve = 0;
@@ -936,6 +876,32 @@ namespace cryptonote
     zeph_128 /= COIN;
 
     return (uint64_t)zeph_128;
+  }
+  //---------------------------------------------------------------------------------
+  uint64_t get_fee_in_zeph_equivalent(const std::string& fee_asset, uint64_t fee_amount, const oracle::pricing_record& pr)
+  {
+    if (fee_asset == "ZEPH" || pr.empty()) {
+      return fee_amount;
+    } else if (fee_asset == "ZEPHUSD") {
+      return get_zeph_amount(fee_amount, pr);
+    } else if (fee_asset == "ZEPHRSV") {
+      return get_zeph_amount_from_reserve(fee_amount, pr);
+    }
+
+    return fee_amount;
+  }
+    //---------------------------------------------------------------------------------
+  uint64_t get_fee_in_asset_equivalent(const std::string& to_asset_type, uint64_t fee_amount, const oracle::pricing_record& pr)
+  {
+    if (to_asset_type == "ZEPH" || pr.empty()) {
+      return fee_amount;
+    } else if (to_asset_type == "ZEPHUSD") {
+      return get_stable_amount(fee_amount, pr);
+    } else if (to_asset_type == "ZEPHRSV") {
+      return get_reserve_amount(fee_amount, pr);
+    }
+
+    return fee_amount;
   }
   //----------------------------------------------------------------------------------------------------
   bool tx_pr_height_valid(const uint64_t current_height, const uint64_t pr_height, const crypto::hash& tx_hash) {

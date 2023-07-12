@@ -232,13 +232,6 @@ namespace cryptonote
   bool tx_pr_height_valid(const uint64_t current_height, const uint64_t pr_height, const crypto::hash& tx_hash);
   
 
-  
-
-  uint64_t get_mint_stable_fee(const std::vector<cryptonote::tx_destination_entry>& dsts);
-  uint64_t get_redeem_stable_fee(const std::vector<cryptonote::tx_destination_entry>& dsts);
-  uint64_t get_mint_reserve_fee(const std::vector<cryptonote::tx_destination_entry>& dsts);
-  uint64_t get_redeem_reserve_fee(const std::vector<cryptonote::tx_destination_entry>& dsts);
-
   void get_reserve_info(const std::vector<std::pair<std::string, std::string>>& circ_amounts, const oracle::pricing_record& pricing_record, uint64_t& zeph_reserve, uint64_t& num_stables, uint64_t& num_reserves, uint64_t& assets, uint64_t& assets_ma, uint64_t& liabilities, uint64_t& equity, uint64_t& equity_ma, double& reserve_ratio, double& reserve_ratio_ma);
 
   double get_reserve_ratio(const std::vector<std::pair<std::string, std::string>>& circ_amounts, const uint64_t oracle_price);
@@ -257,6 +250,9 @@ namespace cryptonote
 
   uint64_t get_stable_amount(const uint64_t amount, const oracle::pricing_record& pr);
   uint64_t get_zeph_amount(const uint64_t amount, const oracle::pricing_record& pr);
+
+  uint64_t get_fee_in_zeph_equivalent(const std::string& fee_asset, uint64_t fee_amount, const oracle::pricing_record& pr);
+  uint64_t get_fee_in_asset_equivalent(const std::string& to_asset_type, uint64_t fee_amount, const oracle::pricing_record& pr);
 }
 
 BOOST_CLASS_VERSION(cryptonote::tx_source_entry, 1)

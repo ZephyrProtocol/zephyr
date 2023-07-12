@@ -136,11 +136,6 @@ namespace cryptonote
     // corresponding lists.
   }
   //---------------------------------------------------------------------------------
-  uint64_t tx_memory_pool::get_zeph_fee_amount(const std::string& fee_asset, uint64_t fee_amount, const cryptonote::transaction_type tt, const oracle::pricing_record& pr, const uint16_t hf_version)
-  {
-    return fee_amount;
-  }
-  //---------------------------------------------------------------------------------
   bool tx_memory_pool::add_tx(transaction &tx, /*const crypto::hash& tx_prefix_hash,*/ const crypto::hash &id, const cryptonote::blobdata &blob, size_t tx_weight, tx_verification_context& tvc, relay_method tx_relay, bool relayed, uint8_t version)
   {
     const bool kept_by_block = (tx_relay == relay_method::block);
@@ -373,9 +368,15 @@ namespace cryptonote
 
           m_blockchain.add_txpool_tx(id, blob, meta);
 
-          uint64_t total_fee = meta.fee;
- 
-          add_tx_to_transient_lists(id, total_fee / (double)(tx_weight ? tx_weight : 1), receive_time);
+          uint64_t fee_in_zeph = 0;
+          if (tvc.pr.empty()) {
+            if (!m_blockchain.get_latest_acceptable_pr(tvc.pr)) {
+              fee_in_zeph = meta.fee;
+            }
+          }
+
+          fee_in_zeph = fee_in_zeph ? fee_in_zeph : get_fee_in_zeph_equivalent(meta.fee_asset_type, meta.fee, tvc.pr);
+          add_tx_to_transient_lists(id, fee_in_zeph / (double)(tx_weight ? tx_weight : 1), receive_time);
           lock.commit();
         }
         catch (const std::exception &e)
@@ -447,8 +448,16 @@ namespace cryptonote
           m_blockchain.remove_txpool_tx(id);
           m_blockchain.add_txpool_tx(id, blob, meta);
 
-          uint64_t total_fee = meta.fee;
-          add_tx_to_transient_lists(id, total_fee / (double)(tx_weight ? tx_weight : 1), receive_time);
+          uint64_t fee_in_zeph = 0;
+          if (tvc.pr.empty()) {
+            if (!m_blockchain.get_latest_acceptable_pr(tvc.pr)) {
+              // Only relevant for reserve/stable transfers (not conversions)
+              fee_in_zeph = meta.fee;
+            }
+          }
+
+          fee_in_zeph = fee_in_zeph ? fee_in_zeph : get_fee_in_zeph_equivalent(meta.fee_asset_type, meta.fee, tvc.pr);
+          add_tx_to_transient_lists(id, fee_in_zeph / (double)(tx_weight ? tx_weight : 1), receive_time);
         }
         lock.commit();
       }
@@ -1737,12 +1746,13 @@ namespace cryptonote
       }
       have_valid_pr = false;
     }
-
-    std::vector<std::pair<std::string, std::string>> circ_supply = m_blockchain.get_db().get_circulating_supply();
+    // Convert stable and reserve fees into equivalent zeph value to maximize coinbase
+    uint64_t total_collected_fee_in_zeph = 0;
 
     int64_t total_conversion_zeph = 0;
     int64_t total_conversion_stables = 0;
     int64_t total_conversion_reserves = 0;
+    std::vector<std::pair<std::string, std::string>> circ_supply = m_blockchain.get_db().get_circulating_supply();
 
     auto sorted_it = m_txs_by_fee_and_receive_time.begin();
     for (; sorted_it != m_txs_by_fee_and_receive_time.end(); ++sorted_it)
@@ -1786,8 +1796,17 @@ namespace cryptonote
         continue;
       }
 
+      uint64_t fee_this_tx_in_zeph = 0;
+      if (have_valid_pr) {
+        fee_this_tx_in_zeph = meta.weight * sorted_it->first.first; // fee in zeph
+      } else {
+        fee_this_tx_in_zeph = meta.fee; // fallback to fee in asset type (stable/reserve transfers in absence of pricing record)
+      }
 
-      coinbase = block_reward + fee_map["ZEPH"] + meta.fee;
+      coinbase = block_reward + total_collected_fee_in_zeph + fee_this_tx_in_zeph;
+
+      LOG_PRINT_L2(" coinbase " << print_money(coinbase) << ", best " << print_money(best_coinbase) <<  ", block reward " << print_money(block_reward) << ", total collected fee " << print_money(total_collected_fee_in_zeph) << ", fee this tx " << print_money(fee_this_tx_in_zeph));
+
       if (coinbase < template_accept_threshold(best_coinbase))
       {
         LOG_PRINT_L2("  would decrease coinbase to " << print_money(coinbase));
@@ -1816,14 +1835,14 @@ namespace cryptonote
       if (memcmp(&original_meta, &meta, sizeof(meta)))
       {
         try
-	{
-	  m_blockchain.update_txpool_tx(sorted_it->second, meta);
-	}
+        {
+          m_blockchain.update_txpool_tx(sorted_it->second, meta);
+        }
         catch (const std::exception &e)
-	{
-	  MERROR("Failed to update tx meta: " << e.what());
-	  // continue, not fatal
-	}
+        {
+          MERROR("Failed to update tx meta: " << e.what());
+          // continue, not fatal
+        }
       }
       if (!ready)
       {
@@ -1908,6 +1927,7 @@ namespace cryptonote
       bl.tx_hashes.push_back(sorted_it->second);
       total_weight += meta.weight;
 
+      total_collected_fee_in_zeph += fee_this_tx_in_zeph;
       fee_map[meta.fee_asset_type] += meta.fee;
       total_conversion_zeph += conversion_this_tx_zeph;
       total_conversion_stables += conversion_this_tx_stables;
