@@ -280,7 +280,7 @@ bool Blockchain::get_latest_acceptable_pr(oracle::pricing_record& pr) const
       continue;
     }
 
-    if (!latest_bl.pricing_record.empty()) {
+    if (!latest_bl.pricing_record.empty() && !latest_bl.pricing_record.has_missing_rates()) {
       break;
     }
   }
@@ -3217,7 +3217,6 @@ bool Blockchain::check_tx_outputs(const transaction& tx, tx_verification_context
   }
 
   // from v11, allow only bulletproofs v2
-  // if (hf_version > HF_VERSION_SMALLER_BP) {
   if (tx.version >= 2) {
     if (tx.rct_signatures.type == rct::RCTTypeBulletproof)
     {
@@ -3228,26 +3227,63 @@ bool Blockchain::check_tx_outputs(const transaction& tx, tx_verification_context
   }
 
   // from v14, allow only CLSAGs
-  // if (hf_version > HF_VERSION_CLSAG) {
-    if (tx.version >= 2) {
-      if (tx.rct_signatures.type <= rct::RCTTypeBulletproof2)
-      {
-        MERROR_VER("Ringct type " << (unsigned)tx.rct_signatures.type << " is not allowed from v" << (1 + 1));
-        tvc.m_invalid_output = true;
-        return false;
-      }
+  if (tx.version >= 2) {
+    if (tx.rct_signatures.type <= rct::RCTTypeBulletproof2)
+    {
+      MERROR_VER("Ringct type " << (unsigned)tx.rct_signatures.type << " is not allowed from v" << (1 + 1));
+      tvc.m_invalid_output = true;
+      return false;
     }
+  }
 
   // Forbid bulletproofs
-    if (tx.version >= 2) {
-      const bool bulletproof = rct::is_rct_bulletproof(tx.rct_signatures.type);
-      if (bulletproof)
-      {
-        MERROR_VER("Bulletproof range proofs are not allowed after v" + std::to_string(1));
+  if (tx.version >= 2) {
+    const bool bulletproof = rct::is_rct_bulletproof(tx.rct_signatures.type);
+    if (bulletproof)
+    {
+      MERROR_VER("Bulletproof range proofs are not allowed after v" + std::to_string(1));
+      tvc.m_invalid_output = true;
+      return false;
+    }
+  }
+
+  if (tx.version >= 2) {
+    if (tx.rct_signatures.type != rct::RCTTypeBulletproofPlus) {
+      tvc.m_verifivation_failed = true;
+      return false;
+    }
+  }
+
+  // enforce dummy change output for conversions.
+  if (tvc.m_source_asset != tvc.m_dest_asset) {
+    if (tx.vout.size() >= 4) {
+      std::map<std::string, uint32_t> asset_counter;
+      std::string asset;
+      for (const auto &o: tx.vout) {
+        if (!cryptonote::get_output_asset_type(o, asset)) {
+          MERROR_VER("Invalid output type detected in conversion TX.");
+          tvc.m_invalid_output = true;
+          return false;
+        }
+        asset_counter[asset]++;
+      }
+
+      if (asset_counter.size() != 2) {
+        MERROR_VER("Conversion tx has more or less than 2 different asset types in the outputs.");
         tvc.m_invalid_output = true;
         return false;
       }
+      if (asset_counter[tvc.m_source_asset] < 2 || asset_counter[tvc.m_dest_asset] < 2) {
+        MERROR_VER("Conversion Txs should have at least 2 outputs that are the same asset type as source asset and 2 outputs that are the same asset type as dest asset.");
+        tvc.m_invalid_output = true;
+        return false;
+      }
+    } else {
+      MERROR_VER("Conversion Txs should have at least 4 outputs");
+      tvc.m_invalid_output = true;
+      return false;
     }
+  }
 
   // Require view tags on outputs
   if (!check_output_types(tx, hf_version))
@@ -4466,22 +4502,22 @@ leave:
         goto leave;
       }
 
-
       if (tx_type == tt::MINT_STABLE) {
         conversion_this_tx_zeph += tx.amount_burnt; // Added to the reserve
         conversion_this_tx_stables += tx.amount_minted;
-      }
-      if (tx_type == tt::REDEEM_STABLE) {
+      } else if (tx_type == tt::REDEEM_STABLE) {
         conversion_this_tx_stables -= tx.amount_burnt;
         conversion_this_tx_zeph -= tx.amount_minted; // Deducted from the reserve
-      }
-      if (tx_type == tt::MINT_RESERVE) {
+      } else if (tx_type == tt::MINT_RESERVE) {
         conversion_this_tx_zeph += tx.amount_burnt;
         conversion_this_tx_reserves += tx.amount_minted;
-      }
-      if (tx_type == tt::REDEEM_RESERVE) {
+      } else if (tx_type == tt::REDEEM_RESERVE) {
         conversion_this_tx_reserves -= tx.amount_burnt;
         conversion_this_tx_zeph -= tx.amount_minted;
+      } else {
+        LOG_PRINT_L2("error: conversion transaction has invalid tx type " << tx.hash);
+        bvc.m_verifivation_failed = true;
+        goto leave;
       }
 
       int64_t tally_zeph = total_conversion_zeph + conversion_this_tx_zeph;

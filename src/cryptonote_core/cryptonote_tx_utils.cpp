@@ -1235,18 +1235,18 @@ namespace cryptonote
       if (tx_type == transaction_type::MINT_STABLE) {
         conversion_this_tx_zeph = tx.amount_burnt; // Added to the reserve
         conversion_this_tx_stables = tx.amount_minted;
-      }
-      if (tx_type == transaction_type::REDEEM_STABLE) {
+      } else if (tx_type == transaction_type::REDEEM_STABLE) {
         conversion_this_tx_stables = tx.amount_burnt;
         conversion_this_tx_zeph = tx.amount_minted; // Deducted from the reserve
-      }
-      if (tx_type == transaction_type::MINT_RESERVE) {
+      } else if (tx_type == transaction_type::MINT_RESERVE) {
         conversion_this_tx_zeph = tx.amount_burnt;
         conversion_this_tx_reserves = tx.amount_minted;
-      }
-      if (tx_type == transaction_type::REDEEM_RESERVE) {
+      } else if (tx_type == transaction_type::REDEEM_RESERVE) {
         conversion_this_tx_reserves = tx.amount_burnt;
         conversion_this_tx_zeph = tx.amount_minted;
+      } else {
+        LOG_ERROR("Invalid transaction type found for conversion transaction");
+        return false;
       }
 
       if (!reserve_ratio_satisfied(circ_amounts, pr, tx_type, conversion_this_tx_zeph, conversion_this_tx_stables, conversion_this_tx_reserves)) {
