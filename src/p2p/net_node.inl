@@ -702,8 +702,8 @@ namespace nodetool
     std::set<std::string> full_addrs;
     if (m_nettype == cryptonote::TESTNET)
     {
-      full_addrs.insert("142.93.255.216:27766");
-      full_addrs.insert("142.93.98.116:27766");
+      full_addrs.insert("170.64.173.105:27766");
+      full_addrs.insert("146.190.52.10:27766");
     }
     else if (m_nettype == cryptonote::STAGENET)
     {

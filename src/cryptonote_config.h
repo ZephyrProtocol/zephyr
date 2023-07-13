@@ -275,7 +275,7 @@ namespace config
 
     std::string const GOVERNANCE_WALLET_ADDRESS = "ZPHTjbspy3MQWHUVsnRVWUhcWEKnaEiK3FBpsuwPzcCN1zDAuWGjFskcHC9jo6e8fF4UDzFbe5LGnU4ychM48E8D8ukYphLM6qu";
 
-    std::array<std::string, 1> const ORACLE_URLS = {{"170.64.173.105:7779"}}; // oracle test server
+    std::array<std::string, 1> const ORACLE_URLS = {{"testnet-oracle.zephyrprotocol.com:7779"}};
 
     std::string const ORACLE_PUBLIC_KEY = "-----BEGIN PUBLIC KEY-----\n"
       "MFwwDQYJKoZIhvcNAQEBBQADSwAwSAJBAMdjZLVtXH/nK3L+fXyaquZFrkHpKimc\n"
