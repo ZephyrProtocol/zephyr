@@ -2008,7 +2008,7 @@ Key Image, &quot;absolute&quot;, list of rings</source>
     <message>
         <location filename="../src/simplewallet/simplewallet.cpp" line="3694"/>
         <source>zephyr, millizeph, microzeph, nanozeph, picozeph</source>
-        <translation>Zephyr, Millinero, Micronero, Nanonero, Piconero</translation>
+        <translation>Zephyr, Millizeph, Microzeph, Nanozeph, Picozeph</translation>
     </message>
     <message>
         <location filename="../src/simplewallet/simplewallet.cpp" line="3695"/>
