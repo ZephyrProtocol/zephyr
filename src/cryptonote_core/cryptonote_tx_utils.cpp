@@ -880,7 +880,7 @@ namespace cryptonote
   //---------------------------------------------------------------------------------
   uint64_t get_fee_in_zeph_equivalent(const std::string& fee_asset, uint64_t fee_amount, const oracle::pricing_record& pr)
   {
-    if (fee_asset == "ZEPH" || pr.empty()) {
+    if (fee_asset == "ZEPH" || pr.has_missing_rates()) {
       return fee_amount;
     } else if (fee_asset == "ZEPHUSD") {
       return get_zeph_amount(fee_amount, pr);
@@ -893,7 +893,7 @@ namespace cryptonote
     //---------------------------------------------------------------------------------
   uint64_t get_fee_in_asset_equivalent(const std::string& to_asset_type, uint64_t fee_amount, const oracle::pricing_record& pr)
   {
-    if (to_asset_type == "ZEPH" || pr.empty()) {
+    if (to_asset_type == "ZEPH" || pr.has_missing_rates()) {
       return fee_amount;
     } else if (to_asset_type == "ZEPHUSD") {
       return get_stable_amount(fee_amount, pr);

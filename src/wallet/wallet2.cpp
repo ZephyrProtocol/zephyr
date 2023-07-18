@@ -1957,7 +1957,7 @@ bool wallet2::get_pricing_record(oracle::pricing_record& pr, const uint64_t heig
   if (r && res.status == CORE_RPC_STATUS_OK)
   {
     // Got the block header - verify the pricing record
-    if (res.block_header.pricing_record.empty()) {
+    if (res.block_header.pricing_record.empty() || res.block_header.pricing_record.has_missing_rates()) {
       MERROR("Invalid pricing record in block header - oracle TXs disabled. Please try again later.");
       return false;
     }

@@ -231,7 +231,7 @@ namespace cryptonote
           tvc.tx_pr_height_verified = true;
         }
       }
-      if(tvc.pr.empty()) {
+      if(tvc.pr.empty() || tvc.pr.has_missing_rates()) {
         // Get the pricing record that was used for conversion
         block bl;
         bool r = m_blockchain.get_block_by_hash(m_blockchain.get_block_id_by_height(tx.pricing_record_height), bl);
@@ -243,8 +243,8 @@ namespace cryptonote
         tvc.pr = bl.pricing_record;
       }
 
-      if (!tvc.pr.spot || !tvc.pr.moving_average || !tvc.pr.stable || !tvc.pr.stable_ma || !tvc.pr.reserve || !tvc.pr.reserve_ma) {
-        LOG_ERROR("error: empty exchange rate. Conversion not possible.");
+      if (tvc.pr.empty() || tvc.pr.has_missing_rates()) {
+        LOG_ERROR("error: missing exchange rates. Conversion not possible.");
         tvc.m_verifivation_failed = true;
         return false;
       }
@@ -369,7 +369,7 @@ namespace cryptonote
           m_blockchain.add_txpool_tx(id, blob, meta);
 
           uint64_t fee_in_zeph = 0;
-          if (tvc.pr.empty()) {
+          if (tvc.pr.empty() || tvc.pr.has_missing_rates()) {
             if (!m_blockchain.get_latest_acceptable_pr(tvc.pr)) {
               fee_in_zeph = meta.fee;
             }
@@ -449,7 +449,7 @@ namespace cryptonote
           m_blockchain.add_txpool_tx(id, blob, meta);
 
           uint64_t fee_in_zeph = 0;
-          if (tvc.pr.empty()) {
+          if (tvc.pr.empty() || tvc.pr.has_missing_rates()) {
             if (!m_blockchain.get_latest_acceptable_pr(tvc.pr)) {
               // Only relevant for reserve/stable transfers (not conversions)
               fee_in_zeph = meta.fee;

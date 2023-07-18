@@ -1545,6 +1545,7 @@ namespace rct {
         if (strSource != strDest) {
           CHECK_AND_ASSERT_MES(rv.maskSums.size() == 2, false, "maskSums size is not 2");
           CHECK_AND_ASSERT_MES(!pr.empty(), false, "Empty pricing record found for a conversion tx");
+          CHECK_AND_ASSERT_MES(!pr.has_missing_rates(), false, "Missing values in pricing record for a conversion tx");
           CHECK_AND_ASSERT_MES(amount_burnt, false, "0 amount_burnt found for a conversion tx");        
         }
         

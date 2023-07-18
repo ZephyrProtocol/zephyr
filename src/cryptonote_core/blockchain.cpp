@@ -287,7 +287,7 @@ bool Blockchain::get_latest_acceptable_pr(oracle::pricing_record& pr) const
   pr = latest_bl.pricing_record;
 
 
-  if (!pr.empty()) {
+  if (!pr.empty() && !pr.has_missing_rates()) {
     return true;
   }
 
@@ -1892,7 +1892,7 @@ bool Blockchain::get_pricing_record(oracle::pricing_record& pr, uint64_t timesta
     pr.reserve = cryptonote::get_reserve_coin_price(circ_supply, pr.spot);
     pr.reserve_ma = cryptonote::get_reserve_coin_price(circ_supply, pr.moving_average);
 
-    if (!pr.spot || !pr.moving_average || !pr.stable || !pr.stable_ma || !pr.reserve || !pr.reserve_ma) {
+    if (pr.has_missing_rates()) {
       LOG_PRINT_L0("Failed to calculate stable and reserve prices - returning empty PR");
       pr = oracle::pricing_record();
       return true;
@@ -4361,7 +4361,6 @@ leave:
     }
     have_valid_pr = false;
   }
-
 
   size_t tx_index = 0;
   // Iterate over the block's transaction hashes, grabbing each
