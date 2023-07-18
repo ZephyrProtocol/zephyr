@@ -3257,7 +3257,12 @@ uint64_t BlockchainLMDB::height() const
 std::vector<std::pair<std::string, std::string>> BlockchainLMDB::get_circulating_supply() const
 {
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
+  std::vector<std::pair<std::string, std::string>> circulating_supply;
   uint64_t m_height = height();
+  if (m_height == 0) {
+    return circulating_supply;
+  }
+
   uint64_t m_coinbase = get_block_already_generated_coins(m_height-1);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__ << " - mined supply for ZEPH = " << m_coinbase);
   check_open();
@@ -3267,7 +3272,6 @@ std::vector<std::pair<std::string, std::string>> BlockchainLMDB::get_circulating
 
   MDB_val k;
   MDB_val v;
-  std::vector<std::pair<std::string, std::string>> circulating_supply;
   int result = 0;
 
   MDB_cursor_op op = MDB_FIRST;
