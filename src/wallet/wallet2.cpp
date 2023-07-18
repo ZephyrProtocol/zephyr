@@ -9759,8 +9759,19 @@ static uint32_t get_count_above(const std::vector<wallet2::transfer_details> &tr
 }
 
 
-void wallet2::get_reserve_info(const oracle::pricing_record& pricing_record, uint64_t& zeph_reserve, uint64_t& num_stables, uint64_t& num_reserves, uint64_t& assets, uint64_t& assets_ma, uint64_t& liabilities, uint64_t& equity, uint64_t& equity_ma, double& reserve_ratio, double& reserve_ratio_ma)
-{
+void wallet2::get_reserve_info(
+  const oracle::pricing_record& pricing_record,
+  boost::multiprecision::uint128_t& zeph_reserve,
+  boost::multiprecision::uint128_t& num_stables,
+  boost::multiprecision::uint128_t& num_reserves,
+  boost::multiprecision::uint128_t& assets,
+  boost::multiprecision::uint128_t& assets_ma,
+  boost::multiprecision::uint128_t& liabilities,
+  boost::multiprecision::uint128_t& equity,
+  boost::multiprecision::uint128_t& equity_ma,
+  double& reserve_ratio,
+  double& reserve_ratio_ma
+){
   std::vector<std::pair<std::string, std::string>> circ_amounts;
   THROW_WALLET_EXCEPTION_IF(!get_circulating_supply(circ_amounts), error::wallet_internal_error, "Failed to get circulating supply");
   return cryptonote::get_reserve_info(circ_amounts, pricing_record, zeph_reserve, num_stables, num_reserves, assets, assets_ma, liabilities, equity, equity_ma, reserve_ratio, reserve_ratio_ma);
@@ -9908,9 +9919,9 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(
   // throw if total amount overflows uint64_t
   needed_money = 0;
 
-  int64_t conversion_this_tx_zeph = 0;
-  int64_t conversion_this_tx_stables = 0;
-  int64_t conversion_this_tx_reserves = 0;
+  boost::multiprecision::int128_t conversion_this_tx_zeph = 0;
+  boost::multiprecision::int128_t conversion_this_tx_stables = 0;
+  boost::multiprecision::int128_t conversion_this_tx_reserves = 0;
   for(auto& dt: dsts)
   {
     THROW_WALLET_EXCEPTION_IF(0 == dt.amount, error::zero_amount);
@@ -9927,7 +9938,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(
       dt.dest_amount = cryptonote::get_zeph_amount(dt.amount, pricing_record);
       conversion_this_tx_stables -= dt.amount;
       conversion_this_tx_zeph -= dt.dest_amount; // Deducted from the reserve
-      THROW_WALLET_EXCEPTION_IF(dt.dest_amount == 0, error::wallet_internal_error, "Failed to convert needed_money back to ZEPHUSD");
+      THROW_WALLET_EXCEPTION_IF(dt.dest_amount == 0, error::wallet_internal_error, "Failed to convert needed_money to ZEPH");
     } else if (tx_type == tt::MINT_RESERVE) {
       // Input amount is in ZEPH - convert so we have both
       dt.dest_amount = cryptonote::get_reserve_amount(dt.amount, pricing_record);
@@ -9939,7 +9950,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(
       dt.dest_amount = cryptonote::get_zeph_amount_from_reserve(dt.amount, pricing_record);
       conversion_this_tx_reserves -= dt.amount;
       conversion_this_tx_zeph -= dt.dest_amount;
-      THROW_WALLET_EXCEPTION_IF(dt.dest_amount == 0, error::wallet_internal_error, "Failed to convert needed_money back to ZEPHUSD");
+      THROW_WALLET_EXCEPTION_IF(dt.dest_amount == 0, error::wallet_internal_error, "Failed to convert needed_money to ZEPH");
     } else {
       // Input amount is in ZEPH
       dt.dest_amount = dt.amount;

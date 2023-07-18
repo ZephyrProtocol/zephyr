@@ -2270,15 +2270,15 @@ bool simple_wallet::reserve_info(const std::vector<std::string> &args)
     return false;
   }
 
-  uint64_t zeph_reserve;
-  uint64_t num_stables;
-  uint64_t num_reserves;
+  boost::multiprecision::uint128_t zeph_reserve;
+  boost::multiprecision::uint128_t num_stables;
+  boost::multiprecision::uint128_t num_reserves;
 
-  uint64_t assets;
-  uint64_t assets_ma;
-  uint64_t liabilities;
-  uint64_t equity;
-  uint64_t equity_ma;
+  boost::multiprecision::uint128_t assets;
+  boost::multiprecision::uint128_t assets_ma;
+  boost::multiprecision::uint128_t liabilities;
+  boost::multiprecision::uint128_t equity;
+  boost::multiprecision::uint128_t equity_ma;
 
   double reserve_ratio;
   double reserve_ratio_ma;

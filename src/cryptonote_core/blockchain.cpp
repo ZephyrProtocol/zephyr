@@ -4349,9 +4349,10 @@ leave:
 
   // Total minted/burnt for each asset type in the block
   // Used to check that the reserve ratio rules are maintained
-  int64_t total_conversion_zeph = 0;
-  int64_t total_conversion_stables = 0;
-  int64_t total_conversion_reserves = 0;
+  boost::multiprecision::int128_t total_conversion_zeph = 0;
+  boost::multiprecision::int128_t total_conversion_stables = 0;
+  boost::multiprecision::int128_t total_conversion_reserves = 0;
+  std::vector<std::pair<std::string, std::string>> circ_supply = get_db().get_circulating_supply();
 
   bool have_valid_pr = true;
   oracle::pricing_record latest_pr;
@@ -4481,9 +4482,9 @@ leave:
       goto leave;
     }
 
-    int64_t conversion_this_tx_zeph = 0;
-    int64_t conversion_this_tx_stables = 0;
-    int64_t conversion_this_tx_reserves = 0;
+    boost::multiprecision::int128_t conversion_this_tx_zeph = 0;
+    boost::multiprecision::int128_t conversion_this_tx_stables = 0;
+    boost::multiprecision::int128_t conversion_this_tx_reserves = 0;
 
      // Validate tx pr height
     if (source != dest) {
@@ -4525,11 +4526,10 @@ leave:
         goto leave;
       }
 
-      int64_t tally_zeph = total_conversion_zeph + conversion_this_tx_zeph;
-      int64_t tally_stables = total_conversion_stables + conversion_this_tx_stables;
-      int64_t tally_reserves = total_conversion_reserves + conversion_this_tx_reserves;
+      boost::multiprecision::int128_t tally_zeph = total_conversion_zeph + conversion_this_tx_zeph;
+      boost::multiprecision::int128_t tally_stables = total_conversion_stables + conversion_this_tx_stables;
+      boost::multiprecision::int128_t tally_reserves = total_conversion_reserves + conversion_this_tx_reserves;
 
-      std::vector<std::pair<std::string, std::string>> circ_supply = get_db().get_circulating_supply();
       if (!reserve_ratio_satisfied(circ_supply, bl.pricing_record, tx_type, tally_zeph, tally_stables, tally_reserves)) {
         LOG_PRINT_L2(" error: block included transaction that would make reserve ratio invalid " << tx.hash);
         bvc.m_verifivation_failed = true;

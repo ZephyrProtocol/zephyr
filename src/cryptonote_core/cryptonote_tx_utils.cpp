@@ -34,7 +34,8 @@
 #include "string_tools.h"
 using namespace epee;
 
-#include <boost/multiprecision/cpp_dec_float.hpp>
+#include <boost/multiprecision/cpp_bin_float.hpp>
+namespace mp = boost::multiprecision;
 
 #include "common/apply_permutation.h"
 #include "cryptonote_tx_utils.h"
@@ -478,20 +479,12 @@ namespace cryptonote
     return true;
   }
   //---------------------------------------------------------------
-  void get_reserve_info(const std::vector<std::pair<std::string, std::string>>& circ_amounts, const oracle::pricing_record& pr, uint64_t& zeph_reserve, uint64_t& num_stables, uint64_t& num_reserves, uint64_t& assets, uint64_t& assets_ma, uint64_t& liabilities, uint64_t& equity, uint64_t& equity_ma, double& reserve_ratio, double& reserve_ratio_ma)
+  void get_circulating_asset_amounts(const std::vector<std::pair<std::string, std::string>>& circ_amounts, mp::uint128_t& zeph_reserve, mp::uint128_t& num_stables, mp::uint128_t& num_reserves)
   {
     zeph_reserve = 0;
     for (auto circ_amount : circ_amounts) {
       if (circ_amount.first == "ZEPH") {
-        zeph_reserve = std::stoull(circ_amount.second);
-        break;
-      }
-    }
-
-    num_reserves = 0;
-    for (auto circ_amount : circ_amounts) {
-      if (circ_amount.first == "ZEPHRSV") {
-        num_reserves = std::stoull(circ_amount.second);
+        zeph_reserve = mp::uint128_t(circ_amount.second);
         break;
       }
     }
@@ -499,12 +492,40 @@ namespace cryptonote
     num_stables = 0;
     for (auto circ_amount : circ_amounts) {
       if (circ_amount.first == "ZEPHUSD") {
-        num_stables = std::stoull(circ_amount.second);
+        num_stables = mp::uint128_t(circ_amount.second);
         break;
       }
     }
+    num_reserves = 0;
+    for (auto circ_amount : circ_amounts) {
+      if (circ_amount.first == "ZEPHRSV") {
+        num_reserves = mp::uint128_t(circ_amount.second);
+        break;
+      }
+    }
+  }
+  //---------------------------------------------------------------
+  void get_reserve_info(
+    const std::vector<std::pair<std::string, std::string>>& circ_amounts,
+    const oracle::pricing_record& pr,
+    mp::uint128_t& zeph_reserve,
+    mp::uint128_t& num_stables,
+    mp::uint128_t& num_reserves,
+    mp::uint128_t& assets,
+    mp::uint128_t& assets_ma,
+    mp::uint128_t& liabilities,
+    mp::uint128_t& equity,
+    mp::uint128_t& equity_ma,
+    double& reserve_ratio,
+    double& reserve_ratio_ma
+  ){
+    get_circulating_asset_amounts(circ_amounts, zeph_reserve, num_stables, num_reserves);
     
-    if (num_reserves == 0 || zeph_reserve == 0) {
+    mp::cpp_bin_float_quad assets_float = zeph_reserve.convert_to<mp::cpp_bin_float_quad>() * pr.spot;
+    mp::cpp_bin_float_quad assets_ma_float = zeph_reserve.convert_to<mp::cpp_bin_float_quad>() * pr.moving_average;
+    mp::cpp_bin_float_quad liabilities_float = num_stables.convert_to<mp::cpp_bin_float_quad>();
+
+    if ((assets_float == 0 || assets_ma_float == 0) && liabilities_float == 0) {
       assets = 0;
       assets_ma = 0;
       liabilities = 0;
@@ -515,26 +536,16 @@ namespace cryptonote
       return;
     }
 
-    boost::multiprecision::uint128_t assets_128 = zeph_reserve;
-    boost::multiprecision::uint128_t assets_ma_128 = zeph_reserve;
+    mp::cpp_bin_float_quad reserve_ratio_128 = assets_float / liabilities_float;
+    mp::cpp_bin_float_quad reserve_ratio_ma_128 = assets_ma_float / liabilities_float;
 
-    assets_128 *= pr.spot;
-    assets_ma_128 *= pr.moving_average;
-
-    boost::multiprecision::uint128_t liabilities_128 = num_stables;
-
-    // use boost floating point to calculate the ratio
-    boost::multiprecision::cpp_dec_float_100 reserve_ratio_128 = boost::multiprecision::cpp_dec_float_100(assets_128) / boost::multiprecision::cpp_dec_float_100(liabilities_128);
-    boost::multiprecision::cpp_dec_float_100 reserve_ratio_ma_128 = boost::multiprecision::cpp_dec_float_100(assets_ma_128) / boost::multiprecision::cpp_dec_float_100(liabilities_128);
-
-    assets_128 /= COIN;
-    assets_ma_128 /= COIN;
-    assets = assets_128.convert_to<uint64_t>();
-    assets_ma = assets_ma_128.convert_to<uint64_t>();
-
-    liabilities = liabilities_128.convert_to<uint64_t>();
-    equity = assets - liabilities;
-    equity_ma = assets_ma - liabilities;
+    assets_float /= COIN;
+    assets_ma_float /= COIN;
+    assets = assets_float.convert_to<mp::uint128_t>();
+    assets_ma = assets_ma_float.convert_to<mp::uint128_t>();
+    liabilities = liabilities_float.convert_to<mp::uint128_t>();
+    equity = assets > liabilities ? assets - liabilities : 0;
+    equity_ma = assets_ma > liabilities ? assets_ma - liabilities : 0;
 
     reserve_ratio_128 /= COIN;
     reserve_ratio_ma_128 /= COIN;
@@ -552,105 +563,91 @@ namespace cryptonote
   }
   double get_reserve_ratio(const std::vector<std::pair<std::string, std::string>>& circ_amounts, const uint64_t oracle_price)
   {
-    uint64_t zeph_reserve = 0;
-    for (auto circ_amount : circ_amounts) {
-      if (circ_amount.first == "ZEPH") {
-        zeph_reserve = std::stoull(circ_amount.second);
-        break;
-      }
-    }
+    mp::uint128_t zeph_reserve, num_stables, num_reserves;
+    get_circulating_asset_amounts(circ_amounts, zeph_reserve, num_stables, num_reserves);
 
-    uint64_t num_reserve = 0;
-    for (auto circ_amount : circ_amounts) {
-      if (circ_amount.first == "ZEPHRSV") {
-        num_reserve = std::stoull(circ_amount.second);
-        break;
-      }
-    }
+    mp::cpp_bin_float_quad assets = zeph_reserve.convert_to<mp::cpp_bin_float_quad>() * oracle_price;
+    mp::cpp_bin_float_quad liabilities = num_stables.convert_to<mp::cpp_bin_float_quad>();
+    if (assets == 0 && liabilities == 0) return 0;
 
-    uint64_t num_stable = 0;
-    for (auto circ_amount : circ_amounts) {
-      if (circ_amount.first == "ZEPHUSD") {
-        num_stable = std::stoull(circ_amount.second);
-        break;
-      }
-    }
-    
-    if (num_reserve == 0 || zeph_reserve == 0) {
-      return 0;
-    }
-
-    boost::multiprecision::uint128_t exchange_128 = oracle_price;
-    boost::multiprecision::uint128_t assets = zeph_reserve;
-    boost::multiprecision::uint128_t liabilities = num_stable; // already in USD
-    liabilities *= COIN;
-    liabilities /= exchange_128;
-
-    // use boost floating point to calculate the ratio
-    boost::multiprecision::cpp_dec_float_100 reserve_ratio = boost::multiprecision::cpp_dec_float_100(assets) / boost::multiprecision::cpp_dec_float_100(liabilities);
-
+    mp::cpp_bin_float_quad reserve_ratio = assets / liabilities;
+    reserve_ratio /= COIN;
+    if (reserve_ratio > std::numeric_limits<double>::max()) return std::numeric_limits<double>::infinity();
     return (double)reserve_ratio;
   }
   //---------------------------------------------------------------
-  bool reserve_ratio_satisfied(std::vector<std::pair<std::string, std::string>> circ_amounts, const oracle::pricing_record& pr, const transaction_type& tx_type, int64_t tally_zeph, int64_t tally_stables, int64_t tally_reserves)
+  bool reserve_ratio_satisfied(const std::vector<std::pair<std::string, std::string>>& circ_amounts, const oracle::pricing_record& pr, const transaction_type& tx_type, mp::int128_t tally_zeph, mp::int128_t tally_stables, mp::int128_t tally_reserves)
   {
     std::string error_reason;
     return reserve_ratio_satisfied(circ_amounts, pr, tx_type, tally_zeph, tally_stables, tally_reserves, error_reason);
   }
   //---------------------------------------------------------------
-  bool reserve_ratio_satisfied(std::vector<std::pair<std::string, std::string>> circ_amounts, const oracle::pricing_record& pr, const transaction_type& tx_type, int64_t tally_zeph, int64_t tally_stables, int64_t tally_reserves, std::string& error_reason)
+  bool reserve_ratio_satisfied(const std::vector<std::pair<std::string, std::string>>& circ_amounts, const oracle::pricing_record& pr, const transaction_type& tx_type, mp::int128_t tally_zeph, mp::int128_t tally_stables, mp::int128_t tally_reserves, std::string& error_reason)
   {
-    uint64_t zeph_reserve = 0;
-    for (auto circ_amount : circ_amounts) {
-      if (circ_amount.first == "ZEPH") {
-        zeph_reserve = std::stoull(circ_amount.second);
-        break;
-      }
-    }
+    mp::uint128_t zeph_reserve, num_stables, num_reserves;
+    get_circulating_asset_amounts(circ_amounts, zeph_reserve, num_stables, num_reserves);
 
-    uint64_t num_reserve = 0;
-    for (auto circ_amount : circ_amounts) {
-      if (circ_amount.first == "ZEPHRSV") {
-        num_reserve = std::stoull(circ_amount.second);
-        break;
-      }
-    }
-
-    uint64_t num_stable = 0;
-    for (auto circ_amount : circ_amounts) {
-      if (circ_amount.first == "ZEPHUSD") {
-        num_stable = std::stoull(circ_amount.second);
-        break;
-      }
-    }
-    
-    if (num_reserve == 0) {
-      // Make sure no stables are minted if there are no reserve coins
-      if (tally_stables == 0) {
-        // Allows for the first reserve coins to be minted
+    // Early exit if no ZEPH in the reserve
+    if (zeph_reserve == 0) {
+      if (tx_type == transaction_type::MINT_RESERVE) {
         return true;
       }
-      error_reason = "Reserve ratio not satisfied. No reserve coins in circulation.";
-      LOG_ERROR("Reserve ratio not satisfied. No reserve coins in circulation.");
+      error_reason = "Reserve ratio not satisfied. No ZEPH in the reserve.";
+      LOG_ERROR(error_reason);
       return false;
     }
 
-    uint64_t new_zeph_reserve = zeph_reserve + tally_zeph;
-    uint64_t new_num_stable = num_stable + tally_stables;
-    uint64_t new_num_reserve = num_reserve + tally_reserves;
+    mp::cpp_bin_float_quad assets = zeph_reserve.convert_to<mp::cpp_bin_float_quad>() + tally_zeph.convert_to<mp::cpp_bin_float_quad>();
+    if (assets < 0) {
+      error_reason = "Reserve ratio not satisfied. Zeph reserve would be negative.";
+      LOG_ERROR(error_reason);
+      return false;
+    }
 
-    boost::multiprecision::uint128_t assets = new_zeph_reserve;
-    boost::multiprecision::uint128_t liabilities_spot = new_num_stable;
-    boost::multiprecision::uint128_t liabilities_MA = new_num_stable;
-    liabilities_spot *= COIN;
-    liabilities_MA *= COIN;
+    mp::cpp_bin_float_quad liabilities = num_stables.convert_to<mp::cpp_bin_float_quad>() + tally_stables.convert_to<mp::cpp_bin_float_quad>();
+    if (liabilities < 0) {
+      error_reason = "Reserve ratio not satisfied. Liabilities would be negative.";
+      LOG_ERROR(error_reason);
+      return false;
+    }
 
-    liabilities_spot /= pr.spot;
-    liabilities_MA /= pr.moving_average;
+    mp::cpp_bin_float_quad total_reserve_coins = num_reserves.convert_to<mp::cpp_bin_float_quad>() + tally_reserves.convert_to<mp::cpp_bin_float_quad>();
+    if (total_reserve_coins < 0) {
+      error_reason = "Reserve ratio not satisfied. Total reserve coins would be negative.";
+      LOG_ERROR(error_reason);
+      return false;
+    }
 
-    // use boost floating point to calculate the ratio
-    boost::multiprecision::cpp_dec_float_100 reserve_ratio_spot = boost::multiprecision::cpp_dec_float_100(assets) / boost::multiprecision::cpp_dec_float_100(liabilities_spot);
-    boost::multiprecision::cpp_dec_float_100 reserve_ratio_MA = boost::multiprecision::cpp_dec_float_100(assets) / boost::multiprecision::cpp_dec_float_100(liabilities_MA);
+    if (assets == 0 && liabilities == 0) {
+      error_reason = "Reserve ratio not satisfied. Assets and liabilities are both zero.";
+      LOG_ERROR(error_reason);
+      return false;
+    }
+
+    mp::cpp_bin_float_quad assets_spot = assets * pr.spot;
+    mp::cpp_bin_float_quad assets_MA = assets * pr.moving_average;
+    if (assets != 0 && (assets_spot == 0 || assets_MA == 0)) {
+      error_reason = "Reserve ratio not satisfied. Error calculating assets.";
+      LOG_ERROR(error_reason);
+      return false;
+    }
+
+    mp::cpp_bin_float_quad reserve_ratio_spot = assets_spot / liabilities;
+    mp::cpp_bin_float_quad reserve_ratio_MA = assets_MA / liabilities;
+
+    reserve_ratio_spot /= COIN;
+    reserve_ratio_MA /= COIN;
+
+    if (boost::math::isnan(reserve_ratio_spot) || boost::math::isnan(reserve_ratio_MA)) {
+      error_reason = "Reserve ratio not satisfied. Error calculating reserve ratio.";
+      LOG_ERROR(error_reason);
+      return false;
+    }
+    if (reserve_ratio_spot < 0 || reserve_ratio_MA < 0) {
+      error_reason = "Reserve ratio not satisfied. Reserve ratio would be negative.";
+      LOG_ERROR(error_reason);
+      return false;
+    }
 
     if (tx_type == transaction_type::MINT_STABLE) {
       // Make sure the reserve ratio is at least 4.0
@@ -668,11 +665,20 @@ namespace cryptonote
     }
 
     if (tx_type == transaction_type::REDEEM_STABLE) {
-      // Always possible
+      if (assets == 0) {
+        error_reason = "Reserve ratio not satisfied. Assets are zero.";
+        LOG_ERROR(error_reason);
+        return false;
+      }
       return true;
     }
 
     if (tx_type == transaction_type::MINT_RESERVE) {
+      // If there is less than 100 circulating stablecoins, then reserve coin minting is allowed
+      const uint64_t threshold_num_stables = 100 * COIN;
+      if (liabilities < threshold_num_stables) {
+        return true;
+      }
       // Make sure the reserve ratio has not exceeded max of 8.0
       if (reserve_ratio_spot >= 8.0) {
         error_reason = "Spot reserve ratio not satisfied. New reserve ratio would be " + std::to_string((double)reserve_ratio_spot) + " which is above the maximum 8.0";
@@ -707,124 +713,104 @@ namespace cryptonote
     return false;
   }
    //---------------------------------------------------------------
-  uint64_t get_stable_coin_price(std::vector<std::pair<std::string, std::string>> circ_amounts, uint64_t oracle_price)
+  uint64_t get_stable_coin_price(const std::vector<std::pair<std::string, std::string>>& circ_amounts, uint64_t oracle_price)
   {
-    if (oracle_price == 0) {
-      return 0;
+    if (oracle_price <= 0) return 0;
+
+    mp::uint128_t rate_128 = COIN;
+    rate_128 *= COIN;
+    rate_128 /= oracle_price;
+    rate_128 -= (rate_128 % 10000);
+
+    if (rate_128 > std::numeric_limits<uint64_t>::max()) {
+      MWARNING("overflow detected in stable coin price calculation.");
+      rate_128 = 0;
     }
+    uint64_t rate = rate_128.convert_to<uint64_t>();
 
-    boost::multiprecision::uint128_t rate = COIN;
-    rate *= COIN;
-    rate /= oracle_price;
-    rate -= (rate % 10000);
+    mp::uint128_t zeph_reserve, num_stables, num_reserves;
+    get_circulating_asset_amounts(circ_amounts, zeph_reserve, num_stables, num_reserves);
 
-    uint64_t zeph_reserve = 0;
-    for (auto circ_amount : circ_amounts) {
-      if (circ_amount.first == "ZEPH") {
-        zeph_reserve = std::stoull(circ_amount.second);
-        break;
-      }
-    }
-
-    uint64_t num_stable = 0;
-    for (auto circ_amount : circ_amounts) {
-      if (circ_amount.first == "ZEPHUSD") {
-        num_stable = std::stoull(circ_amount.second);
-        break;
-      }
-    }
-
-    if (num_stable == 0 || zeph_reserve == 0) {
-      return (uint64_t)rate;
+    if (num_stables == 0) {
+      return rate;
     }
 
     // Calculate the reserve ratio
-    boost::multiprecision::uint128_t exchange_128 = oracle_price;
-    boost::multiprecision::uint128_t assets = zeph_reserve;
-    boost::multiprecision::uint128_t stable_rate_128 = num_stable;
-    stable_rate_128 *= COIN;
-    stable_rate_128 /= exchange_128;
+    mp::cpp_bin_float_quad assets = zeph_reserve.convert_to<mp::cpp_bin_float_quad>();
+    assets *= oracle_price;
 
-    assets *= COIN;
-
-    boost::multiprecision::cpp_dec_float_100 reserve_ratio = boost::multiprecision::cpp_dec_float_100(assets) / boost::multiprecision::cpp_dec_float_100(stable_rate_128);
+    mp::cpp_bin_float_quad reserve_ratio_atomized = assets / num_stables.convert_to<mp::cpp_bin_float_quad>();
+    mp::cpp_bin_float_quad reserve_ratio = reserve_ratio_atomized / COIN;
 
     if (reserve_ratio < 1.0) {
-      // Calculate the worst case stable price
-      boost::multiprecision::uint128_t num_stable_128 = num_stable;
-      boost::multiprecision::uint128_t worst_case_stable_rate = assets / num_stable_128;
+      if (reserve_ratio < 0.0001) return 0;
+
+      uint64_t worst_case_stable_rate = reserve_ratio_atomized.convert_to<uint64_t>();
       worst_case_stable_rate -= (worst_case_stable_rate % 10000);
-      return worst_case_stable_rate.convert_to<uint64_t>();
+      return worst_case_stable_rate;
     }
 
-    return (uint64_t)rate;
+    return rate;
   }
   //---------------------------------------------------------------
-  uint64_t get_reserve_coin_price(std::vector<std::pair<std::string, std::string>> circ_amounts, uint64_t exchange_rate)
+  uint64_t get_reserve_coin_price(const std::vector<std::pair<std::string, std::string>>& circ_amounts, uint64_t exchange_rate)
   {
-    if (!exchange_rate) {
-      return 0;
-    }
+    if (exchange_rate <= 0) return 0;
 
-    uint64_t zeph_reserve = 0;
-    for (auto circ_amount : circ_amounts) {
-      if (circ_amount.first == "ZEPH") {
-        zeph_reserve = std::stoull(circ_amount.second);
-        break;
-      }
-    }
-
-    uint64_t num_reserve = 0;
-    for (auto circ_amount : circ_amounts) {
-      if (circ_amount.first == "ZEPHRSV") {
-        num_reserve = std::stoull(circ_amount.second);
-        break;
-      }
-    }
-
-    uint64_t num_stable = 0;
-    for (auto circ_amount : circ_amounts) {
-      if (circ_amount.first == "ZEPHUSD") {
-        num_stable = std::stoull(circ_amount.second);
-        break;
-      }
-    }
+    mp::uint128_t zeph_reserve, num_stables, num_reserves;
+    get_circulating_asset_amounts(circ_amounts, zeph_reserve, num_stables, num_reserves);
     
-    boost::multiprecision::uint128_t price_r_min = 500000000000; 
-    if (num_reserve == 0) {
+    uint64_t price_r_min = 500000000000;
+    if (num_reserves == 0) {
       MDEBUG("No reserve amount detected. Using price_r_min..");
-      return (uint64_t)price_r_min;
+      return price_r_min;
     }
 
-    boost::multiprecision::uint128_t exchange_128 = exchange_rate;
+    mp::cpp_bin_float_quad assets = zeph_reserve.convert_to<mp::cpp_bin_float_quad>();
+    mp::cpp_bin_float_quad liabilities = num_stables.convert_to<mp::cpp_bin_float_quad>();
 
-    boost::multiprecision::uint128_t assets = zeph_reserve;
-    boost::multiprecision::uint128_t liabilities = num_stable; // already in USD
     liabilities *= COIN;
-    liabilities /= exchange_128;
-    boost::multiprecision::uint128_t equity = assets - liabilities;
-    equity *= COIN;
+    liabilities /= exchange_rate;
 
-    boost::multiprecision::uint128_t reserve_coin_price = equity / num_reserve;
+    mp::cpp_bin_float_quad equity = assets - liabilities;
+
+    if (equity < 0) {
+      return price_r_min;
+    }
+
+    equity *= COIN;
+    mp::cpp_bin_float_quad reserve_coin_price_float = equity / num_reserves.convert_to<mp::cpp_bin_float_quad>();
+
+    if (reserve_coin_price_float > std::numeric_limits<uint64_t>::max()) {
+      MWARNING("overflow detected in reserve coin price calculation.");
+      reserve_coin_price_float = 0;
+    }
+
+    uint64_t reserve_coin_price = reserve_coin_price_float.convert_to<uint64_t>();
     reserve_coin_price -= (reserve_coin_price % 10000);
     
-    return std::max((uint64_t)reserve_coin_price, (uint64_t)price_r_min);
+    return std::max(reserve_coin_price, price_r_min);
   }
   //---------------------------------------------------------------
   // ZEPH -> ZEPHRSV
   uint64_t get_reserve_amount(const uint64_t amount, const oracle::pricing_record& pr)
   {
-    boost::multiprecision::uint128_t amount_128 = amount;
-    boost::multiprecision::uint128_t reserve_coin_price = std::max(pr.reserve, pr.reserve_ma);
+    mp::uint128_t amount_128 = amount;
+    mp::uint128_t reserve_coin_price = std::max(pr.reserve, pr.reserve_ma);
 
     // for rct precision
-    boost::multiprecision::uint128_t rate_128 = COIN;
+    mp::uint128_t rate_128 = COIN;
     rate_128 *= COIN;
     rate_128 /= reserve_coin_price;
     rate_128 -= (rate_128 % 10000);
 
-    boost::multiprecision::uint128_t reserve_amount_128 = amount_128 * rate_128;
+    mp::uint128_t reserve_amount_128 = amount_128 * rate_128;
     reserve_amount_128 /= COIN;
+
+    if (reserve_amount_128 > std::numeric_limits<uint64_t>::max()) {
+      MWARNING("overflow detected in reserve amount calculation.");
+      reserve_amount_128 = 0;
+    }
 
     return (uint64_t)reserve_amount_128;
   }
@@ -832,13 +818,19 @@ namespace cryptonote
   // ZEPHRSV -> ZEPH
   uint64_t get_zeph_amount_from_reserve(const uint64_t amount, const oracle::pricing_record& pr)
   {
-    boost::multiprecision::uint128_t amount_128 = amount;
-    boost::multiprecision::uint128_t reserve_coin_price = std::min(pr.reserve, pr.reserve_ma);
-    boost::multiprecision::uint128_t conversion_fee = (reserve_coin_price * 2) / 100; // 2% fee
+    mp::uint128_t amount_128 = amount;
+    mp::uint128_t reserve_coin_price = std::min(pr.reserve, pr.reserve_ma);
+    mp::uint128_t conversion_fee = (reserve_coin_price * 2) / 100; // 2% fee
     reserve_coin_price -= conversion_fee;
+    reserve_coin_price -= (reserve_coin_price % 10000);
 
-    boost::multiprecision::uint128_t reserve_amount_128 = amount_128 * reserve_coin_price;
+    mp::uint128_t reserve_amount_128 = amount_128 * reserve_coin_price;
     reserve_amount_128 /= COIN;
+
+    if (reserve_amount_128 > std::numeric_limits<uint64_t>::max()) {
+      MWARNING("overflow detected in zeph amount from reserve amount calculation.");
+      reserve_amount_128 = 0;
+    }
 
     return (uint64_t)reserve_amount_128;
   }
@@ -846,20 +838,24 @@ namespace cryptonote
   // ZEPH -> ZEPHUSD
   uint64_t get_stable_amount(const uint64_t amount, const oracle::pricing_record& pr)
   {
-    boost::multiprecision::uint128_t amount_128 = amount;
-    boost::multiprecision::uint128_t exchange_128 = std::max(pr.stable, pr.stable_ma); 
+    mp::uint128_t amount_128 = amount;
+    mp::uint128_t exchange_128 = std::max(pr.stable, pr.stable_ma);
 
-    // for rct precision
-    boost::multiprecision::uint128_t rate_128 = COIN;
+    mp::uint128_t rate_128 = COIN;
     rate_128 *= COIN;
     rate_128 /= exchange_128;
 
-    boost::multiprecision::uint128_t conversion_fee = (rate_128 * 2) / 100; // 2% fee
+    mp::uint128_t conversion_fee = (rate_128 * 2) / 100; // 2% fee
     rate_128 -= conversion_fee;
     rate_128 -= (rate_128 % 10000);
 
-    boost::multiprecision::uint128_t stable_128 = amount_128 * rate_128;
+    mp::uint128_t stable_128 = amount_128 * rate_128;
     stable_128 /= COIN;
+
+    if (stable_128 > std::numeric_limits<uint64_t>::max()) {
+      MWARNING("overflow detected in stable amount calculation.");
+      stable_128 = 0;
+    }
 
     return (uint64_t)stable_128;
   }
@@ -867,13 +863,19 @@ namespace cryptonote
   // ZEPHUSD -> ZEPH
   uint64_t get_zeph_amount(const uint64_t amount, const oracle::pricing_record& pr)
   {
-    boost::multiprecision::uint128_t stable_128 = amount;
-    boost::multiprecision::uint128_t exchange_128 = std::min(pr.stable, pr.stable_ma);
-    boost::multiprecision::uint128_t conversion_fee = (exchange_128 * 2) / 100; // 2% fee
+    mp::uint128_t stable_128 = amount;
+    mp::uint128_t exchange_128 = std::min(pr.stable, pr.stable_ma);
+    mp::uint128_t conversion_fee = (exchange_128 * 2) / 100; // 2% fee
     exchange_128 -= conversion_fee;
+    exchange_128 -= (exchange_128 % 10000);
     
-    boost::multiprecision::uint128_t zeph_128 = stable_128 * exchange_128;
+    mp::uint128_t zeph_128 = stable_128 * exchange_128;
     zeph_128 /= COIN;
+
+    if (zeph_128 > std::numeric_limits<uint64_t>::max()) {
+      MWARNING("overflow detected in zeph amount calculation.");
+      zeph_128 = 0;
+    }
 
     return (uint64_t)zeph_128;
   }
@@ -1194,9 +1196,9 @@ namespace cryptonote
     }
 
     if (source_asset != dest_asset) {
-      int64_t conversion_this_tx_zeph = 0;
-      int64_t conversion_this_tx_stables = 0;
-      int64_t conversion_this_tx_reserves = 0;
+      mp::int128_t conversion_this_tx_zeph = 0;
+      mp::int128_t conversion_this_tx_stables = 0;
+      mp::int128_t conversion_this_tx_reserves = 0;
 
       if (tx_type == transaction_type::MINT_STABLE) {
         conversion_this_tx_zeph = tx.amount_burnt; // Added to the reserve
