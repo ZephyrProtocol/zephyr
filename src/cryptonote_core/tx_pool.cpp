@@ -277,7 +277,7 @@ namespace cryptonote
       }
     }
 
-    if (!kept_by_block && !m_blockchain.check_fee(tx_weight, fee))
+    if (!kept_by_block && !m_blockchain.check_fee(tx_weight, fee, source, tvc.pr))
     {
       tvc.m_verifivation_failed = true;
       tvc.m_fee_too_low = true;

@@ -701,7 +701,7 @@ namespace cryptonote
      *
      * @return true if the fee is enough, false otherwise
      */
-    bool check_fee(size_t tx_weight, uint64_t fee) const;
+    bool check_fee(size_t tx_weight, uint64_t fee, const std::string& source_asset, const oracle::pricing_record& pr) const;
 
     /**
      * @brief check that a transaction's outputs conform to current standards

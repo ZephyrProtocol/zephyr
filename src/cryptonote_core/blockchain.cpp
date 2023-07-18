@@ -3786,10 +3786,11 @@ uint64_t Blockchain::get_dynamic_base_fee(uint64_t block_reward, size_t median_b
 }
 
 //------------------------------------------------------------------
-bool Blockchain::check_fee(size_t tx_weight, uint64_t fee) const
+bool Blockchain::check_fee(size_t tx_weight, uint64_t fee, const std::string& source_asset, const oracle::pricing_record& pr) const
 {
-  const uint8_t version = get_current_hard_fork_version();
+  if (!fee) return false;
 
+  const uint8_t version = get_current_hard_fork_version();
   uint64_t median = 0;
   uint64_t already_generated_coins = 0;
   uint64_t base_reward = 0;
@@ -3814,10 +3815,15 @@ bool Blockchain::check_fee(size_t tx_weight, uint64_t fee) const
 
   MDEBUG("NEEDED FEE: " << print_money(needed_fee) << " FEE: " << print_money(fee));
 
+  uint64_t zeph_fee = get_fee_in_zeph_equivalent(source_asset, fee, pr);
+  if (!zeph_fee) {
+    MERROR_VER("Failed to get fee in zeph equivalent");
+    return false;
+  }
 
-  if (fee < needed_fee - needed_fee / 50) // keep a little 2% buffer on acceptance - no integer overflow
+  if (zeph_fee < needed_fee - needed_fee / 50) // keep a little 2% buffer on acceptance - no integer overflow
   {
-    MERROR_VER("transaction fee is not enough: " << print_money(fee) << ", minimum fee: " << print_money(needed_fee));
+    MERROR_VER("transaction fee is not enough. tx fee: " << print_money(fee) << ", zeph equivalent: " << print_money(zeph_fee) << ", minimum fee: " << print_money(needed_fee));
     return false;
   }
   return true;

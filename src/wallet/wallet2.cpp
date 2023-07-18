@@ -10095,6 +10095,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(
     uint64_t estimated_fee = estimate_fee(use_per_byte_fee, use_rct, 2, fake_outs_count, 2, extra.size(), bulletproof, clsag, bulletproof_plus, use_view_tags, base_fee, fee_quantization_mask);
     if (source_asset != "ZEPH" && source_asset != dest_asset) {
       estimated_fee = get_fee_in_asset_equivalent(source_asset, estimated_fee, pricing_record);
+      THROW_WALLET_EXCEPTION_IF(estimated_fee == 0, error::wallet_internal_error, "Failed to convert zeph value fee to " + source_asset + " equivalent");
     }
     preferred_inputs = pick_preferred_rct_inputs(needed_money + estimated_fee, subaddr_account, subaddr_indices, specific_transfers);
     if (!preferred_inputs.empty())
@@ -10282,6 +10283,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(
       needed_fee = estimate_fee(use_per_byte_fee, use_rct ,tx.selected_transfers.size(), fake_outs_count, num_outputs, extra.size(), bulletproof, clsag, bulletproof_plus, use_view_tags, base_fee, fee_quantization_mask);
       if (source_asset != "ZEPH" && source_asset != dest_asset) {
         needed_fee = get_fee_in_asset_equivalent(source_asset, needed_fee, pricing_record);
+        THROW_WALLET_EXCEPTION_IF(needed_fee == 0, error::wallet_internal_error, "Failed to convert zeph value fee to " + source_asset + " equivalent");
       }
 
       auto try_carving_from_partial_payment = [&](uint64_t needed_fee, uint64_t available_for_fee)
@@ -10364,6 +10366,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(
       needed_fee = calculate_fee(use_per_byte_fee, test_ptx.tx, txBlob.size(), base_fee, fee_quantization_mask);
       if (source_asset != "ZEPH" && source_asset != dest_asset) {
         needed_fee = get_fee_in_asset_equivalent(source_asset, needed_fee, pricing_record);
+        THROW_WALLET_EXCEPTION_IF(needed_fee == 0, error::wallet_internal_error, "Failed to convert zeph value fee to " + source_asset + " equivalent");
       }
       available_for_fee = test_ptx.fee + test_ptx.change_dts.amount + (!test_ptx.dust_added_to_fee ? test_ptx.dust : 0);
       LOG_PRINT_L2("Made a " << get_weight_string(test_ptx.tx, txBlob.size()) << " tx, with " << print_money(available_for_fee) << " available for fee (" <<
@@ -10403,6 +10406,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(
           needed_fee = calculate_fee(use_per_byte_fee, test_ptx.tx, txBlob.size(), base_fee, fee_quantization_mask);
           if (source_asset != "ZEPH" && source_asset != dest_asset) {
             needed_fee = get_fee_in_asset_equivalent(source_asset, needed_fee, pricing_record);
+            THROW_WALLET_EXCEPTION_IF(needed_fee == 0, error::wallet_internal_error, "Failed to convert zeph value fee to " + source_asset + " equivalent");
           }
 
           LOG_PRINT_L2("Made an attempt at a  final " << get_weight_string(test_ptx.tx, txBlob.size()) << " tx, with " << print_money(test_ptx.fee) <<
