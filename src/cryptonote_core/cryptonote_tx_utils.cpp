@@ -793,7 +793,7 @@ namespace cryptonote
   }
   //---------------------------------------------------------------
   // ZEPH -> ZEPHRSV
-  uint64_t get_reserve_amount(const uint64_t amount, const oracle::pricing_record& pr)
+  uint64_t zeph_to_zephrsv(const uint64_t amount, const oracle::pricing_record& pr)
   {
     multiprecision::uint128_t amount_128 = amount;
     multiprecision::uint128_t reserve_coin_price = std::max(pr.reserve, pr.reserve_ma);
@@ -816,7 +816,7 @@ namespace cryptonote
   }
   //---------------------------------------------------------------
   // ZEPHRSV -> ZEPH
-  uint64_t get_zeph_amount_from_reserve(const uint64_t amount, const oracle::pricing_record& pr)
+  uint64_t zephrsv_to_zeph(const uint64_t amount, const oracle::pricing_record& pr)
   {
     multiprecision::uint128_t amount_128 = amount;
     multiprecision::uint128_t reserve_coin_price = std::min(pr.reserve, pr.reserve_ma);
@@ -836,7 +836,7 @@ namespace cryptonote
   }
   //---------------------------------------------------------------
   // ZEPH -> ZEPHUSD
-  uint64_t get_stable_amount(const uint64_t amount, const oracle::pricing_record& pr)
+  uint64_t zeph_to_zephusd(const uint64_t amount, const oracle::pricing_record& pr)
   {
     multiprecision::uint128_t amount_128 = amount;
     multiprecision::uint128_t exchange_128 = std::max(pr.stable, pr.stable_ma);
@@ -861,7 +861,7 @@ namespace cryptonote
   }
   //---------------------------------------------------------------
   // ZEPHUSD -> ZEPH
-  uint64_t get_zeph_amount(const uint64_t amount, const oracle::pricing_record& pr)
+  uint64_t zephusd_to_zeph(const uint64_t amount, const oracle::pricing_record& pr)
   {
     multiprecision::uint128_t stable_128 = amount;
     multiprecision::uint128_t exchange_128 = std::min(pr.stable, pr.stable_ma);
@@ -879,15 +879,44 @@ namespace cryptonote
 
     return (uint64_t)zeph_128;
   }
+  //---------------------------------------------------------------
+  uint64_t zeph_to_asset_fee(const uint64_t zeph_fee, const uint64_t exchange_rate)
+  {
+    multiprecision::uint128_t zeph_fee_128 = zeph_fee;
+    multiprecision::uint128_t rate_128 = COIN;
+    rate_128 *= COIN;
+    rate_128 /= exchange_rate;
+    rate_128 -= (rate_128 % 10000);
+
+    multiprecision::uint128_t asset_fee = zeph_fee_128 * rate_128;
+    asset_fee /= COIN;
+    if (asset_fee > std::numeric_limits<uint64_t>::max()) {
+      MWARNING("overflow detected in zeph_to_asset_fee calculation.");
+      asset_fee = 0;
+    }
+    return (uint64_t)asset_fee;
+  }
+  //---------------------------------------------------------------
+  uint64_t asset_to_zeph_fee(const uint64_t asset_fee, const uint64_t exchange_rate)
+  {
+    multiprecision::uint128_t asset_fee_128 = asset_fee;
+    multiprecision::uint128_t zeph_fee = asset_fee_128 * exchange_rate;
+    zeph_fee /= COIN;
+    if (zeph_fee > std::numeric_limits<uint64_t>::max()) {
+      MWARNING("overflow detected in asset_to_zeph_fee calculation.");
+      zeph_fee = 0;
+    }
+    return (uint64_t)zeph_fee;
+  }
   //---------------------------------------------------------------------------------
   uint64_t get_fee_in_zeph_equivalent(const std::string& fee_asset, uint64_t fee_amount, const oracle::pricing_record& pr)
   {
     if (fee_asset == "ZEPH" || pr.has_missing_rates()) {
       return fee_amount;
     } else if (fee_asset == "ZEPHUSD") {
-      return get_zeph_amount(fee_amount, pr);
+      return asset_to_zeph_fee(fee_amount, pr.stable_ma);
     } else if (fee_asset == "ZEPHRSV") {
-      return get_zeph_amount_from_reserve(fee_amount, pr);
+      return asset_to_zeph_fee(fee_amount, pr.reserve_ma);
     }
 
     return fee_amount;
@@ -898,9 +927,9 @@ namespace cryptonote
     if (to_asset_type == "ZEPH" || pr.has_missing_rates()) {
       return fee_amount;
     } else if (to_asset_type == "ZEPHUSD") {
-      return get_stable_amount(fee_amount, pr);
+      return zeph_to_asset_fee(fee_amount, pr.stable_ma);
     } else if (to_asset_type == "ZEPHRSV") {
-      return get_reserve_amount(fee_amount, pr);
+      return zeph_to_asset_fee(fee_amount, pr.reserve_ma);
     }
 
     return fee_amount;

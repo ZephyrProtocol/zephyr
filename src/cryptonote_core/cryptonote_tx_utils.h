@@ -273,12 +273,13 @@ namespace cryptonote
   uint64_t get_stable_coin_price(const std::vector<std::pair<std::string, std::string>>& circ_amounts, uint64_t oracle_price);
   uint64_t get_reserve_coin_price(const std::vector<std::pair<std::string, std::string>>& circ_amounts, uint64_t exchange_rate);
 
-  uint64_t get_zeph_amount_from_reserve(const uint64_t amount, const oracle::pricing_record& pr);
-  uint64_t get_reserve_amount(const uint64_t amount, const oracle::pricing_record& pr);
+  uint64_t zephrsv_to_zeph(const uint64_t amount, const oracle::pricing_record& pr);
+  uint64_t zeph_to_zephrsv(const uint64_t amount, const oracle::pricing_record& pr);
+  uint64_t zeph_to_zephusd(const uint64_t amount, const oracle::pricing_record& pr);
+  uint64_t zephusd_to_zeph(const uint64_t amount, const oracle::pricing_record& pr);
 
-  uint64_t get_stable_amount(const uint64_t amount, const oracle::pricing_record& pr);
-  uint64_t get_zeph_amount(const uint64_t amount, const oracle::pricing_record& pr);
-
+  uint64_t zeph_to_asset_fee(const uint64_t amount, const uint64_t exchange_rate);
+  uint64_t asset_to_zeph_fee(const uint64_t amount, const uint64_t exchange_rate);
   uint64_t get_fee_in_zeph_equivalent(const std::string& fee_asset, uint64_t fee_amount, const oracle::pricing_record& pr);
   uint64_t get_fee_in_asset_equivalent(const std::string& to_asset_type, uint64_t fee_amount, const oracle::pricing_record& pr);
 }

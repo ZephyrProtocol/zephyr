@@ -3812,14 +3812,13 @@ bool Blockchain::check_fee(size_t tx_weight, uint64_t fee, const std::string& so
   const uint64_t mask = get_fee_quantization_mask();
   needed_fee = (needed_fee + mask - 1) / mask * mask;
 
-
-  MDEBUG("NEEDED FEE: " << print_money(needed_fee) << " FEE: " << print_money(fee));
-
   uint64_t zeph_fee = get_fee_in_zeph_equivalent(source_asset, fee, pr);
   if (!zeph_fee) {
     MERROR_VER("Failed to get fee in zeph equivalent");
     return false;
   }
+
+  MDEBUG("needed_fee: " << print_money(needed_fee) << " fee: " << print_money(fee) << " zeph_fee: " << print_money(zeph_fee));
 
   if (zeph_fee < needed_fee - needed_fee / 50) // keep a little 2% buffer on acceptance - no integer overflow
   {
