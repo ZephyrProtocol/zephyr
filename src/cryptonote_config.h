@@ -252,7 +252,7 @@ namespace config
 
   std::string const GOVERNANCE_WALLET_ADDRESS = "ZEPHYR2jZrZXenfKejCcCmEkRzUYwXjgWfJF4yzdCznKQ8yQ3g3PsWUbZjzfzHbeTPMgXVmEuDKQUB9rPkgtVwyWRh9knU4EpfJ57";
 
-  std::array<std::string, 1> const ORACLE_URLS = {{"170.64.173.105:7779"}}; // oracle test server
+  std::array<std::string, 3> const ORACLE_URLS = {{"oracle.zephyrprotocol.com:443", "oracle-02.zephyrprotocol.com:443", "oracle-03.zephyrprotocol.com:443"}};
 
   std::string const ORACLE_PUBLIC_KEY = "-----BEGIN PUBLIC KEY-----\n"
     "MFwwDQYJKoZIhvcNAQEBBQADSwAwSAJBAMdjZLVtXH/nK3L+fXyaquZFrkHpKimc\n"
@@ -275,7 +275,7 @@ namespace config
 
     std::string const GOVERNANCE_WALLET_ADDRESS = "ZPHTjbspy3MQWHUVsnRVWUhcWEKnaEiK3FBpsuwPzcCN1zDAuWGjFskcHC9jo6e8fF4UDzFbe5LGnU4ychM48E8D8ukYphLM6qu";
 
-    std::array<std::string, 1> const ORACLE_URLS = {{"testnet-oracle.zephyrprotocol.com:7779"}};
+    std::array<std::string, 3> const ORACLE_URLS = {{"testnet-oracle.zephyrprotocol.com:443", "testnet-oracle-02.zephyrprotocol.com:443", "testnet-oracle-03.zephyrprotocol.com:443"}};
 
     std::string const ORACLE_PUBLIC_KEY = "-----BEGIN PUBLIC KEY-----\n"
       "MFwwDQYJKoZIhvcNAQEBBQADSwAwSAJBAMdjZLVtXH/nK3L+fXyaquZFrkHpKimc\n"
@@ -299,7 +299,7 @@ namespace config
 
     std::string const GOVERNANCE_WALLET_ADDRESS = "ZPHSjoq9e8pB41HgzKLJ94HPWN9eKhZhqYdFrvf51KUjcevE8SUhh8CYw65g5KYDBqaUsZZLu1NhnL3CvGikQGFEjdGV1hNzVL5";
 
-    std::array<std::string, 1> const ORACLE_URLS = {{"testnet-oracle.zephyrprotocol.com:443"}};
+    std::array<std::string, 3> const ORACLE_URLS = {{"testnet-oracle.zephyrprotocol.com:443", "testnet-oracle-02.zephyrprotocol.com:443", "testnet-oracle-03.zephyrprotocol.com:443"}};
 
     std::string const ORACLE_PUBLIC_KEY = "-----BEGIN PUBLIC KEY-----\n"
       "MFwwDQYJKoZIhvcNAQEBBQADSwAwSAJBAMdjZLVtXH/nK3L+fXyaquZFrkHpKimc\n"
@@ -329,7 +329,7 @@ namespace cryptonote
     boost::uuids::uuid const NETWORK_ID;
     std::string const GENESIS_TX;
     uint32_t const GENESIS_NONCE;
-    std::array<std::string, 1> const ORACLE_URLS;
+    std::array<std::string, 3> const ORACLE_URLS;
     std::string const ORACLE_PUBLIC_KEY;
   };
   inline const config_t& get_config(network_type nettype)

@@ -1856,7 +1856,7 @@ bool Blockchain::get_pricing_record(oracle::pricing_record& pr, uint64_t timesta
     COMMAND_RPC_GET_PRICING_RECORD::request req = AUTO_VAL_INIT(req);
     COMMAND_RPC_GET_PRICING_RECORD::response res = AUTO_VAL_INIT(res);
     
-    std::array<std::string, 1> oracle_urls = get_config(m_nettype).ORACLE_URLS;
+    std::array<std::string, 3> oracle_urls = get_config(m_nettype).ORACLE_URLS;
     std::shuffle(oracle_urls.begin(), oracle_urls.end(), std::default_random_engine(crypto::rand<unsigned>()));
     for (size_t n = 0; n < oracle_urls.size(); n++) {
       http_client.set_server(oracle_urls[n], boost::none, epee::net_utils::ssl_support_t::e_ssl_support_autodetect);
