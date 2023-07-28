@@ -868,7 +868,7 @@ namespace cryptonote
         remove.push_back(std::make_pair(txid, meta.weight));
       }
       return true;
-    }, false, relay_category::all);
+    }, true, relay_category::all);
 
     if (!remove.empty())
     {
