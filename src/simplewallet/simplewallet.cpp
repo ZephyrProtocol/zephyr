@@ -296,8 +296,6 @@ namespace
   const char* USAGE_REDEEM_RESERVE("redeem_reserve [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] (<URI> | <address> <ZEPHRSV amount> [memo=<memo data>])");
   const char* USAGE_RESERVE_TRANSFER("reserve_transfer [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] (<URI> | <address> <ZEPHRSV amount> [memo=<memo data>])");
 
-  const char* USAGE_RATES("rates <amount>");
-
   const char* USAGE_RESERVE_INFO("reserve_info");
   const char* USAGE_RESERVE_RATIO("reserve_ratio");
 
@@ -2285,32 +2283,33 @@ bool simple_wallet::reserve_info(const std::vector<std::string> &args)
 
   m_wallet->get_reserve_info(pr, zeph_reserve, num_stables, num_reserves, assets, assets_ma, liabilities, equity, equity_ma, reserve_ratio, reserve_ratio_ma);
 
-  message_writer(console_color_white, false) << "RESERVE INFO";
-  message_writer(console_color_white, false) << boost::format(tr("height: %d")) % current_height;
-  message_writer(console_color_white, false) << boost::format(tr("reserve: %d")) % print_money(zeph_reserve);
-  message_writer(console_color_white, false) << boost::format(tr("number of stables: %d")) % print_money(num_stables);
-  message_writer(console_color_white, false) << boost::format(tr("number of reserves: %d")) % print_money(num_reserves);
+  message_writer(console_color_white, false) << boost::format(tr("Height:             %d")) % current_height;
+  message_writer(console_color_white, false) << "";
+  message_writer(console_color_default, false) << "Reserve Info";
+  message_writer(console_color_white, false) << boost::format(tr("Reserve:            %d ƶeph")) % print_money(zeph_reserve);
+  message_writer(console_color_white, false) << boost::format(tr("ZephUSD circ:       %d ƶephusd")) % print_money(num_stables);
+  message_writer(console_color_white, false) << boost::format(tr("ZephRSV circ:       %d ƶephrsv")) % print_money(num_reserves);
 
   message_writer(console_color_white, false) << "";
-  message_writer(console_color_white, false) << boost::format(tr("assets: %d")) % print_money(assets);
-  message_writer(console_color_white, false) << boost::format(tr("liabilities: %d")) % print_money(liabilities);
-  message_writer(console_color_white, false) << boost::format(tr("equity: %d")) % print_money(equity);
+  message_writer(console_color_white, false) << boost::format(tr("Assets:             $%d")) % print_money(assets);
+  message_writer(console_color_white, false) << boost::format(tr("Liabilities:        $%d")) % print_money(liabilities);
+  message_writer(console_color_white, false) << boost::format(tr("Equity:             $%d")) % print_money(equity);
   message_writer(console_color_white, false) << "";
-  message_writer(console_color_white, false) << boost::format(tr("assets (MA): %d")) % print_money(assets_ma);
-  message_writer(console_color_white, false) << boost::format(tr("liabilities: %d")) % print_money(liabilities);
-  message_writer(console_color_white, false) << boost::format(tr("equity (MA): %d")) % print_money(equity_ma);
-   message_writer(console_color_white, false) << "";
-  message_writer(console_color_white, false) << boost::format(tr("reserve ratio: %.2f")) % reserve_ratio;
-  message_writer(console_color_white, false) << boost::format(tr("reserve ratio (MA): %.2f")) % reserve_ratio_ma;
+  message_writer(console_color_white, false) << boost::format(tr("Assets (MA):        $%d")) % print_money(assets_ma);
+  message_writer(console_color_white, false) << boost::format(tr("Liabilities:        $%d")) % print_money(liabilities);
+  message_writer(console_color_white, false) << boost::format(tr("Equity (MA):        $%d")) % print_money(equity_ma);
+  message_writer(console_color_white, false) << "";
+  message_writer(console_color_white, false) << boost::format(tr("Reserve ratio:      %.2f")) % reserve_ratio;
+  message_writer(console_color_white, false) << boost::format(tr("Reserve ratio (MA): %.2f")) % reserve_ratio_ma;
 
   message_writer(console_color_white, false) << "";
-
-  message_writer(console_color_white, false) << boost::format(tr("spot: %d")) % print_money(pr.spot);
-  message_writer(console_color_white, false) << boost::format(tr("moving average: %d")) % print_money(pr.moving_average);
-  message_writer(console_color_white, false) << boost::format(tr("stable: %d")) % print_money(pr.stable);
-  message_writer(console_color_white, false) << boost::format(tr("stable (MA): %d")) % print_money(pr.stable_ma);
-  message_writer(console_color_white, false) << boost::format(tr("reserve: %d")) % print_money(pr.reserve);
-  message_writer(console_color_white, false) << boost::format(tr("reserve (MA): %d")) % print_money(pr.reserve_ma);
+  message_writer(console_color_default, false) << "Exchange Rates";
+  message_writer(console_color_white, false) << boost::format(tr("Spot:               $%d")) % print_money(pr.spot);
+  message_writer(console_color_white, false) << boost::format(tr("Moving average:     $%d")) % print_money(pr.moving_average);
+  message_writer(console_color_white, false) << boost::format(tr("Stable:             %d ƶeph")) % print_money(pr.stable);
+  message_writer(console_color_white, false) << boost::format(tr("Stable (MA):        %d ƶeph")) % print_money(pr.stable_ma);
+  message_writer(console_color_white, false) << boost::format(tr("Reserve:            %d ƶeph")) % print_money(pr.reserve);
+  message_writer(console_color_white, false) << boost::format(tr("Reserve (MA):       %d ƶeph")) % print_money(pr.reserve_ma);
 
   return true;
 }
@@ -2332,43 +2331,6 @@ bool simple_wallet::reserve_ratio(const std::vector<std::string> &args)
   // Iterate over the provided currencies
   message_writer(console_color_white, false) << boost::format(tr("Spot reserve ratio: %.2f")) % reserve_ratio_spot;
   message_writer(console_color_white, false) << boost::format(tr("MA reserve ratio: %.2f")) % reserve_ratio_ma;
-
-  return true;
-}
-
-bool simple_wallet::rates(const std::vector<std::string> &args)
-{
-  uint64_t base_coin = 0;
-  // Verify the input argument is a number
-  if (args.size() < 1) {
-    base_coin = 1;
-  } else {
-    try {
-      base_coin = boost::lexical_cast<uint64_t>(args[0]);
-    }
-    catch(std::exception &e) {
-      fail_msg_writer() << boost::format(tr("Invalid amount %s specified.")) % args[0];
-      return false;
-    }
-  }
-  
-  
-  // Get the current blockchain height
-  uint64_t current_height = m_wallet->get_blockchain_current_height()-1;
-
-  // Get the pricing record for the current height
-  oracle::pricing_record pr;
-  if (!m_wallet->get_pricing_record(pr, current_height)) {
-    fail_msg_writer() << boost::format(tr("Failed to get prices at height %d - maybe pricing record is missing?")) % current_height;
-    return false;
-  }
-
-  // Iterate over the provided currencies
-  message_writer(console_color_white, false) << boost::format(tr("Outputting value of %d ZEPH:")) % base_coin;
-  message_writer(console_color_green, false) << boost::format(tr("\t ZEPHUSD %d")) % print_money(pr.stable * base_coin);
-  message_writer(console_color_green, false) << boost::format(tr("\t ZEPHUSD_24h %d")) % print_money(pr.stable_ma * base_coin);
-  message_writer(console_color_green, false) << boost::format(tr("\t ZEPHRSV %d")) % print_money(pr.reserve * base_coin);
-  message_writer(console_color_green, false) << boost::format(tr("\t ZEPHRSV_24h %d")) % print_money(pr.reserve_ma * base_coin);
 
   return true;
 }
@@ -3787,10 +3749,7 @@ m_cmd_binder.set_handler("reserve_transfer",
                            boost::bind(&simple_wallet::on_command, this, &simple_wallet::scan_tx, _1),
                            tr(USAGE_SCAN_TX),
                            tr("Scan the transactions given by <txid>(s), processing them and looking for outputs"));
- m_cmd_binder.set_handler("rates",
-                           boost::bind(&simple_wallet::rates, this, _1),
-                           tr(USAGE_RATES),
-                           tr("Displays the current value of <amount> converted to Stable (ZEPHUSD) and Reserve (ZEPHRSV)"));
+
   m_cmd_binder.set_unknown_command_handler(boost::bind(&simple_wallet::on_command, this, &simple_wallet::on_unknown_command, _1));
   m_cmd_binder.set_empty_command_handler(boost::bind(&simple_wallet::on_empty_command, this));
   m_cmd_binder.set_cancel_handler(boost::bind(&simple_wallet::on_cancelled_command, this));
