@@ -249,7 +249,7 @@ namespace cryptonote
         return false;
       }
     
-      // check whether we have empty amount burnt/mint. Actual validation happens in verRctSemanticsSimple2()
+      // check whether we have empty amount burnt/mint. Actual validation happens in verRctSemanticsSimple()
       if (!tx.amount_burnt || !tx.amount_minted) {
         LOG_ERROR("error: Invalid Tx found. 0 burnt/minted for a conversion tx.");
         tvc.m_verifivation_failed = true;
@@ -1916,7 +1916,7 @@ namespace cryptonote
         }
 
         // make sure proof-of-value still holds
-        if (!rct::verRctSemanticsSimple2(tx.rct_signatures, bl.pricing_record, circ_supply, tx_type, source, dest, tx.amount_burnt, tx.vout, tx.vin, version))
+        if (!rct::verRctSemanticsSimple(tx.rct_signatures, bl.pricing_record, circ_supply, tx_type, source, dest, tx.amount_burnt, tx.vout, tx.vin, version))
         {
           LOG_PRINT_L2(" transaction proof-of-value is now invalid for tx " << sorted_it->second);
           continue;

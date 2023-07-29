@@ -228,7 +228,7 @@ public:
 
   virtual cryptonote::blobdata get_block_blob_from_height(const uint64_t& height) const;
 
-  virtual std::pair<std::vector<uint64_t>, uint64_t> get_block_cumulative_rct_outputs(const std::vector<uint64_t> &heights, const std::string asset_type, const uint64_t default_tx_spendable_age = CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE) const;
+  virtual std::pair<std::vector<uint64_t>, uint64_t> get_block_cumulative_rct_outputs(const std::vector<uint64_t> &heights, const std::string asset_type) const;
 
   virtual uint64_t get_block_timestamp(const uint64_t& height) const;
 

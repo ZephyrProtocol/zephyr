@@ -21,7 +21,9 @@ namespace test
     make_miner_transaction(cryptonote::account_public_address const& to)
     {
         cryptonote::transaction tx{};
-        if (!cryptonote::construct_miner_tx(0, 0, 5000, 500, 500, to, tx))
+        std::map<std::string, uint64_t> fee_map;
+        fee_map["ZEPH"] = 500;
+        if (!cryptonote::construct_miner_tx(0, 0, 5000, 500, fee_map, to, tx))
             throw std::runtime_error{"transaction construction error"};
 
         crypto::hash id{0};
@@ -76,8 +78,8 @@ namespace test
 
         std::unordered_map<crypto::public_key, cryptonote::subaddress_index> subaddresses;
         subaddresses[from.m_account_address.m_spend_public_key] = {0,0};
-
-        if (!cryptonote::construct_tx_and_get_tx_key(from, subaddresses, actual_sources, to, boost::none, {}, tx, 0, tx_key, extra_keys, rct, { bulletproof ? rct::RangeProofBulletproof : rct::RangeProofBorromean, bulletproof ? 2 : 0 }))
+        std::vector<std::pair<std::string, std::string>> circ_amounts;
+        if (!cryptonote::construct_tx_and_get_tx_key(from, subaddresses, actual_sources, to, boost::none, {}, tx, "ZEPH", "ZEPH", 1, 2, oracle::pricing_record(), circ_amounts, 0, tx_key, extra_keys, rct, { bulletproof ? rct::RangeProofBulletproof : rct::RangeProofBorromean, bulletproof ? 2 : 0 }))
             throw std::runtime_error{"transaction construction error"};
 
         return tx;

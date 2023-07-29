@@ -2521,7 +2521,7 @@ bool Blockchain::get_output_distribution(uint64_t amount, std::string asset_type
     for (uint64_t h = real_start_height; h <= to_height; ++h)
       heights.push_back(h);
     
-    std::pair<std::vector<uint64_t>, uint64_t> block_cum_outputs = m_db->get_block_cumulative_rct_outputs(heights, asset_type, 10);
+    std::pair<std::vector<uint64_t>, uint64_t> block_cum_outputs = m_db->get_block_cumulative_rct_outputs(heights, asset_type);
     distribution = block_cum_outputs.first;
     num_spendable_global_outs = block_cum_outputs.second;
     if (start_height > 0)
@@ -4536,7 +4536,7 @@ leave:
       }
 
       // make sure proof-of-value still holds
-      if (!rct::verRctSemanticsSimple2(tx.rct_signatures, pr_bl.pricing_record, circ_supply, tx_type, source, dest, tx.amount_burnt, tx.vout, tx.vin, hf_version))
+      if (!rct::verRctSemanticsSimple(tx.rct_signatures, pr_bl.pricing_record, circ_supply, tx_type, source, dest, tx.amount_burnt, tx.vout, tx.vin, hf_version))
       {
         LOG_PRINT_L2(" transaction proof-of-value is now invalid for tx " << tx.hash);
         bvc.m_verifivation_failed = true;

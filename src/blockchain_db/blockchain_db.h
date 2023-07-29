@@ -984,7 +984,7 @@ public:
    *
    * @return the cumulative number of rct outputs
    */
-  virtual std::pair<std::vector<uint64_t>, uint64_t> get_block_cumulative_rct_outputs(const std::vector<uint64_t> &heights, const std::string asset_type, const uint64_t default_tx_spendable_age) const = 0;
+  virtual std::pair<std::vector<uint64_t>, uint64_t> get_block_cumulative_rct_outputs(const std::vector<uint64_t> &heights, const std::string asset_type) const = 0;
 
   /**
    * @brief fetch the top block's timestamp

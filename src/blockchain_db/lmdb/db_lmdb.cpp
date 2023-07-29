@@ -2809,7 +2809,7 @@ uint64_t BlockchainLMDB::get_block_timestamp(const uint64_t& height) const
   return ret;
 }
 
-std::pair<std::vector<uint64_t>, uint64_t> BlockchainLMDB::get_block_cumulative_rct_outputs(const std::vector<uint64_t> &heights, const std::string asset_type, const uint64_t default_tx_spendable_age) const
+std::pair<std::vector<uint64_t>, uint64_t> BlockchainLMDB::get_block_cumulative_rct_outputs(const std::vector<uint64_t> &heights, const std::string asset_type) const
 {
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
@@ -2869,7 +2869,7 @@ std::pair<std::vector<uint64_t>, uint64_t> BlockchainLMDB::get_block_cumulative_
     // and is expecting the global output distribution that isn't bucketed by asset type in response
     res.push_back(asset_type.empty() ? bi->bi_cum_rct : bi->bi_cum_rct_by_asset_type[asset_type]);
 
-    if (height == heights[heights.size() - default_tx_spendable_age])
+    if (height == heights[heights.size() - CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE])
       num_spendable_global_outs = bi->bi_cum_rct;
 
     prev_height = height;

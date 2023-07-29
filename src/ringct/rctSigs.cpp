@@ -1509,7 +1509,7 @@ namespace rct {
     //
     //ver RingCT simple
     //assumes only post-rct style inputs (at least for max anonymity)
-    bool verRctSemanticsSimple2(
+    bool verRctSemanticsSimple(
       const rctSig& rv, 
       const oracle::pricing_record& pr,
       const std::vector<std::pair<std::string, std::string>> circ_amounts,
@@ -1524,7 +1524,7 @@ namespace rct {
 
       try
       {
-        PERF_TIMER(verRctSemanticsSimple2);
+        PERF_TIMER(verRctSemanticsSimple);
 
         tools::threadpool& tpool = tools::threadpool::getInstanceForCompute();
         tools::threadpool::waiter waiter(tpool);
@@ -1710,16 +1710,9 @@ namespace rct {
       }
     }
 
-    //ver RingCT simple
-    //assumes only post-rct style inputs (at least for max anonymity)
-    bool verRctSemanticsSimple(
-      const rctSig& rv, 
-      const oracle::pricing_record& pr, 
-      const cryptonote::transaction_type& type,
-      const std::string& strSource, 
-      const std::string& strDest
-    ){
-      return false;
+    bool verRctSemanticsSimple(const rctSig& rv)
+    {
+      return verRctSemanticsSimple(rv, oracle::pricing_record(), {}, cryptonote::transaction_type::TRANSFER, "ZEPH", "ZEPH", 0, {}, {}, 0);
     }
 
     //ver RingCT simple

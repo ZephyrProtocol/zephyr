@@ -85,7 +85,7 @@ bool do_send_money(tools::wallet2& w1, tools::wallet2& w2, size_t mix_in_factor,
   try
   {
     std::vector<tools::wallet2::pending_tx> ptx;
-    ptx = w1.create_transactions_2(dsts, mix_in_factor, 0, 0, std::vector<uint8_t>(), 0, {});
+    ptx = w1.create_transactions_2(dsts, "ZEPH", mix_in_factor, 0, 0, std::vector<uint8_t>(), 0, {});
     for (auto &p: ptx)
       w1.commit_tx(p);
     return true;
@@ -172,7 +172,7 @@ bool transactions_flow_test(std::string& working_folder,
 
   //wait for money, until balance will have enough money
   w1.refresh(true, blocks_fetched, received_money, ok);
-  while(w1.unlocked_balance(0, true) < amount_to_transfer)
+  while(w1.unlocked_balance("ZEPH", 0, true) < amount_to_transfer)
   {
     misc_utils::sleep_no_w(1000);
     w1.refresh(true, blocks_fetched, received_money, ok);
@@ -185,7 +185,7 @@ bool transactions_flow_test(std::string& working_folder,
   {
     tools::wallet2::transfer_container incoming_transfers;
     w1.get_transfers(incoming_transfers);
-    if(incoming_transfers.size() > FIRST_N_TRANSFERS && get_money_in_first_transfers(incoming_transfers, FIRST_N_TRANSFERS) < w1.unlocked_balance(0, true) )
+    if(incoming_transfers.size() > FIRST_N_TRANSFERS && get_money_in_first_transfers(incoming_transfers, FIRST_N_TRANSFERS) < w1.unlocked_balance("ZEPH", 0, true) )
     {
       //lets go!
       size_t count = 0;
@@ -220,7 +220,7 @@ bool transactions_flow_test(std::string& working_folder,
   for(i = 0; i != transactions_count; i++)
   {
     uint64_t amount_to_tx = (amount_to_transfer - transfered_money) > transfer_size ? transfer_size: (amount_to_transfer - transfered_money);
-    while(w1.unlocked_balance(0, true) < amount_to_tx + TEST_FEE)
+    while(w1.unlocked_balance("ZEPH", 0, true) < amount_to_tx + TEST_FEE)
     {
       misc_utils::sleep_no_w(1000);
       LOG_PRINT_L0("not enough money, waiting for cashback or mining");
@@ -269,7 +269,7 @@ bool transactions_flow_test(std::string& working_folder,
     misc_utils::sleep_no_w(DIFFICULTY_BLOCKS_ESTIMATE_TIMESPAN*1000);//wait two blocks before sync on another wallet on another daemon
   }
 
-  uint64_t money_2 = w2.balance(0, true);
+  uint64_t money_2 = w2.balance("ZEPH", 0, true);
   if(money_2 == transfered_money)
   {
     MGINFO_GREEN("-----------------------FINISHING TRANSACTIONS FLOW TEST OK-----------------------");

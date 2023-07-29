@@ -133,7 +133,10 @@ TEST(bulletproofs, multi_splitting)
     rct::ctkeyV outSk;
     rct::RCTConfig rct_config { rct::RangeProofPaddedBulletproof, 4 };
 
-    rct::rctSig s = rct::genRctSimple(rct::zero(), sc, destinations, inamounts, outamounts, available, mixRing, amount_keys, index, outSk, rct_config, hw::get_device("default"));
+    const cryptonote::transaction_type tx_type = cryptonote::transaction_type::TRANSFER;
+    std::vector<std::pair<std::string, std::string>> circ_amounts;
+    std::map<size_t, std::string> outamounts_features;
+    rct::rctSig s = rct::genRctSimple(rct::zero(), sc, destinations, tx_type, "ZEPH", oracle::pricing_record(), circ_amounts, inamounts, outamounts, outamounts_features, available, mixRing, amount_keys, index, outSk, rct_config, hw::get_device("default"));
     ASSERT_TRUE(rct::verRctSimple(s));
     for (size_t i = 0; i < n_outputs; ++i)
     {

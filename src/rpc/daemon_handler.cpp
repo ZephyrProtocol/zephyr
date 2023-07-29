@@ -883,7 +883,7 @@ namespace rpc
         {
           res.distributions.clear();
           res.status = Message::STATUS_FAILED;
-          res.error_details = "Failed to get output distribution 2";
+          res.error_details = "Failed to get output distribution";
           return;
         }
         res.distributions.push_back(output_distribution{std::move(*data), amount, req.cumulative});

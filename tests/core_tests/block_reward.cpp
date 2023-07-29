@@ -38,9 +38,9 @@ namespace
 {
   bool construct_miner_tx_by_weight(transaction& miner_tx, uint64_t height, uint64_t already_generated_coins,
     const account_public_address& miner_address, std::vector<size_t>& block_weights, size_t target_tx_weight,
-    size_t target_block_weight, uint64_t fee = 0)
+    size_t target_block_weight, const std::map<std::string, uint64_t>& fee_map = {})
   {
-    if (!construct_miner_tx(height, misc_utils::median(block_weights), already_generated_coins, target_block_weight, fee, miner_address, miner_tx))
+    if (!construct_miner_tx(height, misc_utils::median(block_weights), already_generated_coins, target_block_weight, fee_map, miner_address, miner_tx))
       return false;
 
     size_t current_weight = get_transaction_weight(miner_tx);
@@ -195,8 +195,10 @@ bool gen_block_reward::generate(std::vector<test_event_entry>& events) const
     size_t median = misc_utils::median(block_weights);
 
     transaction miner_tx;
+    std::map<std::string, uint64_t> fee_map;
+    fee_map["ZEPH"] = txs_fee;
     bool r = construct_miner_tx_by_weight(miner_tx, get_block_height(blk_7) + 1, generator.get_already_generated_coins(blk_7),
-      miner_account.get_keys().m_account_address, block_weights, 2 * median - txs_1_weight, 2 * median, txs_fee);
+      miner_account.get_keys().m_account_address, block_weights, 2 * median - txs_1_weight, 2 * median, fee_map);
     if (!r)
       return false;
 

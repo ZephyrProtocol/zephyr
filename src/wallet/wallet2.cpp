@@ -7072,7 +7072,7 @@ bool wallet2::sign_tx(unsigned_tx_set &exported_txs, std::vector<wallet2::pendin
     // Get the circulating supply data
     std::vector<std::pair<std::string, std::string>> circ_amounts;
     THROW_WALLET_EXCEPTION_IF(!get_circulating_supply(circ_amounts), error::wallet_internal_error, "Failed to get circulating supply");
-    bool r = cryptonote::construct_tx_and_get_tx_key(m_account.get_keys(), m_subaddresses, sd.sources, sd.splitted_dsts, sd.change_dts.addr, sd.extra, ptx.tx, "ZEPH", "ZEPH", 1, hf_version, oracle::pricing_record(), circ_amounts,  sd.unlock_time, tx_key, additional_tx_keys, sd.use_rct, rct_config, sd.use_view_tags);
+    bool r = cryptonote::construct_tx_and_get_tx_key(m_account.get_keys(), m_subaddresses, sd.sources, sd.splitted_dsts, sd.change_dts.addr, sd.extra, ptx.tx, "ZEPH", "ZEPH", 1, hf_version, oracle::pricing_record(), circ_amounts, sd.unlock_time, tx_key, additional_tx_keys, sd.use_rct, rct_config, sd.use_view_tags);
     THROW_WALLET_EXCEPTION_IF(!r, error::tx_not_constructed, sd.sources, sd.splitted_dsts, sd.unlock_time, m_nettype);
     // we don't test tx size, because we don't know the current limit, due to not having a blockchain,
     // and it's a bit pointless to fail there anyway, since it'd be a (good) guess only. We sign anyway,

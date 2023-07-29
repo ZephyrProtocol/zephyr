@@ -3370,7 +3370,7 @@ namespace cryptonote
         if (!data)
         {
           error_resp.code = CORE_RPC_ERROR_CODE_INTERNAL_ERROR;
-          error_resp.message = "Failed to get output distribution 6";
+          error_resp.message = "Failed to get output distribution";
           return false;
         }
 
@@ -3379,9 +3379,8 @@ namespace cryptonote
     }
     catch (const std::exception &e)
     {
-      LOG_PRINT_L1("IT FAILED RIGHT HERE");
       error_resp.code = CORE_RPC_ERROR_CODE_INTERNAL_ERROR;
-      error_resp.message = "Failed to get output distribution 5";
+      error_resp.message = "Failed to get output distribution";
       return false;
     }
 
@@ -3426,7 +3425,7 @@ namespace cryptonote
         auto data = rpc::RpcHandler::get_output_distribution([this](uint64_t amount, std::string asset_type, uint64_t from, uint64_t to, uint64_t &start_height, std::vector<uint64_t> &distribution, uint64_t &base, uint64_t &num_spendable_global_outs) { return m_core.get_output_distribution(amount, asset_type, from, to, start_height, distribution, base, num_spendable_global_outs); }, amount, req.rct_asset_type, req.from_height, req_to_height, [this](uint64_t height) { return m_core.get_blockchain_storage().get_db().get_block_hash_from_height(height); }, req.cumulative, m_core.get_current_blockchain_height());
         if (!data)
         {
-          res.status = "Failed to get output distribution 4";
+          res.status = "Failed to get output distribution";
           return true;
         }
 
@@ -3435,7 +3434,7 @@ namespace cryptonote
     }
     catch (const std::exception &e)
     {
-      res.status = "Failed to get output distribution 3";
+      res.status = "Failed to get output distribution";
       return true;
     }
 
