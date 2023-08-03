@@ -188,8 +188,6 @@ namespace cryptonote
 
     tx_out out;
     cryptonote::set_tx_out("ZEPH", amount, out_eph_public_key, use_view_tags, view_tag, out);
-    LOG_PRINT_L1("GOT AN OUT: " << obj_to_json_str(out));
-    LOG_PRINT_L1("GOT AN OUT: " << boost::get<cryptonote::txout_zephyr_tagged_key>(out.target).asset_type);
     tx.vout.push_back(out);
 
     cryptonote::address_parse_info governance_wallet_address;
@@ -257,8 +255,7 @@ namespace cryptonote
 
     tx.invalidate_hashes();
 
-    LOG_PRINT_L1("miner tx CREATED: " << get_transaction_hash(tx) << ENDL << obj_to_json_str(tx));
-
+    // LOG_PRINT_L1("miner tx CREATED: " << get_transaction_hash(tx) << ENDL << obj_to_json_str(tx));
     //LOG_PRINT("MINER_TX generated ok, block_reward=" << print_money(block_reward) << "("  << print_money(block_reward - fee) << "+" << print_money(fee)
     //  << "), current_block_size=" << current_block_size << ", already_generated_coins=" << already_generated_coins << ", tx_id=" << get_transaction_hash(tx), LOG_LEVEL_2);
     return true;
@@ -348,21 +345,12 @@ namespace cryptonote
     std::copy(source_asset_types.begin(), source_asset_types.end(), std::back_inserter(sat));
     
     // Sanity check that we only have 1 source asset type
-    if (sat.size() == 2) {
-      if ((sat[0] == "ZEPH" && sat[1] == "ZEPHUSD") || (sat[0] == "ZEPHUSD" && sat[1] == "ZEPH")) {
-        source = "ZEPHUSD";
-      } else {
-        LOG_ERROR("Impossible input asset types. Rejecting..");
-        return false;
-      }
-    } else {
-      if (sat.size() != 1) {
-        LOG_ERROR("Multiple Source Asset types detected. Rejecting..");
-        return false;
-      }
-      source = sat[0];
+    if (sat.size() != 1) {
+      LOG_ERROR("Multiple Source Asset types detected. Rejecting..");
+      return false;
     }
-    
+    source = sat[0];
+
     // Clear the destination
     std::set<std::string> destination_asset_types;
     destination = "";
@@ -396,22 +384,12 @@ namespace cryptonote
         LOG_ERROR("Too many (" << dat.size() << ") destination asset types detected in non-miner TX. Rejecting..");
         return false;
       } else if (dat.size() == 1) {
-        if (sat.size() != 1) {
-          LOG_ERROR("Impossible input asset types. Rejecting..");
-          return false;
-        }
         if (dat[0] != source) {
           LOG_ERROR("Conversion without change detected ([" << source << "] -> [" << dat[0] << "]). Rejecting..");
           return false;
         }
-        destination = dat[0];
+        destination = source;
       } else {
-        if (sat.size() == 2) {
-          if (!((dat[0] == "ZEPH" && dat[1] == "ZEPHUSD") || (dat[0] == "ZEPHUSD" && dat[1] == "ZEPH"))) {
-            LOG_ERROR("Impossible input asset types. Rejecting..");
-            return false;
-          }
-        }
         if (dat[0] == source) {
           destination = dat[1];
         } else if (dat[1] == source) {

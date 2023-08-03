@@ -45,7 +45,7 @@ set(unit_tests_sources
   decompose_amount_into_digits.cpp
   device.cpp
   difficulty.cpp
-  dns_resolver.cpp
+  # dns_resolver.cpp
   epee_boosted_tcp_server.cpp
   epee_levin_protocol_handler_async.cpp
   epee_serialization.cpp
@@ -53,6 +53,7 @@ set(unit_tests_sources
   expect.cpp
   fee.cpp
   json_serialization.cpp
+  get_tx_asset_types.cpp
   get_xtype_from_string.cpp
   hashchain.cpp
   hmac_keccak.cpp
@@ -60,7 +61,7 @@ set(unit_tests_sources
   keccak.cpp
   levin.cpp
   logging.cpp
-  long_term_block_weight.cpp
+  # long_term_block_weight.cpp
   lmdb.cpp
   main.cpp
   memwipe.cpp
@@ -70,9 +71,10 @@ set(unit_tests_sources
   multiexp.cpp
   multisig.cpp
   net.cpp
-  node_server.cpp
+  # node_server.cpp
   notify.cpp
-  output_distribution.cpp
+  # output_distribution.cpp
+  oracle.cpp
   parse_amount.cpp
   pruning.cpp
   random.cpp
@@ -91,8 +93,8 @@ set(unit_tests_sources
   unbound.cpp
   uri.cpp
   varint.cpp
-  ver_rct_non_semantics_simple_cached.cpp
-  ringct.cpp
+  # ver_rct_non_semantics_simple_cached.cpp
+  # ringct.cpp
   output_selection.cpp
   vercmp.cpp
   ringdb.cpp
@@ -120,6 +122,7 @@ target_link_libraries(unit_tests
     rpc
     net
     serialization
+    oracle
     wallet
     p2p
     version

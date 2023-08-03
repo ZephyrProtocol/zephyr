@@ -174,20 +174,14 @@ namespace oracle
       ss << std::hex << std::setw(2) << std::setfill('0') << (0xff & signature[i]);
       sig_hex += ss.str();
     }
-    MDEBUG("SIGNATURE HEX inside: " << sig_hex);
-    // MDEBUG("SIGNATURE rebuilt: " << sig_rebuilt);
 
     // Build the JSON string, so that we can verify the signature
     std::ostringstream oss;
     oss << "{\"spot\":" << spot;
     oss << ",\"moving_average\":" << moving_average;
-    // if (timestamp > 0)
-      oss << ",\"timestamp\":" << timestamp;
+    oss << ",\"timestamp\":" << timestamp;
     oss << "}";
     std::string message = oss.str();
-
-    MDEBUG("MESSAGE: " << message);
-
 
     // Create a verify digest from the message
     EVP_MD_CTX *ctx = EVP_MD_CTX_create();
