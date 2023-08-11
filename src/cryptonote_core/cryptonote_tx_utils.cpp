@@ -761,7 +761,7 @@ namespace cryptonote
 
     if (reserve_coin_price_float > std::numeric_limits<uint64_t>::max()) {
       MWARNING("overflow detected in reserve coin price calculation.");
-      reserve_coin_price_float = 0;
+      return 0;
     }
 
     uint64_t reserve_coin_price = reserve_coin_price_float.convert_to<uint64_t>();
