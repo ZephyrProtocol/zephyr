@@ -101,6 +101,8 @@ public:
   virtual std::vector<cryptonote::transaction> get_tx_list(const std::vector<crypto::hash>& hlist) const override { return std::vector<cryptonote::transaction>(); }
   virtual uint64_t get_tx_block_height(const crypto::hash& h) const override { return 0; }
   virtual uint64_t get_num_outputs(const uint64_t& amount) const override { return 1; }
+  virtual uint64_t get_num_outputs_of_asset_type(const std::string asset_type) const override { return 1; }
+
   virtual uint64_t get_indexing_base() const override { return 0; }
   virtual cryptonote::output_data_t get_output_key(const uint64_t& amount, const uint64_t& index, bool include_commitmemt) const override { return cryptonote::output_data_t(); }
   virtual cryptonote::tx_out_index get_output_tx_and_index_from_global(const uint64_t& index) const override { return cryptonote::tx_out_index(); }
@@ -171,6 +173,7 @@ public:
 
   virtual std::vector<std::pair<std::string, std::string>> get_circulating_supply() const override { return std::vector<std::pair<std::string, std::string>>(); }
   virtual void get_output_id_from_asset_type_output_index(const std::string asset_type, const std::vector<uint64_t> &asset_type_output_indices, std::vector<uint64_t> &output_indices) const override { }
+  virtual uint64_t get_output_id_from_asset_type_output_index(const std::string asset_type, const uint64_t &asset_type_output_index) const override { return 0; };
 };
 
 }

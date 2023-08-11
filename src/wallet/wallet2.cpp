@@ -2170,15 +2170,13 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
       }
     }
 
-    LOG_PRINT_L2("22 tx_money_got_in_outs size: " << tx_money_got_in_outs.size());
-
     if(!outs.empty() && num_vouts_received > 0)
     {
       //good news - got money! take care about it
       //usually we have only one transfer for user in transaction
       if (!pool)
       {
-        THROW_WALLET_EXCEPTION_IF(tx.vout.size() != o_indices.size(), error::wallet_internal_error,
+        THROW_WALLET_EXCEPTION_IF(tx.vout.size() != o_indices.size() || tx.vout.size() != asset_type_output_indices.size(), error::wallet_internal_error,
             "transactions outputs size=" + std::to_string(tx.vout.size()) +
             " not match with daemon response size=" + std::to_string(o_indices.size())
             + " or with asset outputs size=" + std::to_string(asset_type_output_indices.size()));
@@ -2210,12 +2208,7 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
 	    td.m_tx = (const cryptonote::transaction_prefix&)tx;
 	    td.m_txid = txid;
       td.asset_type = boost::get<txout_zephyr_tagged_key>(tx.vout[o].target).asset_type;
-
-      if (asset_type_output_indices.size() > 0)
-      {
-        td.m_asset_type_output_index = asset_type_output_indices[o];
-        td.m_asset_type_output_index_known = true;
-      }
+      td.m_asset_type_output_index = asset_type_output_indices[o];
 
       td.m_key_image = tx_scan_info[o].ki;
       td.m_key_image_known = !m_watch_only && !m_multisig;
@@ -2325,12 +2318,7 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
 	    td.m_tx = (const cryptonote::transaction_prefix&)tx;
 	    td.m_txid = txid;
       td.asset_type = boost::get<txout_zephyr_tagged_key>(tx.vout[o].target).asset_type;
-
-      if (asset_type_output_indices.size() > 0)
-      {
-        td.m_asset_type_output_index = asset_type_output_indices[o];
-        td.m_asset_type_output_index_known = true;
-      }
+      td.m_asset_type_output_index = asset_type_output_indices[o];
 
             td.m_amount = amount;
             td.m_pk_index = pk_index - 1;
@@ -3965,15 +3953,14 @@ bool wallet2::refresh(bool trusted_daemon, uint64_t & blocks_fetched, bool& rece
   return ok;
 }
 //----------------------------------------------------------------------------------------------------
-bool wallet2::get_rct_distribution(const bool use_global_outs, const std::string rct_asset_type, uint64_t &start_height, std::vector<uint64_t> &distribution, uint64_t &num_spendable_global_outs)
+bool wallet2::get_rct_distribution(const std::string rct_asset_type, uint64_t &start_height, std::vector<uint64_t> &distribution, uint64_t &num_spendable_global_outs)
 {
   cryptonote::COMMAND_RPC_GET_OUTPUT_DISTRIBUTION::request req = AUTO_VAL_INIT(req);
   cryptonote::COMMAND_RPC_GET_OUTPUT_DISTRIBUTION::response res = AUTO_VAL_INIT(res);
   req.amounts.push_back(0);
   req.from_height = 0;
-  if (!use_global_outs)
-    req.rct_asset_type = rct_asset_type;
-  req.cumulative = true;
+  req.rct_asset_type = rct_asset_type;
+  req.cumulative = false;
   req.binary = true;
   req.compress = true;
 
@@ -3982,8 +3969,6 @@ bool wallet2::get_rct_distribution(const bool use_global_outs, const std::string
   {
     const boost::lock_guard<boost::recursive_mutex> lock{m_daemon_rpc_mutex};
     r = net_utils::invoke_http_bin("/get_output_distribution.bin", req, res, *m_http_client, rpc_timeout);
-    MDEBUG("REQ: " << epee::serialization::store_t_to_json(req));
-    MDEBUG("RES: " << epee::serialization::store_t_to_json(res));
     THROW_ON_RPC_RESPONSE_ERROR_GENERIC(r, {}, res, "/get_output_distribution.bin");
   }
   catch(...)
@@ -4000,7 +3985,8 @@ bool wallet2::get_rct_distribution(const bool use_global_outs, const std::string
     MWARNING("Failed to request output distribution: results are not for amount 0");
     return false;
   }
-
+  for (size_t i = 1; i < res.distributions[0].data.distribution.size(); ++i)
+    res.distributions[0].data.distribution[i] += res.distributions[0].data.distribution[i-1];
   start_height = res.distributions[0].data.start_height;
   num_spendable_global_outs = res.distributions[0].data.num_spendable_global_outs;
   distribution = std::move(res.distributions[0].data.distribution);
@@ -8326,17 +8312,17 @@ std::pair<std::set<uint64_t>, size_t> outs_unique(const std::vector<std::vector<
 
 void wallet2::get_outs(const transfer_container &specific_transfers, std::vector<std::vector<tools::wallet2::get_outs_entry>> &outs, const std::vector<size_t> &selected_transfers, size_t fake_outputs_count, bool rct, std::unordered_set<crypto::public_key> &valid_public_keys_cache)
 {
-  uint64_t num_outs_per_asset = 0;
+  std::vector<uint64_t> rct_offsets;
   uint64_t num_spendable_global_outs = 0;
   for (size_t attempts = 3; attempts > 0; --attempts)
   {
-    get_outs(specific_transfers, outs, selected_transfers, fake_outputs_count, num_spendable_global_outs, num_outs_per_asset, valid_public_keys_cache);
+    get_outs(specific_transfers, outs, selected_transfers, fake_outputs_count, rct_offsets, num_spendable_global_outs, valid_public_keys_cache);
 
     if (!rct)
       return;
 
     const auto unique = outs_unique(outs);
-    if (tx_sanity_check(unique.first, unique.second, num_outs_per_asset))
+    if (tx_sanity_check(unique.first, unique.second, rct_offsets.empty() ? 0 : rct_offsets.back()))
     {
       return;
     }
@@ -8352,7 +8338,7 @@ void wallet2::get_outs(const transfer_container &specific_transfers, std::vector
   THROW_WALLET_EXCEPTION(error::wallet_internal_error, tr("Transaction sanity check failed"));
 }
 
-void wallet2::get_outs(const transfer_container &specific_transfers, std::vector<std::vector<tools::wallet2::get_outs_entry>> &outs, const std::vector<size_t> &selected_transfers, size_t fake_outputs_count, uint64_t &num_spendable_global_outs, uint64_t &num_outs, std::unordered_set<crypto::public_key> &valid_public_keys_cache)
+void wallet2::get_outs(const transfer_container &specific_transfers, std::vector<std::vector<tools::wallet2::get_outs_entry>> &outs, const std::vector<size_t> &selected_transfers, size_t fake_outputs_count, std::vector<uint64_t> &rct_offsets, uint64_t &num_spendable_global_outs, std::unordered_set<crypto::public_key> &valid_public_keys_cache)
 {
   LOG_PRINT_L2("fake_outputs_count: " << fake_outputs_count);
   outs.clear();
@@ -8368,52 +8354,25 @@ void wallet2::get_outs(const transfer_container &specific_transfers, std::vector
     bool is_after_segregation_fork = height >= segregation_fork_height;
 
     // if we have at least one rct out, get the distribution, or fall back to the previous system
-    std::vector<uint64_t> rct_offsets;
     uint64_t rct_start_height;
     bool has_rct = false;
-    bool use_global_outs = false;
     const std::string rct_asset_type = specific_transfers[selected_transfers[0]].asset_type; 
     uint64_t max_rct_index = 0;
     for (size_t idx: selected_transfers)
     {
       if (specific_transfers[idx].is_rct())
       {
-        // use_global_outs should either always be true or false, because the single rct distribution requested in get_rct_distribution below 
-        // will either be the distribution of all global outputs, or the distribution of outputs by asset type. This check makes
-        // sure the use_global_outs boolean will not be flipped when set in the next line.
-        THROW_WALLET_EXCEPTION_IF(has_rct && ((use_global_outs && specific_transfers[idx].m_asset_type_output_index_known) || (!use_global_outs && !specific_transfers[idx].m_asset_type_output_index_known)),
-          error::wallet_internal_error, "Mismatch of global outputs and asset type outputs");
-
         has_rct = true;
-        use_global_outs = !specific_transfers[idx].m_asset_type_output_index_known;
-        uint64_t rct_index = use_global_outs ? specific_transfers[idx].m_global_output_index : specific_transfers[idx].m_asset_type_output_index;
-        max_rct_index = std::max(max_rct_index, rct_index);
+        max_rct_index = std::max(max_rct_index, specific_transfers[idx].m_asset_type_output_index);
       }
     }
 
-    // rct_offsets is a vector, where each position in the vector corresponds to a block number, in order.
-    // Each element in the vector is the cumulative total number of outputs from that block number and below.
-    // It is strictly increasing.
-    // 
-    // For example, rct_offsets might look like this: [5, 12, 15]
-    // 
-    // This would mean that there are 5 outputs in block 0, there are 7 outputs in block 1, and 3 outputs in block 2
-    // 
-    // When use_global_outs is false, each element corresponds to the cumulative total number of outputs of a particular asset 
-    // type from that block number and below. The client will then use these to select fake outputs using asset type output id's.
-    // In the example above, even if there were 100 ZEPH outputs in block 0, the ZEPHUSD rct_offsets could still be: [5, 12, 15]
-    // 
-    // When use_global_outs is true, each element corresponds to the cumulative total number of all outputs. The client will then
-    // make selections of outputs using global outputs, potentially revealing which input is the user's in the ring (e.g.
-    // if the tx is an ZEPHRSV transfer, and the ring has 10 ZEPH outputs in it and 1 ZEPHRSV output, this reveals the user's real output).
-    // use_global_outs should only be true when connected to a node < v17. Eventually it should never be true, when nodes 
-    // require users to use rings constructed with outputs of the same asset type.
+    THROW_WALLET_EXCEPTION_IF(!has_rct, error::get_output_distribution, "No rct outputs found");
 
-    const bool has_rct_distribution = has_rct && (!rct_offsets.empty() || get_rct_distribution(use_global_outs, rct_asset_type, rct_start_height, rct_offsets, num_spendable_global_outs));
-    
-    THROW_WALLET_EXCEPTION_IF(!has_rct_distribution,
-        error::get_output_distribution, "Failed to get rct distribution");
-
+    if (rct_offsets.empty()) {
+      THROW_WALLET_EXCEPTION_IF(!get_rct_distribution(rct_asset_type, rct_start_height, rct_offsets, num_spendable_global_outs),
+          error::get_output_distribution, "Could not obtain output distribution.");
+    }
 
     // check we're clear enough of rct start, to avoid corner cases below
     THROW_WALLET_EXCEPTION_IF(rct_offsets.size() < std::max(1, CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE),
@@ -8428,7 +8387,7 @@ void wallet2::get_outs(const transfer_container &specific_transfers, std::vector
     // request histogram for all pre-rct outputs
     req_t.amounts.reserve(selected_transfers.size());
     for(size_t idx: selected_transfers)
-      if (!specific_transfers[idx].is_rct() || !has_rct_distribution)
+      if (!specific_transfers[idx].is_rct())
         req_t.amounts.push_back(specific_transfers[idx].is_rct() ? 0 : specific_transfers[idx].amount());
     if (!req_t.amounts.empty())
     {
@@ -8522,8 +8481,7 @@ void wallet2::get_outs(const transfer_container &specific_transfers, std::vector
     COMMAND_RPC_GET_OUTPUTS_BIN::response daemon_resp = AUTO_VAL_INIT(daemon_resp);
 
     std::unique_ptr<gamma_picker> gamma;
-    if (has_rct_distribution)
-      gamma.reset(new gamma_picker(rct_offsets));
+    gamma.reset(new gamma_picker(rct_offsets));
 
     size_t num_selected_transfers = 0;
     req.outputs.reserve(selected_transfers.size() * (base_requested_outputs_count + CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW));
@@ -8537,7 +8495,7 @@ void wallet2::get_outs(const transfer_container &specific_transfers, std::vector
       // request more for rct in base recent (locked) coinbases are picked, since they're locked for longer
       size_t requested_outputs_count = base_requested_outputs_count + (td.is_rct() ? CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW - CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE : 0);
       size_t start = req.outputs.size();
-      bool use_histogram = amount != 0 || !has_rct_distribution;
+      bool use_histogram = amount != 0;
 
       const bool output_is_pre_fork = td.m_block_height < segregation_fork_height;
       uint64_t num_outs = 0, num_recent_outs = 0;
@@ -8609,13 +8567,8 @@ void wallet2::get_outs(const transfer_container &specific_transfers, std::vector
         THROW_WALLET_EXCEPTION_IF(num_outs == 0, error::wallet_internal_error,
             "histogram reports no unlocked rct outputs, not even ours");
 
-        // When num_spendable_global_outs is set, it means num_outs is the number of spendable outputs of a particular asset type.
-        // There can't possibly be more spendable outputs of a particular type than the global set of all spendable outputs
-        THROW_WALLET_EXCEPTION_IF(!use_global_outs && num_spendable_global_outs < num_outs, error::get_output_distribution, 
+        THROW_WALLET_EXCEPTION_IF(num_spendable_global_outs < num_outs, error::get_output_distribution,
             "Daemon reports too few global outputs");
-
-        if (use_global_outs)
-          num_spendable_global_outs = num_outs;
       }
 
       // how many fake outs to draw on a pre-fork distribution
@@ -8711,11 +8664,9 @@ void wallet2::get_outs(const transfer_container &specific_transfers, std::vector
         if (num_found == 0)
         {
           num_found = 1;
-          uint64_t o_index = use_global_outs ? td.m_global_output_index : td.m_asset_type_output_index;
-
-          seen_indices.emplace(o_index);
-          req.outputs.push_back({amount, o_index});
-          LOG_PRINT_L1("Selecting real output: " << o_index << " for " << print_money(amount));
+          seen_indices.emplace(td.m_asset_type_output_index);
+          req.outputs.push_back({amount, td.m_asset_type_output_index});
+          LOG_PRINT_L1("Selecting real output: " << td.m_asset_type_output_index << " for " << print_money(amount));
         }
 
         std::unordered_map<const char*, std::set<uint64_t>> picks;
@@ -8747,7 +8698,7 @@ void wallet2::get_outs(const transfer_container &specific_transfers, std::vector
 
           uint64_t i;
           const char *type = "";
-          if (amount == 0 && has_rct_distribution)
+          if (amount == 0)
           {
             THROW_WALLET_EXCEPTION_IF(!gamma, error::wallet_internal_error, "No gamma picker");
             // gamma distribution
@@ -8867,8 +8818,7 @@ void wallet2::get_outs(const transfer_container &specific_transfers, std::vector
       COMMAND_RPC_GET_OUTPUTS_BIN::request chunk_req = AUTO_VAL_INIT(chunk_req);
       COMMAND_RPC_GET_OUTPUTS_BIN::response chunk_daemon_resp = AUTO_VAL_INIT(chunk_daemon_resp);
       chunk_req.get_txid = false;
-      if (!use_global_outs)
-        chunk_req.asset_type = rct_asset_type;
+      chunk_req.asset_type = rct_asset_type;
       const size_t this_chunk_size = std::min<size_t>(req.outputs.size() - offset, chunk_size);
       chunk_req.outputs.reserve(this_chunk_size);
       for (size_t i = 0; i < this_chunk_size; ++i)
@@ -8910,7 +8860,7 @@ void wallet2::get_outs(const transfer_container &specific_transfers, std::vector
           break;
         }
       }
-      bool use_histogram = amount != 0 || !has_rct_distribution;
+      bool use_histogram = amount != 0;
       if (!use_histogram)
         num_outs = gamma->get_num_rct_outs();
 
@@ -8923,10 +8873,11 @@ void wallet2::get_outs(const transfer_container &specific_transfers, std::vector
       for (size_t n = 0; n < requested_outputs_count; ++n)
       {
         size_t i = base + n;
-        if ((use_global_outs ? req.outputs[i].index : daemon_resp.outs[i].output_id) == td.m_global_output_index)
+        if (daemon_resp.outs[i].output_id == td.m_global_output_index)
           if (daemon_resp.outs[i].key == td.get_public_key())
-            if (daemon_resp.outs[i].unlocked)
-              real_out_found = true;
+            if (daemon_resp.outs[i].mask == mask)
+              if (daemon_resp.outs[i].unlocked)
+                real_out_found = true;
       }
       THROW_WALLET_EXCEPTION_IF(!real_out_found, error::wallet_internal_error,
           "Daemon response did not include the requested real output");
@@ -8978,8 +8929,7 @@ void wallet2::get_outs(const transfer_container &specific_transfers, std::vector
       for (size_t o = 0; o < requested_outputs_count && outs.back().size() < fake_outputs_count + 1; ++o)
       {
         size_t i = base + order[o];
-        LOG_PRINT_L2("Index " << i << "/" << requested_outputs_count << ": idx " << (use_global_outs ? req.outputs[i].index : daemon_resp.outs[i].output_id) << " (real " << td.m_global_output_index << "), unlocked " << daemon_resp.outs[i].unlocked << ", key " << daemon_resp.outs[i].key);
-        tx_add_fake_output(outs, (use_global_outs ? req.outputs[i].index : daemon_resp.outs[i].output_id), daemon_resp.outs[i].key, daemon_resp.outs[i].mask, td.m_global_output_index, daemon_resp.outs[i].unlocked, valid_public_keys_cache);
+        tx_add_fake_output(outs, daemon_resp.outs[i].output_id, daemon_resp.outs[i].key, daemon_resp.outs[i].mask, td.m_global_output_index, daemon_resp.outs[i].unlocked, valid_public_keys_cache);
       }
       if (outs.back().size() < fake_outputs_count + 1)
       {

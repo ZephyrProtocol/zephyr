@@ -1428,6 +1428,19 @@ public:
    */
   virtual uint64_t get_num_outputs(const uint64_t& amount) const = 0;
 
+  // returns the total number of outputs for asset <asset_type>
+  /**
+   * @brief fetches the number of outputs of a given asset type
+   *
+   * The subclass should return a count of outputs of the given asset type,
+   * or zero if there are none.
+   *
+   * @param asset_type the asset type to look up
+   *
+   * @return the number of outputs of the given asset type
+   */
+  virtual uint64_t get_num_outputs_of_asset_type(const std::string asset_type) const = 0;
+
   /**
    * @brief return index of the first element (should be hidden, but isn't)
    *
@@ -1464,6 +1477,17 @@ public:
    * @param offsets return-by-reference list of outputs' global id
   */
   virtual void get_output_id_from_asset_type_output_index(const std::string asset_type, const std::vector<uint64_t> &asset_type_output_indices, std::vector<uint64_t> &output_indices) const = 0;
+
+  /**
+   * @brief gets output id for an asset type output index
+   *
+   * This function returns a global output id
+   * for a single asset type output index.
+   *
+   * @param asset_type
+   * @param asset_type_output_index asset type output index to retrieve output id for
+  */
+  virtual uint64_t get_output_id_from_asset_type_output_index(const std::string asset_type, const uint64_t &asset_type_output_index) const = 0;
 
 
   /**

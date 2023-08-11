@@ -2373,22 +2373,25 @@ size_t Blockchain::get_alternative_blocks_count() const
 //------------------------------------------------------------------
 // This function adds the output specified by <amount, i> to the result_outs container
 // unlocked and other such checks should be done by here.
-uint64_t Blockchain::get_num_mature_outputs(uint64_t amount) const
+uint64_t Blockchain::get_num_mature_outputs(const std::string asset_type) const
 {
-  uint64_t num_outs = m_db->get_num_outputs(amount);
+  uint64_t num_outs_of_asset_type = m_db->get_num_outputs_of_asset_type(asset_type);
+
   // ensure we don't include outputs that aren't yet eligible to be used
   // outpouts are sorted by height
   const uint64_t blockchain_height = m_db->height();
-  while (num_outs > 0)
+  while (num_outs_of_asset_type > 0)
   {
-    const tx_out_index toi = m_db->get_output_tx_and_index(amount, num_outs - 1);
+    uint64_t output_id = m_db->get_output_id_from_asset_type_output_index(asset_type, num_outs_of_asset_type - 1);
+    const tx_out_index toi = m_db->get_output_tx_and_index_from_global(output_id);
+
     const uint64_t height = m_db->get_tx_block_height(toi.first);
     if (height + CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE <= blockchain_height)
       break;
-    --num_outs;
+    --num_outs_of_asset_type;
   }
 
-  return num_outs;
+  return num_outs_of_asset_type;
 }
 
 crypto::public_key Blockchain::get_output_key(uint64_t amount, uint64_t global_index) const

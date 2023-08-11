@@ -763,7 +763,6 @@ namespace cryptonote
             cryptonote::rpc::tx_asset_type_output_indices tx_asset_type_output_indices;
             for (size_t j = 0; j < indices[i].size(); ++j)
             {
-              LOG_PRINT_L2("index: " << i << ", " << j);
               tx_indices.push_back(indices[i][j].first);
               tx_asset_type_output_indices.push_back(indices[i][j].second);
             }
@@ -1350,7 +1349,15 @@ namespace cryptonote
       return true;
     }
 
-    if (req.do_sanity_checks && !cryptonote::tx_sanity_check(tx_blob, m_core.get_blockchain_storage().get_num_mature_outputs(0)))
+    std::string input_asset;
+    if (req.do_sanity_checks && !cryptonote::tx_sanity_check_input_asset_type(tx_blob, input_asset)) {
+      res.status = "Failed";
+      res.reason = "Sanity check for input asset type failed";
+      res.sanity_check_failed = true;
+      return true;
+    }
+
+    if (req.do_sanity_checks && !cryptonote::tx_sanity_check(tx_blob, m_core.get_blockchain_storage().get_num_mature_outputs(input_asset)))
     {
       res.status = "Failed";
       res.reason = "Sanity check failed";

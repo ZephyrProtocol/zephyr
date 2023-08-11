@@ -264,7 +264,7 @@ namespace cryptonote
         KV_SERIALIZE(start_height)
         KV_SERIALIZE(current_height)
         KV_SERIALIZE(output_indices)
-        KV_SERIALIZE(asset_type_output_indices) // OPT flag?
+        KV_SERIALIZE(asset_type_output_indices)
         KV_SERIALIZE_OPT(daemon_time, (uint64_t) 0)
         KV_SERIALIZE_OPT(pool_info_extent, (uint8_t) 0)
         if (pool_info_extent != POOL_INFO_EXTENT::NONE)
@@ -558,7 +558,7 @@ namespace cryptonote
         KV_SERIALIZE_PARENT(rpc_access_request_base)
         KV_SERIALIZE(outputs)
         KV_SERIALIZE_OPT(get_txid, true)
-        KV_SERIALIZE(asset_type) // OPT flag?
+        KV_SERIALIZE(asset_type)
       END_KV_SERIALIZE_MAP()
     };
     typedef epee::misc_utils::struct_init<request_t> request;
@@ -2560,7 +2560,7 @@ namespace cryptonote
         KV_SERIALIZE(amounts)
         KV_SERIALIZE_OPT(from_height, (uint64_t)0)
         KV_SERIALIZE_OPT(to_height, (uint64_t)0)
-        KV_SERIALIZE(rct_asset_type) // OPT flag needed?
+        KV_SERIALIZE(rct_asset_type)
         KV_SERIALIZE_OPT(cumulative, false)
         KV_SERIALIZE_OPT(binary, true)
         KV_SERIALIZE_OPT(compress, false)

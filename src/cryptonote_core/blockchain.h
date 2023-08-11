@@ -523,13 +523,13 @@ namespace cryptonote
     bool handle_get_objects(NOTIFY_REQUEST_GET_OBJECTS::request& arg, NOTIFY_RESPONSE_GET_OBJECTS::request& rsp);
 
     /**
-     * @brief get number of outputs of an amount past the minimum spendable age
+     * @brief get number of outputs of an asset type past the minimum spendable age
      *
-     * @param amount the output amount
+     * @param asset_type the asset type to query
      *
-     * @return the number of mature outputs
+     * @return the number of mature outputs of the asset type
      */
-    uint64_t get_num_mature_outputs(uint64_t amount) const;
+    uint64_t get_num_mature_outputs(const std::string asset_type) const;
 
     /**
      * @brief get the public key for an output

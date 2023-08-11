@@ -198,10 +198,11 @@ namespace
  * txs_prunable_hash txn ID      prunable txn hash
  * txs_prunable_tip txn ID       height
  * tx_indices       txn hash     {txn ID, metadata}
- * tx_outputs       txn ID       [txn amount output indices]
+ * tx_outputs       txn ID       [{txn amount output indices, txn asset type output indices}]
  *
  * output_txs       output ID    {txn hash, local index}
  * output_amounts   amount       [{amount output index, metadata}...]
+ * output_types     asset_type   [{asset type output index, output id}]
  *
  * spent_keys       input hash   -
  *
@@ -1082,7 +1083,6 @@ uint64_t BlockchainLMDB::add_transaction_data(const crypto::hash& blk_hash, cons
     throw0(DB_ERROR("Failed to add tx circulating supply to db transaction: get_tx_asset_types fails."));
   }
 
-  // NEAC : check for presence of oracle TX to see if we need to update circulating supply information
   if (strSource != strDest) {  
     // Conversion TX - update our records
     circ_supply cs;
@@ -1097,8 +1097,6 @@ uint64_t BlockchainLMDB::add_transaction_data(const crypto::hash& blk_hash, cons
     result = mdb_cursor_put(m_cur_circ_supply, &val_tx_id, &val_circ_supply, MDB_APPEND);
     if (result)
       throw0(DB_ERROR(  lmdb_error("Failed to add tx circulating supply to db transaction: ", result).c_str()  ));
-
-    // update the tally table as well
 
     // Get the current tally value for the source currency type
     MDB_val_copy<uint64_t> source_idx(cs.source_currency_type);
@@ -2865,10 +2863,7 @@ std::pair<std::vector<uint64_t>, uint64_t> BlockchainLMDB::get_block_cumulative_
     }
     const mdb_block_info *bi = ((const mdb_block_info *)v.mv_data) + (height - range_begin);
 
-    // if no asset type is provided in the request, an old client is requesting the cumulative outputs,
-    // and is expecting the global output distribution that isn't bucketed by asset type in response
-    res.push_back(asset_type.empty() ? bi->bi_cum_rct : bi->bi_cum_rct_by_asset_type[asset_type]);
-
+    res.push_back(bi->bi_cum_rct_by_asset_type[asset_type]);
     if (height == heights[heights.size() - CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE])
       num_spendable_global_outs = bi->bi_cum_rct;
 
@@ -3759,6 +3754,32 @@ uint64_t BlockchainLMDB::get_num_outputs(const uint64_t& amount) const
   return num_elems;
 }
 
+uint64_t BlockchainLMDB::get_num_outputs_of_asset_type(const std::string asset_type) const
+{
+  LOG_PRINT_L3("BlockchainLMDB::" << __func__);
+  check_open();
+
+  TXN_PREFIX_RDONLY();
+  RCURSOR(output_types);
+
+  MDB_val_copy<const char *> k(asset_type.c_str());
+  MDB_val v;
+  mdb_size_t num_outputs_of_asset_type = 0;
+  auto result = mdb_cursor_get(m_cur_output_types, &k, &v, MDB_SET);
+  if (!result)
+    {
+      result = mdb_cursor_count(m_cur_output_types, &num_outputs_of_asset_type);
+      if (result)
+        throw0(DB_ERROR(std::string("Failed to get number of outputs for type: ").append(mdb_strerror(result)).c_str()));
+    }
+  else if (result != MDB_NOTFOUND)
+    throw0(DB_ERROR(lmdb_error("DB error attempting to get number of outputs of asset type: ", result).c_str()));
+
+  TXN_POSTFIX_RDONLY();
+
+  return num_outputs_of_asset_type;
+}
+
 output_data_t BlockchainLMDB::get_output_key(const uint64_t& amount, const uint64_t& index, bool include_commitmemt) const
 {
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
@@ -3813,7 +3834,7 @@ void BlockchainLMDB::get_output_id_from_asset_type_output_index(const std::strin
     auto get_result = mdb_cursor_get(m_cur_output_types, &k_type, &v, MDB_GET_BOTH);
     if (get_result == MDB_NOTFOUND)
     {
-      throw1(OUTPUT_DNE((std::string("Attempting to get output id by asset type output id (asset type " + asset_type + " asset type ouput id " + boost::lexical_cast<std::string>(asset_type_output_indices[i]) + "), but key does not exist (current height " + boost::lexical_cast<std::string>(height()) + ")").c_str())));
+      throw1(OUTPUT_DNE((std::string("Attempting to get output id by asset type output id (asset type " + asset_type + " asset type output id " + boost::lexical_cast<std::string>(asset_type_output_indices[i]) + "), but key does not exist (current height " + boost::lexical_cast<std::string>(height()) + ")").c_str())));
     }
     else if (get_result)
       throw0(DB_ERROR(lmdb_error("Error attempting to retrieve an output id by asset type output id from the db", get_result).c_str()));
@@ -3823,6 +3844,31 @@ void BlockchainLMDB::get_output_id_from_asset_type_output_index(const std::strin
   }
 
   TXN_POSTFIX_RDONLY();
+}
+
+uint64_t BlockchainLMDB::get_output_id_from_asset_type_output_index(const std::string asset_type, const uint64_t &asset_type_output_index) const
+{
+  LOG_PRINT_L3("BlockchainLMDB::" << __func__);
+  check_open();
+
+  TXN_PREFIX_RDONLY();
+  RCURSOR(output_types);
+
+  MDB_val_copy<const char *> k_type(asset_type.c_str());
+  MDB_val_set(v, asset_type_output_index);
+
+  auto get_result = mdb_cursor_get(m_cur_output_types, &k_type, &v, MDB_GET_BOTH);
+  if (get_result == MDB_NOTFOUND)
+  {
+    throw1(OUTPUT_DNE((std::string("Attempting to get output id by asset type output id (asset type " + asset_type + " asset type output id " + boost::lexical_cast<std::string>(asset_type_output_index) + "), but key does not exist (current height " + boost::lexical_cast<std::string>(height()) + ")").c_str())));
+  }
+  else if (get_result)
+    throw0(DB_ERROR(lmdb_error("Error attempting to retrieve an output id by asset type output id from the db", get_result).c_str()));
+
+  const outassettype *oat = (const outassettype *)v.mv_data;
+
+  TXN_POSTFIX_RDONLY();
+  return oat->output_id;
 }
 
 tx_out_index BlockchainLMDB::get_output_tx_and_index_from_global(const uint64_t& output_id) const

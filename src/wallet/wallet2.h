@@ -326,7 +326,6 @@ private:
       uint64_t m_internal_output_index;
       uint64_t m_global_output_index;
       uint64_t m_asset_type_output_index;
-      bool m_asset_type_output_index_known;
       bool m_spent;
       bool m_frozen;
       uint64_t m_spent_height;
@@ -362,7 +361,6 @@ private:
         FIELD(m_internal_output_index)
         FIELD(m_global_output_index)
         FIELD(m_asset_type_output_index)
-        FIELD(m_asset_type_output_index_known)
         FIELD(m_spent)
         FIELD(m_frozen)
         FIELD(m_spent_height)
@@ -1765,7 +1763,7 @@ private:
     bool is_spent(const transfer_details &td, bool strict = true) const;
     bool is_spent(const std::string& asset_type, size_t idx, bool strict = true) const;
     void get_outs(const transfer_container &specific_transfers, std::vector<std::vector<get_outs_entry>> &outs, const std::vector<size_t> &selected_transfers, size_t fake_outputs_count, bool rct, std::unordered_set<crypto::public_key> &valid_public_keys_cache);
-    void get_outs(const transfer_container &specific_transfers, std::vector<std::vector<get_outs_entry>> &outs, const std::vector<size_t> &selected_transfers, size_t fake_outputs_count, uint64_t &num_spendable_global_outs, uint64_t &num_outs, std::unordered_set<crypto::public_key> &valid_public_keys_cache);
+    void get_outs(const transfer_container &specific_transfers, std::vector<std::vector<get_outs_entry>> &outs, const std::vector<size_t> &selected_transfers, size_t fake_outputs_count, std::vector<uint64_t> &rct_offsets, uint64_t &num_spendable_global_outs, std::unordered_set<crypto::public_key> &valid_public_keys_cache);
     bool tx_add_fake_output(std::vector<std::vector<tools::wallet2::get_outs_entry>> &outs, uint64_t global_index, const crypto::public_key& tx_public_key, const rct::key& mask, uint64_t real_index, bool unlocked, std::unordered_set<crypto::public_key> &valid_public_keys_cache) const;
     bool should_pick_a_second_output(bool use_rct, size_t n_transfers, const std::vector<size_t> &unused_transfers_indices, const std::vector<size_t> &unused_dust_indices, const transfer_container &specific_transfers) const;
     std::vector<size_t> get_only_rct(const std::vector<size_t> &unused_dust_indices, const std::vector<size_t> &unused_transfers_indices, const transfer_container &specific_transfers) const;
@@ -1787,7 +1785,7 @@ private:
     void register_devices();
     hw::device& lookup_device(const std::string & device_descriptor);
 
-    bool get_rct_distribution(const bool use_global_outs, const std::string rct_asset_type, uint64_t &start_height, std::vector<uint64_t> &distribution, uint64_t &num_spendable_global_outs);
+    bool get_rct_distribution(const std::string rct_asset_type, uint64_t &start_height, std::vector<uint64_t> &distribution, uint64_t &num_spendable_global_outs);
 
     uint64_t get_segregation_fork_height() const;
 

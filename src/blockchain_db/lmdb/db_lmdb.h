@@ -283,11 +283,13 @@ public:
   virtual uint64_t get_tx_block_height(const crypto::hash& h) const;
 
   virtual uint64_t get_num_outputs(const uint64_t& amount) const;
+  virtual uint64_t get_num_outputs_of_asset_type(const std::string asset_type) const;
 
   virtual output_data_t get_output_key(const uint64_t& amount, const uint64_t& index, bool include_commitmemt) const;
   virtual void get_output_key(const epee::span<const uint64_t> &amounts, const std::vector<uint64_t> &offsets, std::vector<output_data_t> &outputs, bool allow_partial = false) const;
 
   virtual void get_output_id_from_asset_type_output_index(const std::string asset_type, const std::vector<uint64_t> &asset_type_output_indices, std::vector<uint64_t> &output_indices) const;
+  virtual uint64_t get_output_id_from_asset_type_output_index(const std::string asset_type, const uint64_t &asset_type_output_index) const;
 
   virtual tx_out_index get_output_tx_and_index_from_global(const uint64_t& index) const;
   virtual void get_output_tx_and_index_from_global(const std::vector<uint64_t> &global_indices,
