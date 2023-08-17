@@ -180,7 +180,7 @@ namespace rct {
     xmr_amount decodeRctSimple(const rctSig & rv, const key & sk, unsigned int i, hw::device &hwdev);
     key get_pre_mlsag_hash(const rctSig &rv, hw::device &hwdev);
 
-    bool checkBurntAndMinted(const rctSig &rv, const xmr_amount amount_burnt, const xmr_amount amount_minted, const oracle::pricing_record pr, const std::string& source, const std::string& destination, const uint8_t version);
+    bool validateMintedAmount(const rctSig &rv, const xmr_amount amount_burnt, const xmr_amount amount_minted, const oracle::pricing_record pr, const std::string& source, const std::string& destination, const uint8_t version);
 }
 #endif  /* RCTSIGS_H */
 

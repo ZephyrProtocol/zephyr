@@ -1848,7 +1848,7 @@ namespace rct {
       return decodeRctSimple(rv, sk, i, mask, hwdev);
     }
 
-    bool checkBurntAndMinted(const rctSig &rv, const xmr_amount amount_burnt, const xmr_amount amount_minted, const oracle::pricing_record pr, const std::string& source, const std::string& destination, const uint8_t version) {
+    bool validateMintedAmount(const rctSig &rv, const xmr_amount amount_burnt, const xmr_amount amount_minted, const oracle::pricing_record pr, const std::string& source, const std::string& destination, const uint8_t version) {
       if (source == "ZEPH" && destination == "ZEPHUSD") {
         boost::multiprecision::uint128_t zeph_128 = amount_burnt;
         boost::multiprecision::uint128_t exchange_128 = std::max(pr.stable, pr.stable_ma);

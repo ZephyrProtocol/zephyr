@@ -562,6 +562,12 @@ namespace cryptonote
   //---------------------------------------------------------------
   bool reserve_ratio_satisfied(const std::vector<std::pair<std::string, std::string>>& circ_amounts, const oracle::pricing_record& pr, const transaction_type& tx_type, multiprecision::int128_t tally_zeph, multiprecision::int128_t tally_stables, multiprecision::int128_t tally_reserves, std::string& error_reason)
   {
+    if (pr.has_missing_rates()) {
+      error_reason = "Reserve ratio cannot be calculated. Pricing record is missing rates.";
+      LOG_ERROR(error_reason);
+      return false;
+    }
+
     multiprecision::uint128_t zeph_reserve, num_stables, num_reserves;
     get_circulating_asset_amounts(circ_amounts, zeph_reserve, num_stables, num_reserves);
 

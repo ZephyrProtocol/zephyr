@@ -4538,6 +4538,12 @@ leave:
         goto leave;
       }
 
+      if (!rct::validateMintedAmount(tx.rct_signatures, tx.amount_burnt, tx.amount_minted, pr_bl.pricing_record, source, dest, hf_version)) {
+        LOG_PRINT_L1(" validateMintedAmount failed: burnt = " << tx.amount_burnt << ", minted = " << tx.amount_minted);
+        bvc.m_verifivation_failed = true;
+        goto leave;
+      }
+
       // make sure proof-of-value still holds
       if (!rct::verRctSemanticsSimple(tx.rct_signatures, pr_bl.pricing_record, circ_supply, tx_type, source, dest, tx.amount_burnt, tx.vout, tx.vin, hf_version))
       {

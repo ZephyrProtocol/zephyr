@@ -257,7 +257,7 @@ namespace cryptonote
       }
 
       // Check the amount burnt and minted
-      if (!rct::checkBurntAndMinted(tx.rct_signatures, tx.amount_burnt, tx.amount_minted, tvc.pr, source, dest, version)) {
+      if (!rct::validateMintedAmount(tx.rct_signatures, tx.amount_burnt, tx.amount_minted, tvc.pr, source, dest, version)) {
         LOG_PRINT_L1("amount burnt / minted is incorrect: burnt = " << tx.amount_burnt << ", minted = " << tx.amount_minted);
         tvc.m_verifivation_failed = true;
         return false;
