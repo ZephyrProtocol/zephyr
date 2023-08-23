@@ -180,7 +180,7 @@ namespace cryptonote
 
     bool locked_transfer(const std::vector<std::string> &args);
     bool locked_sweep_all(const std::vector<std::string> &args);
-    bool sweep_main(uint32_t account, uint64_t below, bool locked, const std::vector<std::string> &args);
+    bool sweep_main(uint32_t account, uint64_t below, bool locked, const std::string& source_asset, const std::string& dest_asset, const std::vector<std::string> &args);
     bool sweep_all(const std::vector<std::string> &args);
     bool sweep_account(const std::vector<std::string> &args);
     bool sweep_below(const std::vector<std::string> &args);
@@ -191,6 +191,11 @@ namespace cryptonote
     bool stable_sweep_below(const std::vector<std::string> &args);
     bool reserve_sweep_all(const std::vector<std::string> &args);
     bool reserve_sweep_below(const std::vector<std::string> &args);
+
+    bool mint_stable_sweep_all(const std::vector<std::string> &args);
+    bool redeem_stable_sweep_all(const std::vector<std::string> &args);
+    bool mint_reserve_sweep_all(const std::vector<std::string> &args);
+    bool redeem_reserve_sweep_all(const std::vector<std::string> &args);
 
     bool donate(const std::vector<std::string> &args);
     bool sign_transfer(const std::vector<std::string> &args);

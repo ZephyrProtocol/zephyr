@@ -197,6 +197,12 @@ namespace
   const char* USAGE_SWEEP_BELOW("sweep_below <amount_threshold> [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] <address> [<payment_id (obsolete)>]");
   const char* USAGE_SWEEP_SINGLE("sweep_single [<priority>] [<ring_size>] [outputs=<N>] <key_image> <address> [<payment_id (obsolete)>]");
 
+  const char* USAGE_MINT_STABLE_SWEEP_ALL("mint_stable_sweep_all [index=<N1>[,<N2>,...] | index=all] [<priority>] [<ring_size>] [outputs=<N>] <address> [<payment_id (obsolete)>]");
+  const char* USAGE_REDEEM_STABLE_SWEEP_ALL("redeem_stable_sweep_all [index=<N1>[,<N2>,...] | index=all] [<priority>] [<ring_size>] [outputs=<N>] <address> [<payment_id (obsolete)>]");
+
+  const char* USAGE_MINT_RESERVE_SWEEP_ALL("mint_reserve_sweep_all [index=<N1>[,<N2>,...] | index=all] [<priority>] [<ring_size>] [outputs=<N>] <address> [<payment_id (obsolete)>]");
+  const char* USAGE_REDEEM_RESERVE_SWEEP_ALL("redeem_reserve_sweep_all [index=<N1>[,<N2>,...] | index=all] [<priority>] [<ring_size>] [outputs=<N>] <address> [<payment_id (obsolete)>]");
+
   const char* USAGE_STABLE_SWEEP_ALL("stable_sweep_all [index=<N1>[,<N2>,...] | index=all] [<priority>] [<ring_size>] [outputs=<N>] <address> [<payment_id (obsolete)>]");
   const char* USAGE_STABLE_SWEEP_BELOW("stable_sweep_below <amount_threshold> [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] <address> [<payment_id (obsolete)>]");
   const char* USAGE_RESERVE_SWEEP_ALL("reserve_sweep_all [index=<N1>[,<N2>,...] | index=all] [<priority>] [<ring_size>] [outputs=<N>] <address> [<payment_id (obsolete)>]");
@@ -549,7 +555,7 @@ void simple_wallet::handle_transfer_exception(const std::exception_ptr &e, bool 
     }
     catch (const tools::error::deprecated_rpc_access&)
     {
-      fail_msg_writer() << tr("Daemon requires deprecated RPC payment. See https://github.com/zephyr-project/monero/issues/8722");
+      fail_msg_writer() << tr("Daemon requires deprecated RPC payment. See https://github.com/monero-project/monero/issues/8722");
     }
     catch (const tools::error::no_connection_to_daemon&)
     {
@@ -2258,7 +2264,6 @@ bool simple_wallet::reserve_transfer(const std::vector<std::string> &args_)
 
 bool simple_wallet::reserve_info(const std::vector<std::string> &args)
 {
-  // Get the current blockchain height
   uint64_t current_height = m_wallet->get_blockchain_current_height();
 
   // Get the pricing record for the current height
@@ -3069,14 +3074,22 @@ bool simple_wallet::help(const std::vector<std::string> &args/* = std::vector<st
     message_writer() << tr("\"transfer <address> <amount>\" - Send ZEPH to an address.");
     message_writer() << tr("\"stable_transfer <address> <amount>\" - Send ZEPHUSD to an address.");
     message_writer() << tr("\"reserve_transfer <address> <amount>\" - Send ZEPHRSV to an address.");
+
     message_writer() << tr("\"mint_stable <address> <amount_zeph>\" - Mint ZEPHUSD from ZEPH to an address.");
-    message_writer() << tr("\"redeem_stable <address> <amount_zephusd>\" - Redeem ZEPHUSD for ZEPH to an address.");
+    message_writer() << tr("\"mint_stable_sweep_all <address>\" - Mint ZEPHRSV from entire ZEPH balance to another wallet.");
     message_writer() << tr("\"mint_reserve <address> <amount_zeph>\" - Mint ZEPHRSV from ZEPH to an address.");
+    message_writer() << tr("\"mint_reserve_sweep_all <address>\" - Mint ZEPHRSV from entire ZEPH balance to another wallet.");
+
+    message_writer() << tr("\"redeem_stable <address> <amount_zephusd>\" - Redeem ZEPHUSD for ZEPH to an address.");
+    message_writer() << tr("\"redeem_stable_sweep_all <address>\" - Redeem entire ZEPHUSD balance for ZEPH to another wallet.");
     message_writer() << tr("\"redeem_reserve <address> <amount_zephrsv>\" - Redeem ZEPHRSV for ZEPH to an address.");
+    message_writer() << tr("\"redeem_reserve_sweep_all <address>\" - Redeem entire ZEPHRSV balance for ZEPH to another wallet.");
+
     message_writer() << tr("\"show_transfers [in|out|pending|failed|pool]\" - Show transactions.");
     message_writer() << tr("\"sweep_all <address>\" - Send whole ZEPH balance to another wallet.");
     message_writer() << tr("\"stable_sweep_all <address>\" - Send whole ZEPHUSD balance to another wallet.");
     message_writer() << tr("\"reserve_sweep_all <address>\" - Send whole ZEPHRSV balance to another wallet.");
+
     message_writer() << tr("\"seed\" - Show secret 25 words that can be used to recover this wallet.");
     message_writer() << tr("\"refresh\" - Synchronize wallet with the Zephyr network.");
     message_writer() << tr("\"status\" - Check current status of wallet.");
@@ -3258,6 +3271,24 @@ simple_wallet::simple_wallet()
                            boost::bind(&simple_wallet::on_command, this, &simple_wallet::reserve_sweep_below, _1),
                            tr(USAGE_RESERVE_SWEEP_BELOW),
                            tr("Send all unlocked ZephRSV outputs below the threshold to an address."));
+
+  m_cmd_binder.set_handler("mint_stable_sweep_all",
+                           boost::bind(&simple_wallet::mint_stable_sweep_all, this, _1),
+                           tr(USAGE_MINT_STABLE_SWEEP_ALL),
+                           tr("Convert all ZEPH balance into ZEPHUSD. If the parameter \"index=<N1>[,<N2>,...]\" or \"index=all\" is specified, the wallet sweeps outputs received by those or all address indices, respectively. If omitted, the wallet randomly chooses an address index to be used. If the parameter \"outputs=<N>\" is specified and  N > 0, wallet splits the transaction into N even outputs."));
+  m_cmd_binder.set_handler("mint_reserve_sweep_all",
+                           boost::bind(&simple_wallet::mint_reserve_sweep_all, this, _1),
+                           tr(USAGE_MINT_RESERVE_SWEEP_ALL),
+                           tr("Convert all ZEPH balance into ZEPHRSV. If the parameter \"index=<N1>[,<N2>,...]\" or \"index=all\" is specified, the wallet sweeps outputs received by those or all address indices, respectively. If omitted, the wallet randomly chooses an address index to be used. If the parameter \"outputs=<N>\" is specified and  N > 0, wallet splits the transaction into N even outputs."));
+
+  m_cmd_binder.set_handler("redeem_stable_sweep_all",
+                           boost::bind(&simple_wallet::redeem_stable_sweep_all, this, _1),
+                           tr(USAGE_REDEEM_STABLE_SWEEP_ALL),
+                           tr("Convert all ZEPHUSD balance into ZEPH. If the parameter \"index=<N1>[,<N2>,...]\" or \"index=all\" is specified, the wallet sweeps outputs received by those or all address indices, respectively. If omitted, the wallet randomly chooses an address index to be used. If the parameter \"outputs=<N>\" is specified and  N > 0, wallet splits the transaction into N even outputs."));
+  m_cmd_binder.set_handler("redeem_reserve_sweep_all",
+                           boost::bind(&simple_wallet::redeem_reserve_sweep_all, this, _1),
+                           tr(USAGE_REDEEM_RESERVE_SWEEP_ALL),
+                           tr("Convert all ZEPHRSV balance into ZEPH. If the parameter \"index=<N1>[,<N2>,...]\" or \"index=all\" is specified, the wallet sweeps outputs received by those or all address indices, respectively. If omitted, the wallet randomly chooses an address index to be used. If the parameter \"outputs=<N>\" is specified and  N > 0, wallet splits the transaction into N even outputs."));
 
   m_cmd_binder.set_handler("donate",
                            boost::bind(&simple_wallet::on_command, this, &simple_wallet::donate, _1),
@@ -6552,7 +6583,7 @@ bool simple_wallet::transfer_main(
   using tt = cryptonote::transaction_type;
   tt tx_type;
   if(!get_tx_type(source_asset, dest_asset, tx_type)) {
-    fail_msg_writer() << tr("fail to get tx asset types.");
+    fail_msg_writer() << tr("failed to get tx asset types.");
     return false;
   }
 
@@ -6790,14 +6821,6 @@ bool simple_wallet::transfer_main(
             prompt << tr("WARNING: Outputs of multiple addresses are being used together, which might potentially compromise your privacy.\n");
         }
 
-        oracle::pricing_record pr;
-        if (source_asset != dest_asset) {
-          bool b = m_wallet->get_pricing_record(pr, bc_height - 1);
-          if (!b) {
-            fail_msg_writer() << tr("Tx created but couldnt fetch  the pricing record for displayin of numbers");
-            return false;
-          }
-        }
         if (source_asset == dest_asset) {
           prompt << boost::format(tr("Sending %s %s.\n")) % print_money(total_sent) % source_asset;
         } else {
@@ -6819,7 +6842,6 @@ bool simple_wallet::transfer_main(
             break;
           }
         }
-
 
         if (ptx_vector.size() > 1)
         {
@@ -6981,7 +7003,7 @@ bool simple_wallet::locked_sweep_all(const std::vector<std::string> &args_)
     PRINT_USAGE(USAGE_LOCKED_SWEEP_ALL);
     return true;
   }
-  sweep_main(m_current_subaddress_account, 0, true, args_);
+  sweep_main(m_current_subaddress_account, 0, true, "ZEPH", "ZEPH", args_);
   return true;
 }
 //----------------------------------------------------------------------------------------------------
@@ -7093,34 +7115,48 @@ bool simple_wallet::sweep_unmixable(const std::vector<std::string> &args_)
   return true;
 }
 //----------------------------------------------------------------------------------------------------
-bool simple_wallet::sweep_main(uint32_t account, uint64_t below, bool locked, const std::vector<std::string> &args_)
-{
-  std::string asset_type = (args_.size() > 1) ? args_.back() : "ZEPH";
-  auto print_usage = [this, account, below, asset_type]()
+bool simple_wallet::sweep_main(
+  uint32_t account,
+  uint64_t below,
+  bool locked,
+  const std::string& source_asset,
+  const std::string& dest_asset,
+  const std::vector<std::string> &args_
+){
+  auto print_usage = [this, account, below, source_asset, dest_asset]()
   {
-    if (below)
-    {
-      if (asset_type == "ZEPHRSV") {
-        PRINT_USAGE(USAGE_RESERVE_SWEEP_BELOW);
-      } else if (asset_type == "ZEPHUSD") {
-        PRINT_USAGE(USAGE_STABLE_SWEEP_BELOW);
-      } else {
-        PRINT_USAGE(USAGE_SWEEP_BELOW);
-      }
-    }
-    else if (account == m_current_subaddress_account)
-    {
-      if (asset_type == "ZEPHRSV") {
-        PRINT_USAGE(USAGE_RESERVE_SWEEP_ALL);
-      } else if (asset_type == "ZEPHUSD") {
-        PRINT_USAGE(USAGE_STABLE_SWEEP_ALL);
-      } else {
-        PRINT_USAGE(USAGE_SWEEP_ALL);
-      }
-    }
-    else
-    {
+    if (!below && account != m_current_subaddress_account) {
       PRINT_USAGE(USAGE_SWEEP_ACCOUNT);
+    } else if (source_asset == dest_asset) {
+      if (source_asset == "ZEPHRSV") {
+        if (below) {
+          PRINT_USAGE(USAGE_RESERVE_SWEEP_BELOW);
+        } else {
+          PRINT_USAGE(USAGE_RESERVE_SWEEP_ALL);
+        }
+      } else if (source_asset == "ZEPHUSD") {
+        if (below) {
+          PRINT_USAGE(USAGE_STABLE_SWEEP_BELOW);
+        } else {
+          PRINT_USAGE(USAGE_STABLE_SWEEP_ALL);
+        }
+      } else {
+        if (below) {
+          PRINT_USAGE(USAGE_SWEEP_BELOW);
+        } else {
+          PRINT_USAGE(USAGE_SWEEP_ALL);
+        }
+      }
+    } else if (source_asset == "ZEPH" && dest_asset == "ZEPHUSD") {
+      PRINT_USAGE(USAGE_MINT_STABLE_SWEEP_ALL);
+    } else if (source_asset == "ZEPHUSD" && dest_asset == "ZEPH") {
+      PRINT_USAGE(USAGE_REDEEM_STABLE_SWEEP_ALL);
+    } else if (source_asset == "ZEPH" && dest_asset == "ZEPHRSV") {
+      PRINT_USAGE(USAGE_MINT_RESERVE_SWEEP_ALL);
+    } else if (source_asset == "ZEPHRSV" && dest_asset == "ZEPH") {
+      PRINT_USAGE(USAGE_REDEEM_RESERVE_SWEEP_ALL);
+    } else {
+      PRINT_USAGE(USAGE_SWEEP_ALL);
     }
   };
   if (args_.size() == 0)
@@ -7295,7 +7331,7 @@ bool simple_wallet::sweep_main(uint32_t account, uint64_t below, bool locked, co
   try
   {
     // figure out what tx will be necessary
-    auto ptx_vector = m_wallet->create_transactions_all(below, asset_type, info.address, info.is_subaddress, outputs, fake_outs_count, unlock_block /* unlock_time */, priority, extra, account, subaddr_indices);
+    auto ptx_vector = m_wallet->create_transactions_all(below, source_asset, dest_asset, info.address, info.is_subaddress, outputs, fake_outs_count, unlock_block /* unlock_time */, priority, extra, account, subaddr_indices);
 
     if (ptx_vector.empty())
     {
@@ -7303,20 +7339,24 @@ bool simple_wallet::sweep_main(uint32_t account, uint64_t below, bool locked, co
       return true;
     }
 
-    if (!prompt_if_old(asset_type, ptx_vector))
+    if (!prompt_if_old(source_asset, ptx_vector))
     {
       fail_msg_writer() << tr("transaction cancelled.");
       return false;
     }
 
     // give user total and fee, and prompt to confirm
-    uint64_t total_fee = 0, total_sent = 0;
+    uint64_t total_fee = 0, total_sent = 0, total_received = 0;
 
     for (size_t n = 0; n < ptx_vector.size(); ++n)
     {
       total_fee += ptx_vector[n].fee;
       for (auto i: ptx_vector[n].selected_transfers)
-        total_sent += m_wallet->get_transfer_details(asset_type, i).amount();
+        total_sent += m_wallet->get_transfer_details(source_asset, i).amount();
+
+      for (const auto& dt: ptx_vector[n].dests) {
+        total_received += dt.dest_amount;
+      }
     }
 
     std::ostringstream prompt;
@@ -7336,17 +7376,44 @@ bool simple_wallet::sweep_main(uint32_t account, uint64_t below, bool locked, co
     if (ptx_vector.size() > 1) {
       prompt << boost::format(tr("Sweeping %s %s in %llu transactions for a total fee of %s %s.  Is this okay?")) %
         print_money(total_sent) %
-        asset_type %
+        source_asset %
         ((unsigned long long)ptx_vector.size()) %
         print_money(total_fee) %
-        asset_type;
+        source_asset;
     }
     else {
-      prompt << boost::format(tr("Sweeping %s %s for a total fee of %s %s.  Is this okay?")) %
-        print_money(total_sent) %
-        asset_type %
-        print_money(total_fee) %
-        asset_type;
+      if (source_asset == dest_asset) {
+          prompt << boost::format(tr("Sweeping %s %s for a total fee of %s %s.  Is this okay?")) %
+            print_money(total_sent) %
+            source_asset %
+            print_money(total_fee) %
+            source_asset;
+        } else {
+          using tt = cryptonote::transaction_type;
+          tt tx_type;
+          if(!get_tx_type(source_asset, dest_asset, tx_type)) {
+            fail_msg_writer() << tr("failed to get tx asset types.");
+            return false;
+          }
+          switch (tx_type)
+          {
+            case tt::MINT_STABLE:
+              prompt << boost::format(tr("Minting %s ZEPHUSD for %s ZEPH. Total fee is %s %s.\n  Is this okay")) % print_money(total_received) % print_money(total_sent) % print_money(total_fee) % source_asset;
+              break;
+            case tt::REDEEM_STABLE:
+              prompt << boost::format(tr("Redeeming %s ZEPH for %s ZEPHUSD. Total fee is %s %s.\n  Is this okay?")) % print_money(total_received) % print_money(total_sent) % print_money(total_fee) % source_asset;
+              break;
+            case tt::MINT_RESERVE:
+              prompt << boost::format(tr("Minting %s ZEPHRSV for %s ZEPH. Total fee is %s %s.\n  Is this okay?")) % print_money(total_received) % print_money(total_sent) % print_money(total_fee) % source_asset;
+              break;
+            case tt::REDEEM_RESERVE:
+              prompt << boost::format(tr("Redeeming %s ZEPH for %s ZEPHRSV. Total fee is %s %s.\n  Is this okay?")) % print_money(total_received) % print_money(total_sent) % print_money(total_fee) % source_asset;
+              break;
+            default:
+              fail_msg_writer() << tr("Unknown transaction type.");
+              return false;
+          }
+        }
     }
     std::string accepted = input_line(prompt.str(), true);
     if (std::cin.eof())
@@ -7667,7 +7734,7 @@ bool simple_wallet::sweep_single(const std::vector<std::string> &args_)
 //----------------------------------------------------------------------------------------------------
 bool simple_wallet::sweep_all(const std::vector<std::string> &args_)
 {
-  sweep_main(m_current_subaddress_account, 0, false, args_);
+  sweep_main(m_current_subaddress_account, 0, false, "ZEPH", "ZEPH", args_);
   return true;
 }
 //----------------------------------------------------------------------------------------------------
@@ -7687,7 +7754,7 @@ bool simple_wallet::sweep_account(const std::vector<std::string> &args_)
   }
   local_args.erase(local_args.begin());
 
-  sweep_main(account, 0, false, local_args);
+  sweep_main(account, 0, false, "ZEPH", "ZEPH", local_args);
   return true;
 }
 //----------------------------------------------------------------------------------------------------
@@ -7705,15 +7772,13 @@ bool simple_wallet::sweep_below(const std::vector<std::string> &args_)
     fail_msg_writer() << tr("invalid amount threshold");
     return true;
   }
-  sweep_main(m_current_subaddress_account, below, false, std::vector<std::string>(++args_.begin(), args_.end()));
+  sweep_main(m_current_subaddress_account, below, false, "ZEPH", "ZEPH", std::vector<std::string>(++args_.begin(), args_.end()));
   return true;
 }
 //----------------------------------------------------------------------------------------------------
 bool simple_wallet::stable_sweep_all(const std::vector<std::string> &args_)
 {
-  auto local_args = args_;
-  local_args.push_back("ZEPHUSD");
-  return sweep_main(m_current_subaddress_account, 0, false, local_args);
+  return sweep_main(m_current_subaddress_account, 0, false, "ZEPHUSD", "ZEPHUSD", args_);
 }
 //----------------------------------------------------------------------------------------------------
 bool simple_wallet::stable_sweep_below(const std::vector<std::string> &args_)
@@ -7730,17 +7795,12 @@ bool simple_wallet::stable_sweep_below(const std::vector<std::string> &args_)
     fail_msg_writer() << tr("invalid amount threshold");
     return true;
   }
-  auto local_args = args_;
-  local_args.erase(local_args.begin());
-  local_args.push_back("ZEPHUSD");
-  return sweep_main(m_current_subaddress_account, below, false, local_args);
+  return sweep_main(m_current_subaddress_account, below, false, "ZEPHUSD", "ZEPHUSD", std::vector<std::string>(++args_.begin(), args_.end()));
 }
 //----------------------------------------------------------------------------------------------------
 bool simple_wallet::reserve_sweep_all(const std::vector<std::string> &args_)
 {
-  auto local_args = args_;
-  local_args.push_back("ZEPHRSV");
-  return sweep_main(m_current_subaddress_account, 0, false, local_args);
+  return sweep_main(m_current_subaddress_account, 0, false, "ZEPHRSV", "ZEPHRSV", args_);
 }
 //----------------------------------------------------------------------------------------------------
 bool simple_wallet::reserve_sweep_below(const std::vector<std::string> &args_)
@@ -7757,10 +7817,27 @@ bool simple_wallet::reserve_sweep_below(const std::vector<std::string> &args_)
     fail_msg_writer() << tr("invalid amount threshold");
     return true;
   }
-  auto local_args = args_;
-  local_args.erase(local_args.begin());
-  local_args.push_back("ZEPHRSV");
-  return sweep_main(m_current_subaddress_account, below, false, local_args);
+  return sweep_main(m_current_subaddress_account, below, false, "ZEPHRSV", "ZEPHRSV", std::vector<std::string>(++args_.begin(), args_.end()));
+}
+//----------------------------------------------------------------------------------------------------
+bool simple_wallet::mint_stable_sweep_all(const std::vector<std::string> &args_)
+{
+  return sweep_main(m_current_subaddress_account, 0, false, "ZEPH", "ZEPHUSD", args_);
+}
+//----------------------------------------------------------------------------------------------------
+bool simple_wallet::redeem_stable_sweep_all(const std::vector<std::string> &args_)
+{
+  return sweep_main(m_current_subaddress_account, 0, false, "ZEPHUSD", "ZEPH", args_);
+}
+//----------------------------------------------------------------------------------------------------
+bool simple_wallet::mint_reserve_sweep_all(const std::vector<std::string> &args_)
+{
+  return sweep_main(m_current_subaddress_account, 0, false, "ZEPH", "ZEPHRSV", args_);
+}
+//----------------------------------------------------------------------------------------------------
+bool simple_wallet::redeem_reserve_sweep_all(const std::vector<std::string> &args_)
+{
+  return sweep_main(m_current_subaddress_account, 0, false, "ZEPHRSV", "ZEPH", args_);
 }
 //----------------------------------------------------------------------------------------------------
 bool simple_wallet::donate(const std::vector<std::string> &args_)

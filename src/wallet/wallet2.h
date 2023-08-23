@@ -1125,7 +1125,8 @@ private:
     );     
     std::vector<wallet2::pending_tx> create_transactions_all(
       uint64_t below,
-      const std::string &asset_type,
+      const std::string &source_asset,
+      const std::string &dest_asset,
       const cryptonote::account_public_address &address,
       bool is_subaddress,
       const size_t outputs,
@@ -1139,7 +1140,8 @@ private:
     std::vector<wallet2::pending_tx> create_transactions_single(const crypto::key_image &ki, const cryptonote::account_public_address &address, bool is_subaddress, const size_t outputs, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t>& extra);
     std::vector<wallet2::pending_tx> create_transactions_from(
       const cryptonote::account_public_address &address,
-      const std::string &asset_type,
+      const std::string &source_asset,
+      const std::string &dest_asset,
       bool is_subaddress,
       const size_t outputs,
       std::vector<size_t> unused_transfers_indices,
