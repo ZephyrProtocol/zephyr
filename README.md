@@ -6,7 +6,7 @@ Portions Copyright (c) 2012-2013 The Cryptonote developers.
 
 ## Introduction
 
-Zephyr is a revolutionary digital currency that combines the principles of privacy and stability. Grounded firmly on the proven Minimal Djed protocol, Zephyr embodies the first over-collateralized, private stablecoin, seamlessly incorporating the privacy features of Monero into a stablecoin system. The Djed protocol, which draws inspiration from AgeUSD, is a collaborative brainchild of Emurgo, IOHK, and the Ergo Foundation.
+Zephyr is a revolutionary digital currency that combines the principles of privacy and stability. Grounded firmly on the academically peer-reviewed, formally verified and empirically battle-tested Minimal Djed protocol, Zephyr embodies the first over-collateralized, private stablecoin, seamlessly incorporating the privacy features of Monero into a stablecoin system. The research and development of the Djed protocol started as a collaboration between Ergo, Emurgo and IOHK in 2020, and has since had multiple implementations and deployments (cf. [https://docs.djed.one](https://docs.djed.one)).
 
 In simple terms, Zephyr Protocol works as follows. Users can mint or redeem stable (ZEPHUSD) and reserve (ZEPHRSV) coins in exchange for the base coin (ZEPH). The price for stable coins is determined by a pricing oracle, the price for reserve coins is determined using a formula based on the current reserve data.
 
