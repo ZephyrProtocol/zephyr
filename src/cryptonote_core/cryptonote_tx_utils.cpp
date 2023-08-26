@@ -796,7 +796,7 @@ namespace cryptonote
       reserve_amount_128 = 0;
     }
 
-    return (uint64_t)reserve_amount_128;
+    return reserve_amount_128.convert_to<uint64_t>();
   }
   //---------------------------------------------------------------
   // ZEPHRSV -> ZEPH
@@ -816,7 +816,7 @@ namespace cryptonote
       reserve_amount_128 = 0;
     }
 
-    return (uint64_t)reserve_amount_128;
+    return reserve_amount_128.convert_to<uint64_t>();
   }
   //---------------------------------------------------------------
   // ZEPH -> ZEPHUSD
@@ -841,7 +841,7 @@ namespace cryptonote
       stable_128 = 0;
     }
 
-    return (uint64_t)stable_128;
+    return stable_128.convert_to<uint64_t>();
   }
   //---------------------------------------------------------------
   // ZEPHUSD -> ZEPH
@@ -861,7 +861,7 @@ namespace cryptonote
       zeph_128 = 0;
     }
 
-    return (uint64_t)zeph_128;
+    return zeph_128.convert_to<uint64_t>();
   }
   //---------------------------------------------------------------
   uint64_t zeph_to_asset_fee(const uint64_t zeph_fee, const uint64_t exchange_rate)
@@ -878,7 +878,7 @@ namespace cryptonote
       MWARNING("overflow detected in zeph_to_asset_fee calculation.");
       asset_fee = 0;
     }
-    return (uint64_t)asset_fee;
+    return asset_fee.convert_to<uint64_t>();
   }
   //---------------------------------------------------------------
   uint64_t asset_to_zeph_fee(const uint64_t asset_fee, const uint64_t exchange_rate)
@@ -890,7 +890,7 @@ namespace cryptonote
       MWARNING("overflow detected in asset_to_zeph_fee calculation.");
       zeph_fee = 0;
     }
-    return (uint64_t)zeph_fee;
+    return zeph_fee.convert_to<uint64_t>();
   }
   //---------------------------------------------------------------------------------
   uint64_t get_fee_in_zeph_equivalent(const std::string& fee_asset, uint64_t fee_amount, const oracle::pricing_record& pr)

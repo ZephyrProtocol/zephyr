@@ -41,6 +41,7 @@ set(unit_tests_sources
   chacha.cpp
   checkpoints.cpp
   command_line.cpp
+  conversion.cpp
   crypto.cpp
   decompose_amount_into_digits.cpp
   device.cpp
@@ -78,6 +79,7 @@ set(unit_tests_sources
   parse_amount.cpp
   pruning.cpp
   random.cpp
+  reserve.cpp
   rolling_median.cpp
   scaling_2021.cpp
   serialization.cpp
