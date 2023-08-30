@@ -1161,6 +1161,12 @@ namespace cryptonote
       s.insert(s.size() - decimal_point, ".");
   }
   //---------------------------------------------------------------
+  std::string print_money(std::string amount, unsigned int decimal_point)
+  {
+    insert_money_decimal_point(amount, decimal_point);
+    return amount;
+  }
+  //---------------------------------------------------------------
   std::string print_money(uint64_t amount, unsigned int decimal_point)
   {
     std::string s = std::to_string(amount);

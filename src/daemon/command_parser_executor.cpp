@@ -1077,4 +1077,14 @@ show_list:
   return true;
 }
 
+bool t_command_parser_executor::reserve_info(const std::vector<std::string>& args)
+{
+  if (!args.empty()) {
+    std::cout << "Invalid syntax: No parameters expected. For more details, use the help command." << std::endl;
+    return true;
+  }
+
+  return m_executor.reserve_info();
+}
+
 } // namespace daemonize

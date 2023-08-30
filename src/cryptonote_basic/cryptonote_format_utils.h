@@ -149,6 +149,7 @@ namespace cryptonote
   void set_default_decimal_point(unsigned int decimal_point = CRYPTONOTE_DISPLAY_DECIMAL_POINT);
   unsigned int get_default_decimal_point();
   std::string get_unit(unsigned int decimal_point = -1);
+  std::string print_money(std::string amount, unsigned int decimal_point = -1);
   std::string print_money(uint64_t amount, unsigned int decimal_point = -1);
   std::string print_money(const boost::multiprecision::uint128_t &amount, unsigned int decimal_point = -1);
   uint64_t round_money_up(uint64_t amount, unsigned significant_digits);

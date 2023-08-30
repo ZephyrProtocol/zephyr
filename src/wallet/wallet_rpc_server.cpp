@@ -4551,6 +4551,45 @@ namespace tools
     return true;
   }
   //------------------------------------------------------------------------------------------------------------------------------
+  bool wallet_rpc_server::on_get_reserve_info(const wallet_rpc::COMMAND_RPC_GET_RESERVE_INFO::request& req, wallet_rpc::COMMAND_RPC_GET_RESERVE_INFO::response& res, epee::json_rpc::error& er, const connection_context *ctx)
+  {
+    if (!m_wallet) return not_open(er);
+
+    uint64_t current_height = m_wallet->get_blockchain_current_height();
+    oracle::pricing_record pr;
+    if (!m_wallet->get_pricing_record(pr, current_height - 1)) {
+      res.status = "Failed to get pricing record";
+      return false;
+    }
+
+    boost::multiprecision::uint128_t zeph_reserve;
+    boost::multiprecision::uint128_t num_stables;
+    boost::multiprecision::uint128_t num_reserves;
+    boost::multiprecision::uint128_t assets;
+    boost::multiprecision::uint128_t assets_ma;
+    boost::multiprecision::uint128_t liabilities;
+    boost::multiprecision::uint128_t equity;
+    boost::multiprecision::uint128_t equity_ma;
+    double reserve_ratio;
+    double reserve_ratio_ma;
+    m_wallet->get_reserve_info(pr, zeph_reserve, num_stables, num_reserves, assets, assets_ma, liabilities, equity, equity_ma, reserve_ratio, reserve_ratio_ma);
+
+    res.zeph_reserve = zeph_reserve.str();
+    res.num_stables = num_stables.str();
+    res.num_reserves = num_reserves.str();
+    res.assets = assets.str();
+    res.assets_ma = assets_ma.str();
+    res.liabilities = liabilities.str();
+    res.equity = equity.str();
+    res.equity_ma = equity_ma.str();
+    res.reserve_ratio = std::to_string(reserve_ratio);
+    res.reserve_ratio_ma = std::to_string(reserve_ratio_ma);
+    res.height = current_height;
+    res.pr = pr;
+    res.status = CORE_RPC_STATUS_OK;
+    return true;
+  }
+  //------------------------------------------------------------------------------------------------------------------------------
 }
 
 class t_daemon

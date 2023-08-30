@@ -336,6 +336,12 @@ t_command_server::t_command_server(
     , "flush_cache [bad-txs] [bad-blocks]"
     , "Flush the specified cache(s)."
     );
+    m_command_lookup.set_handler(
+      "reserve_info"
+    , std::bind(&t_command_parser_executor::reserve_info, &m_parser, p::_1)
+    , "reserve_info"
+    , "Get the current protocol reserve info."
+    );
 }
 
 bool t_command_server::process_command_str(const std::string& cmd)
