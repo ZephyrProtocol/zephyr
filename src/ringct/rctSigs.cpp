@@ -1114,7 +1114,6 @@ namespace rct {
       const cryptonote::transaction_type tx_type,
       const std::string& in_asset_type,
       const oracle::pricing_record& pr,
-      const std::vector<std::pair<std::string, std::string>> circ_amounts,
       const vector<xmr_amount> &inamounts,
       const vector<xmr_amount> &outamounts,
       std::map<size_t, std::string> &outamounts_features,
@@ -1405,7 +1404,6 @@ namespace rct {
       const cryptonote::transaction_type tx_type,
       const std::string& in_asset_type,
       const oracle::pricing_record& pr,
-      const std::vector<std::pair<std::string, std::string>> circ_amounts,
       const vector<xmr_amount> &inamounts,
       const vector<xmr_amount> &outamounts,
       std::map<size_t, std::string> &outamounts_features,
@@ -1424,7 +1422,7 @@ namespace rct {
           mixRing[i].resize(mixin+1);
           index[i] = populateFromBlockchainSimple(mixRing[i], inPk[i], mixin);
         }
-        return genRctSimple(message, inSk, destinations, tx_type, in_asset_type, pr, circ_amounts, inamounts, outamounts, outamounts_features, txnFee, mixRing, amount_keys, index, outSk, rct_config, hwdev);
+        return genRctSimple(message, inSk, destinations, tx_type, in_asset_type, pr, inamounts, outamounts, outamounts_features, txnFee, mixRing, amount_keys, index, outSk, rct_config, hwdev);
     }
 
     //RingCT protocol
@@ -1512,7 +1510,6 @@ namespace rct {
     bool verRctSemanticsSimple(
       const rctSig& rv, 
       const oracle::pricing_record& pr,
-      const std::vector<std::pair<std::string, std::string>> circ_amounts,
       const cryptonote::transaction_type& tx_type,
       const std::string& strSource, 
       const std::string& strDest,
@@ -1712,7 +1709,7 @@ namespace rct {
 
     bool verRctSemanticsSimple(const rctSig& rv)
     {
-      return verRctSemanticsSimple(rv, oracle::pricing_record(), {}, cryptonote::transaction_type::TRANSFER, "ZEPH", "ZEPH", 0, {}, {}, 0);
+      return verRctSemanticsSimple(rv, oracle::pricing_record(), cryptonote::transaction_type::TRANSFER, "ZEPH", "ZEPH", 0, {}, {}, 0);
     }
 
     //ver RingCT simple

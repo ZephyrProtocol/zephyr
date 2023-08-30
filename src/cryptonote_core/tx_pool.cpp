@@ -1916,7 +1916,7 @@ namespace cryptonote
         }
 
         // make sure proof-of-value still holds
-        if (!rct::verRctSemanticsSimple(tx.rct_signatures, bl.pricing_record, circ_supply, tx_type, source, dest, tx.amount_burnt, tx.vout, tx.vin, version))
+        if (!rct::verRctSemanticsSimple(tx.rct_signatures, bl.pricing_record, tx_type, source, dest, tx.amount_burnt, tx.vout, tx.vin, version))
         {
           LOG_PRINT_L2(" transaction proof-of-value is now invalid for tx " << sorted_it->second);
           continue;

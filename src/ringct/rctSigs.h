@@ -137,7 +137,6 @@ namespace rct {
         const cryptonote::transaction_type tx_type,
         const std::string& in_asset_type,
         const oracle::pricing_record& pr,
-        const std::vector<std::pair<std::string, std::string>> circ_amounts,
         const std::vector<xmr_amount> & inamounts,
         const std::vector<xmr_amount> & outamounts,
         std::map<size_t, std::string> &outamounts_features,
@@ -154,7 +153,6 @@ namespace rct {
         const cryptonote::transaction_type tx_type,
         const std::string& in_asset_type,
         const oracle::pricing_record& pr,
-        const std::vector<std::pair<std::string, std::string>> circ_amounts,
         const std::vector<xmr_amount> & inamounts,
         const std::vector<xmr_amount> & outamounts,
         std::map<size_t, std::string> &outamounts_features,
@@ -169,7 +167,7 @@ namespace rct {
     bool verRct(const rctSig & rv, bool semantics);
     static inline bool verRct(const rctSig & rv) { return verRct(rv, true) && verRct(rv, false); }
     
-    bool verRctSemanticsSimple(const rctSig & rv, const oracle::pricing_record& pr, const std::vector<std::pair<std::string, std::string>> circ_amounts, const cryptonote::transaction_type& type, const std::string& strSource, const std::string& strDest, uint64_t amount_burnt, const std::vector<cryptonote::tx_out> &vout, const std::vector<cryptonote::txin_v> &vin, const uint8_t version);
+    bool verRctSemanticsSimple(const rctSig & rv, const oracle::pricing_record& pr, const cryptonote::transaction_type& type, const std::string& strSource, const std::string& strDest, uint64_t amount_burnt, const std::vector<cryptonote::tx_out> &vout, const std::vector<cryptonote::txin_v> &vin, const uint8_t version);
     bool verRctSemanticsSimple(const rctSig & rv);
 
     bool verRctNonSemanticsSimple(const rctSig & rv);

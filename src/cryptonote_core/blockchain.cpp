@@ -4545,7 +4545,7 @@ leave:
       }
 
       // make sure proof-of-value still holds
-      if (!rct::verRctSemanticsSimple(tx.rct_signatures, pr_bl.pricing_record, circ_supply, tx_type, source, dest, tx.amount_burnt, tx.vout, tx.vin, hf_version))
+      if (!rct::verRctSemanticsSimple(tx.rct_signatures, pr_bl.pricing_record, tx_type, source, dest, tx.amount_burnt, tx.vout, tx.vin, hf_version))
       {
         LOG_PRINT_L2(" transaction proof-of-value is now invalid for tx " << tx.hash);
         bvc.m_verifivation_failed = true;

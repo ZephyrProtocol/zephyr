@@ -1421,7 +1421,6 @@ namespace cryptonote
       crypto::hash tx_prefix_hash;
       get_transaction_prefix_hash(tx, tx_prefix_hash, hwdev);
       rct::ctkeyV outSk;
-      // std::vector<std::pair<std::string, std::string>> circ_amounts; // = m_blockchain.get_db().get_circulating_supply();
       if (use_simple_rct)
         tx.rct_signatures = rct::genRctSimple(
           rct::hash2rct(tx_prefix_hash),
@@ -1430,7 +1429,6 @@ namespace cryptonote
           tx_type,
           source_asset,
           pr,
-          circ_amounts,
           inamounts,
           outamounts,
           outamounts_features,
