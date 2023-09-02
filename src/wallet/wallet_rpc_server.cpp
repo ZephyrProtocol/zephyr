@@ -1118,6 +1118,13 @@ namespace tools
 
     CHECK_MULTISIG_ENABLED();
 
+    if ((req.source_asset.empty() && !req.destination_asset.empty()) || (!req.source_asset.empty() && req.destination_asset.empty()))
+    {
+      er.code = WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR;
+      er.message = "Missing source or destination asset. Either specify both or neither.";
+      return false;
+    }
+
     // uniform the asset types
     std::string source_asset = req.source_asset.empty() ? "ZEPH" : boost::algorithm::to_upper_copy(req.source_asset);
     std::string destination_asset = req.destination_asset.empty() ? "ZEPH" : boost::algorithm::to_upper_copy(req.destination_asset);
@@ -1175,6 +1182,13 @@ namespace tools
     }
 
     CHECK_MULTISIG_ENABLED();
+
+    if ((req.source_asset.empty() && !req.destination_asset.empty()) || (!req.source_asset.empty() && req.destination_asset.empty()))
+    {
+      er.code = WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR;
+      er.message = "Missing source or destination asset. Either specify both or neither.";
+      return false;
+    }
 
      // uniform the asset types
     std::string source_asset = req.source_asset.empty() ? "ZEPH" : boost::algorithm::to_upper_copy(req.source_asset);
