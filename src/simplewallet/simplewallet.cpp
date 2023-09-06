@@ -6827,16 +6827,16 @@ bool simple_wallet::transfer_main(
           switch (tx_type)
           {
           case tt::MINT_STABLE:
-            prompt << boost::format(tr("Minting %s ZEPHUSD for %s ZEPH.\n")) % print_money(total_received) % print_money(total_sent);
+            prompt << boost::format(tr("Minting %s ZEPHUSD from %s ZEPH.\n")) % print_money(total_received) % print_money(total_sent);
             break;
           case tt::REDEEM_STABLE:
-            prompt << boost::format(tr("Redeeming %s ZEPH for %s ZEPHUSD.\n")) % print_money(total_received) % print_money(total_sent);
+            prompt << boost::format(tr("Redeeming %s ZEPH from %s ZEPHUSD.\n")) % print_money(total_received) % print_money(total_sent);
             break;
           case tt::MINT_RESERVE:
-            prompt << boost::format(tr("Minting %s ZEPHRSV for %s ZEPH.\n")) % print_money(total_received) % print_money(total_sent);
+            prompt << boost::format(tr("Minting %s ZEPHRSV from %s ZEPH.\n")) % print_money(total_received) % print_money(total_sent);
             break;
           case tt::REDEEM_RESERVE:
-            prompt << boost::format(tr("Redeeming %s ZEPH for %s ZEPHRSV.\n")) % print_money(total_received) % print_money(total_sent);
+            prompt << boost::format(tr("Redeeming %s ZEPH from %s ZEPHRSV.\n")) % print_money(total_received) % print_money(total_sent);
             break;
           default:
             break;
@@ -7398,16 +7398,16 @@ bool simple_wallet::sweep_main(
           switch (tx_type)
           {
             case tt::MINT_STABLE:
-              prompt << boost::format(tr("Minting %s ZEPHUSD for %s ZEPH. Total fee is %s %s.\n  Is this okay")) % print_money(total_received) % print_money(total_sent) % print_money(total_fee) % source_asset;
+              prompt << boost::format(tr("Minting %s ZEPHUSD from %s ZEPH. Total fee is %s %s.\n  Is this okay")) % print_money(total_received) % print_money(total_sent) % print_money(total_fee) % source_asset;
               break;
             case tt::REDEEM_STABLE:
-              prompt << boost::format(tr("Redeeming %s ZEPH for %s ZEPHUSD. Total fee is %s %s.\n  Is this okay?")) % print_money(total_received) % print_money(total_sent) % print_money(total_fee) % source_asset;
+              prompt << boost::format(tr("Redeeming %s ZEPH from %s ZEPHUSD. Total fee is %s %s.\n  Is this okay?")) % print_money(total_received) % print_money(total_sent) % print_money(total_fee) % source_asset;
               break;
             case tt::MINT_RESERVE:
-              prompt << boost::format(tr("Minting %s ZEPHRSV for %s ZEPH. Total fee is %s %s.\n  Is this okay?")) % print_money(total_received) % print_money(total_sent) % print_money(total_fee) % source_asset;
+              prompt << boost::format(tr("Minting %s ZEPHRSV from %s ZEPH. Total fee is %s %s.\n  Is this okay?")) % print_money(total_received) % print_money(total_sent) % print_money(total_fee) % source_asset;
               break;
             case tt::REDEEM_RESERVE:
-              prompt << boost::format(tr("Redeeming %s ZEPH for %s ZEPHRSV. Total fee is %s %s.\n  Is this okay?")) % print_money(total_received) % print_money(total_sent) % print_money(total_fee) % source_asset;
+              prompt << boost::format(tr("Redeeming %s ZEPH from %s ZEPHRSV. Total fee is %s %s.\n  Is this okay?")) % print_money(total_received) % print_money(total_sent) % print_money(total_fee) % source_asset;
               break;
             default:
               fail_msg_writer() << tr("Unknown transaction type.");
