@@ -722,16 +722,18 @@ namespace cryptonote
     // Calculate the reserve ratio
     multiprecision::cpp_bin_float_quad assets = zeph_reserve.convert_to<multiprecision::cpp_bin_float_quad>();
     assets *= oracle_price;
-
     multiprecision::cpp_bin_float_quad reserve_ratio_atomized = assets / num_stables.convert_to<multiprecision::cpp_bin_float_quad>();
     multiprecision::cpp_bin_float_quad reserve_ratio = reserve_ratio_atomized / COIN;
 
     if (reserve_ratio < 1.0) {
-      if (reserve_ratio < 0.0001) return 0;
-
-      uint64_t worst_case_stable_rate = reserve_ratio_atomized.convert_to<uint64_t>();
+      zeph_reserve *= COIN;
+      multiprecision::uint128_t worst_case_stable_rate = zeph_reserve / num_stables;
       worst_case_stable_rate -= (worst_case_stable_rate % 10000);
-      return worst_case_stable_rate;
+      if (worst_case_stable_rate > std::numeric_limits<uint64_t>::max()) {
+        MWARNING("overflow detected in stablecoin price calculation.");
+        worst_case_stable_rate = 0;
+      }
+      return worst_case_stable_rate.convert_to<uint64_t>();
     }
 
     return rate;
