@@ -255,9 +255,9 @@ namespace config
   std::array<std::string, 3> const ORACLE_URLS = {{"oracle.zephyrprotocol.com:443", "oracle-02.zephyrprotocol.com:443", "oracle-03.zephyrprotocol.com:443"}};
 
   std::string const ORACLE_PUBLIC_KEY = "-----BEGIN PUBLIC KEY-----\n"
-    "MFwwDQYJKoZIhvcNAQEBBQADSwAwSAJBAMdjZLVtXH/nK3L+fXyaquZFrkHpKimc\n"
-    "681dPqESb8CCZrckTyd3O0xGegU8dVIFUWM8mzylv09zlgrzigkfedECAwEAAQ==\n"
-    "-----END PUBLIC KEY-----\n"; // oracle test server key
+    "MFwwDQYJKoZIhvcNAQEBBQADSwAwSAJBAO5hVuc6ylYMbj3WhqOMoAcJ0SD4e3zW\n"
+    "edsUmhQeYwBkelAaFyxhX4ZotP+b/cFr2mX5iuND1znEnMZkyg+YmtkCAwEAAQ==\n"
+    "-----END PUBLIC KEY-----\n";
 
   namespace testnet
   {
