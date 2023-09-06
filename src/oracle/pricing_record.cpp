@@ -242,7 +242,7 @@ namespace oracle
       return false;
     }
 
-    if (this->timestamp <= last_bl_timestamp - PRICING_RECORD_VALID_TIME_DIFF_FROM_BLOCK) {
+    if (this->timestamp <= last_bl_timestamp) {
       LOG_ERROR("Pricing record timestamp: " << this->timestamp << ", block timestamp: " << bl_timestamp);
       LOG_ERROR("Pricing record timestamp is too old.");
       return false;
