@@ -76,24 +76,27 @@ TEST(get_stable_coin_price, get_stable_coin_price_zero_with_zero_rate)
 }
 TEST(get_stable_coin_price, get_stable_coin_price_zero_on_overflow)
 {
+    std::vector<std::pair<std::string, std::string>> circ_amounts;
+    circ_amounts.push_back(std::make_pair("ZEPH",    "1000000000000000")); // 1000
+    circ_amounts.push_back(std::make_pair("ZEPHUSD", "0"));
+    circ_amounts.push_back(std::make_pair("ZEPHRSV", "1000000000000000")); // 1000
     oracle::pricing_record pr;
-    INIT_PR(pr);
     pr.spot = 1;
     pr.moving_average = 1;
     UPDATE_PR(pr);
     EXPECT_EQ(pr.stable, 0);
     EXPECT_EQ(pr.stable_ma, 0);
 }
-TEST(get_stable_coin_price, get_stable_coin_price_uses_rsv_ratio_if_below_100_percent)
+TEST(get_stable_coin_price, get_stable_coin_price_returns_zeph_rsv_over_stable_circ_when_below_100_percent)
 {
     oracle::pricing_record pr;
     INIT_PR(pr);
     pr.spot = 80000000000; // 0.08
-    pr.moving_average = 80000000000; // 0.08
+    pr.moving_average = 72000000000; // 0.072
     UPDATE_PR(pr);
 
-    EXPECT_EQ(pr.stable, 80000000000);
-    EXPECT_EQ(pr.stable_ma, 80000000000);
+    EXPECT_EQ(pr.stable, 1000000000000);
+    EXPECT_EQ(pr.stable_ma, 1000000000000);
 }
 
 /*
