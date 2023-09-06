@@ -40,7 +40,6 @@
 #include "blockchain_db/blockchain_db.h"
 #include "cryptonote_config.h"
 
-#include "bulletproofs_plus.h"
 #include "bulletproofs.cc"
 
 using namespace crypto;

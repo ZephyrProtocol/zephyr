@@ -416,6 +416,7 @@ namespace rct {
           FIELD(ecdhInfo)
           FIELD(outPk)
           VARINT_FIELD(txnFee)
+          FIELD(maskSums)
         END_SERIALIZE()
     };
     struct rctSigPrunable {
