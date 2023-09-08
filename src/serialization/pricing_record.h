@@ -95,4 +95,33 @@ bool do_serialize(Archive<true> &ar, oracle::pricing_record &pr, uint8_t version
   return true;
 }
 
+// read
+template <template <bool> class Archive>
+bool do_serialize(Archive<false> &ar, oracle::pricing_record_v1 &pr, uint8_t version)
+{
+  // very basic sanity check
+  if (ar.remaining_bytes() < sizeof(oracle::pricing_record_v1)) {
+    return false;
+  }
+
+  ar.serialize_blob(&pr, sizeof(oracle::pricing_record_v1), "");
+  if (!ar.good())
+    return false;
+
+  return true;
+}
+
+// write
+template <template <bool> class Archive>
+bool do_serialize(Archive<true> &ar, oracle::pricing_record_v1 &pr, uint8_t version)
+{
+  ar.begin_string();
+  ar.serialize_blob(&pr, sizeof(oracle::pricing_record_v1), "");
+  if (!ar.good())
+    return false;
+  ar.end_string();
+  return true;
+}
+
 BLOB_SERIALIZER(oracle::pricing_record);
+BLOB_SERIALIZER(oracle::pricing_record_v1);

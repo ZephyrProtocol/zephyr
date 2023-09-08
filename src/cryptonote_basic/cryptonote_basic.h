@@ -480,7 +480,26 @@ namespace cryptonote
       VARINT_FIELD(timestamp)
       FIELD(prev_id)
       FIELD(nonce)
-      FIELD_CUSTOM_VAL(pricing_record, major_version)
+
+      if (major_version >= HF_VERSION_DJED)
+      {
+        FIELD(pricing_record)
+      }
+      else
+      {
+        oracle::pricing_record_v1 pr_v1;
+        if (!typename Archive<W>::is_saving())
+        {
+          FIELD(pr_v1)
+          pr_v1.write_to_pr(pricing_record);
+        }
+        else
+        {
+          pr_v1.read_from_pr(pricing_record);
+          FIELD(pr_v1)
+        }
+      }
+
     END_SERIALIZE()
   };
 

@@ -293,17 +293,6 @@ inline bool do_serialize(Archive &ar, bool &v)
     if (!ar.good()) return false;		\
   } while(0);
 
-/*! \macro FIELD_CUSTOM_VAL(f, val)
- *
- * \brief tags and serializes \a f passing in \a val
- */
-#define FIELD_CUSTOM_VAL(f, val)					\
-  do {							\
-    ar.tag(#f);						\
-    bool r = ::do_serialize(ar, f, val);			\
-    if (!r || !ar.good()) return false;	\
-  } while(0);
-
 namespace serialization {
   /*! \namespace detail
    *
