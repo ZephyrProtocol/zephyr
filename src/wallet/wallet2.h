@@ -1206,10 +1206,7 @@ private:
       {
         a & m_blockchain;
       }
-      a & m_transfers["ZEPH"];
-      a & m_transfers["ZEPHUSD"];
-      a & m_transfers["ZEPHRSV"];
-
+      a & m_transfers;
       a & m_account_public_address;
       a & m_key_images.parent();
       if(ver < 6)
@@ -1307,11 +1304,7 @@ private:
       MAGIC_FIELD("zephyr wallet cache")
       VERSION_FIELD(1)
       FIELD(m_blockchain)
-
-      FIELD(m_transfers["ZEPH"])
-      FIELD(m_transfers["ZEPHUSD"])
-      FIELD(m_transfers["ZEPHRSV"])
-
+      FIELD(m_transfers)
       FIELD(m_account_public_address)
       FIELD(m_key_images)
       FIELD(m_unconfirmed_txs)
@@ -1469,8 +1462,8 @@ private:
     bool delete_address_book_row(std::size_t row_id);
         
     uint64_t get_num_rct_outputs();
-    size_t get_num_transfer_details(const std::string& asset_type);
-    const transfer_details &get_transfer_details(const std::string& asset_type, size_t idx);
+    size_t get_num_transfer_details();
+    const transfer_details &get_transfer_details(size_t idx);
 
     uint8_t get_current_hard_fork();
     void get_hard_fork_info(uint8_t version, uint64_t &earliest_height);
@@ -1496,7 +1489,7 @@ private:
     std::vector<size_t> select_available_mixable_outputs();
 
     size_t pop_best_value_from(const transfer_container &transfers, std::vector<size_t> &unused_dust_indices, const std::vector<size_t>& selected_transfers, bool smallest = false) const;
-    size_t pop_best_value(const std::string& asset_type, std::vector<size_t> &unused_dust_indices, const std::vector<size_t>& selected_transfers, bool smallest = false) const;
+    size_t pop_best_value(std::vector<size_t> &unused_dust_indices, const std::vector<size_t>& selected_transfers, bool smallest = false) const;
 
     void set_tx_note(const crypto::hash &txid, const std::string &note);
     std::string get_tx_note(const crypto::hash &txid) const;
@@ -1664,9 +1657,9 @@ private:
     bool unblackball_output(const std::pair<uint64_t, uint64_t> &output);
     bool is_output_blackballed(const std::pair<uint64_t, uint64_t> &output) const;
 
-    void freeze(const std::string& asset_type, size_t idx);
-    void thaw(const std::string& asset_type, size_t idx);
-    bool frozen(const std::string& asset_type, size_t idx) const;
+    void freeze(size_t idx);
+    void thaw(size_t idx);
+    bool frozen(size_t idx) const;
     void freeze(const crypto::key_image &ki);
     void thaw(const crypto::key_image &ki);
     bool frozen(const crypto::key_image &ki) const;
@@ -1693,15 +1686,15 @@ private:
 
     bool is_tx_spendtime_unlocked(uint64_t unlock_time, uint64_t block_height);
     void hash_m_transfer(const transfer_details & transfer, crypto::hash &hash) const;
-    uint64_t hash_m_transfers(const std::string& asset_type, boost::optional<uint64_t> transfer_height, crypto::hash &hash) const;
-    void finish_rescan_bc_keep_key_images(const std::string& asset_type, uint64_t transfer_height, const crypto::hash &hash);
+    uint64_t hash_m_transfers(boost::optional<uint64_t> transfer_height, crypto::hash &hash) const;
+    void finish_rescan_bc_keep_key_images(uint64_t transfer_height, const crypto::hash &hash);
     void enable_dns(bool enable) { m_use_dns = enable; }
     void set_offline(bool offline = true);
     bool is_offline() const { return m_offline; }
 
     static std::string get_default_daemon_address() { CRITICAL_REGION_LOCAL(default_daemon_address_lock); return default_daemon_address; }
 
-    transfer_container get_specific_transfers(const std::string& asset);
+    wallet2::transfers_iterator_container get_specific_transfers(const std::string& asset);
 
   private:
     /*!
@@ -1759,16 +1752,16 @@ private:
     std::vector<uint64_t> get_unspent_amounts_vector(bool strict);
     uint64_t get_dynamic_base_fee_estimate();
     float get_output_relatedness(const transfer_details &td0, const transfer_details &td1) const;
-    std::vector<size_t> pick_preferred_rct_inputs(uint64_t needed_money, uint32_t subaddr_account, const std::set<uint32_t> &subaddr_indices, const transfer_container &specific_transfers);
-    void set_spent(const std::string& asset_type, size_t idx, uint64_t height);
-    void set_unspent(const std::string& asset_type, size_t idx);
+    std::vector<size_t> pick_preferred_rct_inputs(uint64_t needed_money, uint32_t subaddr_account, const std::set<uint32_t> &subaddr_indices, const tools::wallet2::transfers_iterator_container &specific_transfers);
+    void set_spent(size_t idx, uint64_t height);
+    void set_unspent(size_t idx);
     bool is_spent(const transfer_details &td, bool strict = true) const;
-    bool is_spent(const std::string& asset_type, size_t idx, bool strict = true) const;
-    void get_outs(const transfer_container &specific_transfers, std::vector<std::vector<get_outs_entry>> &outs, const std::vector<size_t> &selected_transfers, size_t fake_outputs_count, bool rct, std::unordered_set<crypto::public_key> &valid_public_keys_cache);
-    void get_outs(const transfer_container &specific_transfers, std::vector<std::vector<get_outs_entry>> &outs, const std::vector<size_t> &selected_transfers, size_t fake_outputs_count, std::vector<uint64_t> &rct_offsets, uint64_t &num_spendable_global_outs, std::unordered_set<crypto::public_key> &valid_public_keys_cache);
+    bool is_spent(size_t idx, bool strict = true) const;
+    void get_outs(std::vector<std::vector<get_outs_entry>> &outs, const std::vector<size_t> &selected_transfers, size_t fake_outputs_count, bool rct, std::unordered_set<crypto::public_key> &valid_public_keys_cache);
+    void get_outs(std::vector<std::vector<get_outs_entry>> &outs, const std::vector<size_t> &selected_transfers, size_t fake_outputs_count, std::vector<uint64_t> &rct_offsets, uint64_t &num_spendable_global_outs, std::unordered_set<crypto::public_key> &valid_public_keys_cache);
     bool tx_add_fake_output(std::vector<std::vector<tools::wallet2::get_outs_entry>> &outs, uint64_t global_index, const crypto::public_key& tx_public_key, const rct::key& mask, uint64_t real_index, bool unlocked, std::unordered_set<crypto::public_key> &valid_public_keys_cache) const;
-    bool should_pick_a_second_output(bool use_rct, size_t n_transfers, const std::vector<size_t> &unused_transfers_indices, const std::vector<size_t> &unused_dust_indices, const transfer_container &specific_transfers) const;
-    std::vector<size_t> get_only_rct(const std::vector<size_t> &unused_dust_indices, const std::vector<size_t> &unused_transfers_indices, const transfer_container &specific_transfers) const;
+    bool should_pick_a_second_output(bool use_rct, size_t n_transfers, const std::vector<size_t> &unused_transfers_indices, const std::vector<size_t> &unused_dust_indices) const;
+    std::vector<size_t> get_only_rct(const std::vector<size_t> &unused_dust_indices, const std::vector<size_t> &unused_transfers_indices) const;
     void scan_output(const cryptonote::transaction &tx, bool miner_tx, const crypto::public_key &tx_pub_key, size_t i, tx_scan_info_t &tx_scan_info, int &num_vouts_received, std::unordered_map<cryptonote::subaddress_index, std::map<std::string, uint64_t>> &tx_money_got_in_outs, std::vector<size_t> &outs, bool pool);
     void trim_hashchain();
     crypto::key_image get_multisig_composite_key_image(size_t n) const;
@@ -1782,7 +1775,7 @@ private:
     bool get_ring(const crypto::chacha_key &key, const crypto::key_image &key_image, std::vector<uint64_t> &outs);
     crypto::chacha_key get_ringdb_key();
     void setup_keys(const epee::wipeable_string &password);
-    std::pair<std::string, size_t> get_transfer_details(const crypto::key_image &ki) const;
+    size_t get_transfer_details(const crypto::key_image &ki) const;
 
     void register_devices();
     hw::device& lookup_device(const std::string & device_descriptor);
@@ -1826,7 +1819,7 @@ private:
     cryptonote::checkpoints m_checkpoints;
     serializable_unordered_map<crypto::hash, std::vector<crypto::secret_key>> m_additional_tx_keys;
 
-    std::map<std::string, transfer_container> m_transfers;
+    transfer_container m_transfers;
   
     payment_container m_payments;
     serializable_unordered_map<crypto::key_image, size_t> m_key_images;

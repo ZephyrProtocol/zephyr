@@ -1034,7 +1034,7 @@ bool simple_wallet::prepare_multisig_main(const std::vector<std::string> &args, 
     return false;
   }
 
-  if(m_wallet->get_num_transfer_details("ZEPH"))
+  if(m_wallet->get_num_transfer_details())
   {
     fail_msg_writer() << tr("This wallet has been used before, please use a new wallet to create a multisig wallet");
     return false;
@@ -1081,7 +1081,7 @@ bool simple_wallet::make_multisig_main(const std::vector<std::string> &args, boo
     return false;
   }
 
-  if(m_wallet->get_num_transfer_details("ZEPH"))
+  if(m_wallet->get_num_transfer_details())
   {
     fail_msg_writer() << tr("This wallet has been used before, please use a new wallet to create a multisig wallet");
     return false;
@@ -2139,12 +2139,12 @@ bool simple_wallet::frozen(const std::vector<std::string> &args)
 {
   if (args.empty())
   {
-    size_t ntd = m_wallet->get_num_transfer_details("ZEPH");
+    size_t ntd = m_wallet->get_num_transfer_details();
     for (size_t i = 0; i < ntd; ++i)
     {
-      if (!m_wallet->frozen("ZEPH", i))
+      if (!m_wallet->frozen(i))
         continue;
-      const tools::wallet2::transfer_details &td = m_wallet->get_transfer_details("ZEPH", i);
+      const tools::wallet2::transfer_details &td = m_wallet->get_transfer_details(i);
       message_writer() << tr("Frozen: ") << td.m_key_image << " " << cryptonote::print_money(td.amount());
     } 
   }
@@ -5809,7 +5809,7 @@ bool simple_wallet::refresh_main(uint64_t start_height, enum ResetType reset, bo
   if (reset != ResetNone)
   {
     if (reset == ResetSoftKeepKI)
-      height_pre = m_wallet->hash_m_transfers("ZEPH", boost::none, transfer_hash_pre);
+      height_pre = m_wallet->hash_m_transfers(boost::none, transfer_hash_pre);
 
     m_wallet->rescan_blockchain(reset == ResetHard, false, reset == ResetSoftKeepKI);
   }
@@ -5833,9 +5833,9 @@ bool simple_wallet::refresh_main(uint64_t start_height, enum ResetType reset, bo
 
     if (reset == ResetSoftKeepKI)
     {
-      m_wallet->finish_rescan_bc_keep_key_images("ZEPH", height_pre, transfer_hash_pre);
+      m_wallet->finish_rescan_bc_keep_key_images(height_pre, transfer_hash_pre);
 
-      height_post = m_wallet->get_num_transfer_details("ZEPH");
+      height_post = m_wallet->get_num_transfer_details();
       if (height_pre != height_post)
       {
         message_writer() << tr("New transfer received since rescan was started. Key images are incomplete.");
@@ -6290,7 +6290,7 @@ bool simple_wallet::process_ring_members(const std::vector<tools::wallet2::pendi
         continue;
 
       const cryptonote::txin_zephyr_key& in_key = boost::get<cryptonote::txin_zephyr_key>(tx.vin[i]);
-      const tools::wallet2::transfer_details &td = m_wallet->get_transfer_details(in_key.asset_type, construction_data.selected_transfers[i]);
+      const tools::wallet2::transfer_details &td = m_wallet->get_transfer_details(construction_data.selected_transfers[i]);
       const cryptonote::tx_source_entry *sptr = NULL;
       for (const auto &src: construction_data.sources)
         if (src.outputs[src.real_output].second.dest == td.get_public_key())
@@ -6383,7 +6383,7 @@ bool simple_wallet::prompt_if_old(const std::string& asset_type, const std::vect
     int n_old = 0;
     for (const auto i: ptx.selected_transfers)
     {
-      const tools::wallet2::transfer_details &td = m_wallet->get_transfer_details(asset_type, i);
+      const tools::wallet2::transfer_details &td = m_wallet->get_transfer_details(i);
       uint64_t age = bc_height - td.m_block_height;
       if (age > OLD_AGE_WARN_THRESHOLD)
         ++n_old;
@@ -6794,7 +6794,7 @@ bool simple_wallet::transfer_main(
         {
           total_fee += ptx_vector[n].fee;
           for (auto i: ptx_vector[n].selected_transfers)
-            total_sent += m_wallet->get_transfer_details(source_asset, i).amount();
+            total_sent += m_wallet->get_transfer_details(i).amount();
           total_sent -= ptx_vector[n].change_dts.amount + ptx_vector[n].fee;
           change += ptx_vector[n].change_dts.amount;
 
@@ -7032,7 +7032,7 @@ bool simple_wallet::sweep_unmixable(const std::vector<std::string> &args_)
     {
       total_fee += ptx_vector[n].fee;
       for (auto i: ptx_vector[n].selected_transfers)
-        total_unmixable += m_wallet->get_transfer_details("ZEPH", i).amount();
+        total_unmixable += m_wallet->get_transfer_details(i).amount();
     }
 
     std::string prompt_str = tr("Sweeping ") + print_money(total_unmixable);
@@ -7352,7 +7352,7 @@ bool simple_wallet::sweep_main(
     {
       total_fee += ptx_vector[n].fee;
       for (auto i: ptx_vector[n].selected_transfers)
-        total_sent += m_wallet->get_transfer_details(source_asset, i).amount();
+        total_sent += m_wallet->get_transfer_details(i).amount();
 
       for (const auto& dt: ptx_vector[n].dests) {
         total_received += dt.dest_amount;
@@ -7644,7 +7644,7 @@ bool simple_wallet::sweep_single(const std::vector<std::string> &args_)
 
     // give user total and fee, and prompt to confirm
     uint64_t total_fee = ptx_vector[0].fee;
-    uint64_t total_sent = m_wallet->get_transfer_details("ZEPH", ptx_vector[0].selected_transfers.front()).amount();
+    uint64_t total_sent = m_wallet->get_transfer_details(ptx_vector[0].selected_transfers.front()).amount();
     std::ostringstream prompt;
     if (!process_ring_members(ptx_vector, prompt, m_wallet->print_ring_members()))
       return true;

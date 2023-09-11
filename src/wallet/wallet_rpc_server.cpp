@@ -503,8 +503,7 @@ namespace tools
           unlocked_balance_per_subaddress_per_account[req.account_index] = m_wallet->unlocked_balance_per_subaddress(asset, req.account_index, req.strict);
         }
 
-        tools::wallet2::transfer_container transfers = m_wallet->get_specific_transfers(asset);
-        // m_wallet->get_transfers(transfers);
+        tools::wallet2::transfers_iterator_container transfers = m_wallet->get_specific_transfers(asset);
         for (const auto& p : balance_per_subaddress_per_account)
         {
           uint32_t account_index = p.first;
@@ -532,7 +531,7 @@ namespace tools
             info.blocks_to_unlock = unlocked_balance_per_subaddress[i].second.first;
             info.time_to_unlock = unlocked_balance_per_subaddress[i].second.second;
             info.label = m_wallet->get_subaddress_label(index);
-            info.num_unspent_outputs = std::count_if(transfers.begin(), transfers.end(), [&](const auto& td) { return !td.m_spent && td.m_subaddr_index == index; });
+            info.num_unspent_outputs = std::count_if(transfers.begin(), transfers.end(), [&](const auto& td) { return !td->m_spent && td->m_subaddr_index == index; });
             balance_info.per_subaddress.emplace_back(std::move(info));
           }
         }

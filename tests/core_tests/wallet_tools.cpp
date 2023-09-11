@@ -78,7 +78,7 @@ bool wallet_tools::fill_tx_sources(tools::wallet2 * wallet, std::vector<cryptono
   auto & transfers = wallet_accessor_test::get_transfers(wallet);
   std::unordered_set<size_t> selected_idx;
   std::unordered_set<crypto::key_image> selected_kis;
-  const size_t ntrans = wallet->get_num_transfer_details("ZEPH");
+  const size_t ntrans = wallet->get_num_transfer_details();
   size_t roffset = offset >= 0 ? offset : ntrans - offset - 1;
   size_t iters = 0;
   uint64_t sum = 0;

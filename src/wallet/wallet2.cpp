@@ -1655,19 +1655,19 @@ bool wallet2::is_deprecated() const
   return is_old_file_format;
 }
 //----------------------------------------------------------------------------------------------------
-void wallet2::set_spent(const std::string& asset_type, size_t idx, uint64_t height)
+void wallet2::set_spent(size_t idx, uint64_t height)
 {
-  CHECK_AND_ASSERT_THROW_MES(idx < m_transfers.at(asset_type).size(), "Invalid index");
-  transfer_details &td = m_transfers.at(asset_type)[idx];
+  CHECK_AND_ASSERT_THROW_MES(idx < m_transfers.size(), "Invalid index");
+  transfer_details &td = m_transfers[idx];
   LOG_PRINT_L2("Setting SPENT at " << height << ": ki " << td.m_key_image << ", amount " << print_money(td.m_amount));
   td.m_spent = true;
   td.m_spent_height = height;
 }
 //----------------------------------------------------------------------------------------------------
-void wallet2::set_unspent(const std::string& asset_type, size_t idx)
+void wallet2::set_unspent(size_t idx)
 {
-  CHECK_AND_ASSERT_THROW_MES(idx < m_transfers.at(asset_type).size(), "Invalid index");
-  transfer_details &td = m_transfers.at(asset_type)[idx];
+  CHECK_AND_ASSERT_THROW_MES(idx < m_transfers.size(), "Invalid index");
+  transfer_details &td = m_transfers[idx];
   LOG_PRINT_L2("Setting UNSPENT: ki " << td.m_key_image << ", amount " << print_money(td.m_amount));
   td.m_spent = false;
   td.m_spent_height = 0;
@@ -1685,68 +1685,61 @@ bool wallet2::is_spent(const transfer_details &td, bool strict) const
   }
 }
 //----------------------------------------------------------------------------------------------------
-bool wallet2::is_spent(const std::string& asset_type, size_t idx, bool strict) const
+bool wallet2::is_spent(size_t idx, bool strict) const
 {
-  CHECK_AND_ASSERT_THROW_MES(idx < m_transfers.at(asset_type).size(), "Invalid index");
-  const transfer_details &td = m_transfers.at(asset_type)[idx];
+  CHECK_AND_ASSERT_THROW_MES(idx < m_transfers.size(), "Invalid index");
+  const transfer_details &td = m_transfers[idx];
   return is_spent(td, strict);
 }
 //----------------------------------------------------------------------------------------------------
-size_t wallet2::get_num_transfer_details(const std::string& asset_type)
+size_t wallet2::get_num_transfer_details()
 {
-  return m_transfers.at(asset_type).size();
+  return m_transfers.size();
 }
 //----------------------------------------------------------------------------------------------------
-void wallet2::freeze(const std::string& asset_type, size_t idx)
+void wallet2::freeze(size_t idx)
 {
-  CHECK_AND_ASSERT_THROW_MES(idx < m_transfers.at(asset_type).size(), "Invalid transfer_details index");
-  transfer_details &td = m_transfers.at(asset_type)[idx];
+  CHECK_AND_ASSERT_THROW_MES(idx < m_transfers.size(), "Invalid transfer_details index");
+  transfer_details &td = m_transfers[idx];
   td.m_frozen = true;
 }
 //----------------------------------------------------------------------------------------------------
-void wallet2::thaw(const std::string& asset_type, size_t idx)
+void wallet2::thaw(size_t idx)
 {
-  CHECK_AND_ASSERT_THROW_MES(idx < m_transfers.at(asset_type).size(), "Invalid transfer_details index");
-  transfer_details &td = m_transfers.at(asset_type)[idx];
+  CHECK_AND_ASSERT_THROW_MES(idx < m_transfers.size(), "Invalid transfer_details index");
+  transfer_details &td = m_transfers[idx];
   td.m_frozen = false;
 }
 //----------------------------------------------------------------------------------------------------
-bool wallet2::frozen(const std::string& asset_type, size_t idx) const
+bool wallet2::frozen(size_t idx) const
 {
-  CHECK_AND_ASSERT_THROW_MES(idx < m_transfers.at(asset_type).size(), "Invalid transfer_details index");
-  const transfer_details &td = m_transfers.at(asset_type)[idx];
+  CHECK_AND_ASSERT_THROW_MES(idx < m_transfers.size(), "Invalid transfer_details index");
+  const transfer_details &td = m_transfers[idx];
   return td.m_frozen;
 }
 //----------------------------------------------------------------------------------------------------
 void wallet2::freeze(const crypto::key_image &ki)
 {
-  std::pair<std::string, size_t> pair = get_transfer_details(ki);
-  freeze(pair.first, pair.second);
+  freeze(get_transfer_details(ki));
 }
 //----------------------------------------------------------------------------------------------------
 void wallet2::thaw(const crypto::key_image &ki)
 {
-  std::pair<std::string, size_t> pair = get_transfer_details(ki);
-  thaw(pair.first, pair.second);
+  thaw(get_transfer_details(ki));
 }
 //----------------------------------------------------------------------------------------------------
 bool wallet2::frozen(const crypto::key_image &ki) const
 {
-  std::pair<std::string, size_t> pair = get_transfer_details(ki);
-  return frozen(pair.first, pair.second);
+  return frozen(get_transfer_details(ki));
 }
 //----------------------------------------------------------------------------------------------------
-std::pair<std::string, size_t> wallet2::get_transfer_details(const crypto::key_image &ki) const
+size_t wallet2::get_transfer_details(const crypto::key_image &ki) const
 {
-  for (auto const& asset_type : oracle::ASSET_TYPES)
+  for (size_t idx = 0; idx < m_transfers.size(); ++idx)
   {
-    wallet2::transfer_container transfers = m_transfers.at(asset_type);
-    for (size_t idx = 0; idx < transfers.size(); ++idx)
-    {
-      const transfer_details &td = transfers[idx];
-      if (td.m_key_image_known && td.m_key_image == ki)
-        return std::pair<std::string, size_t>(asset_type, idx);
-    }
+    const transfer_details &td = m_transfers[idx];
+    if (td.m_key_image_known && td.m_key_image == ki)
+      return idx;
   }
   CHECK_AND_ASSERT_THROW_MES(false, "Key image not found");
 }
@@ -1941,8 +1934,15 @@ bool wallet2::spends_one_of_ours(const cryptonote::transaction &tx) const
   return false;
 }
 //----------------------------------------------------------------------------------------------------
-wallet2::transfer_container wallet2::get_specific_transfers(const std::string& asset) {
-  return m_transfers[asset];
+wallet2::transfers_iterator_container wallet2::get_specific_transfers(const std::string& asset) {
+  transfers_iterator_container asset_transfers;
+
+  for (auto i = m_transfers.begin(); i < m_transfers.end(); ++i) {
+    if (i->asset_type == asset) {
+      asset_transfers.push_back(i);
+    }
+  }
+  return asset_transfers;
 }
 //----------------------------------------------------------------------------------------------------
 bool wallet2::get_pricing_record(oracle::pricing_record& pr, const uint64_t height)
@@ -2189,19 +2189,17 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
 
         auto kit = m_pub_keys.find(tx_scan_info[o].in_ephemeral.pub);
 
-        transfer_container &specific_transfers = m_transfers[tx_scan_info[o].asset_type];
-
-  THROW_WALLET_EXCEPTION_IF(kit != m_pub_keys.end() && kit->second >= specific_transfers.size(),
+  THROW_WALLET_EXCEPTION_IF(kit != m_pub_keys.end() && kit->second >= m_transfers.size(),
             error::wallet_internal_error, std::string("Unexpected transfer index from public key: ")
             + "got " + (kit == m_pub_keys.end() ? "<none>" : boost::lexical_cast<std::string>(kit->second))
-            + ", specific_transfers.size() is " + boost::lexical_cast<std::string>(specific_transfers.size()));
+            + ", m_transfers.size() is " + boost::lexical_cast<std::string>(m_transfers.size()));
         if (kit == m_pub_keys.end())
         {
           uint64_t amount = tx.vout[o].amount ? tx.vout[o].amount : tx_scan_info[o].amount;
           if (!pool)
           {
-	    specific_transfers.push_back(transfer_details{});
-	    transfer_details& td = specific_transfers.back();
+	    m_transfers.push_back(transfer_details{});
+	    transfer_details& td = m_transfers.back();
 	    td.m_block_height = height;
 	    td.m_internal_output_index = o;
 	    td.m_global_output_index = o_indices[o];
@@ -2253,18 +2251,18 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
         td.m_rct = false;
       }
       td.m_frozen = false;
-	    set_unspent(td.asset_type, specific_transfers.size()-1);
+	    set_unspent(m_transfers.size()-1);
             if (td.m_key_image_known)
-	      m_key_images[td.m_key_image] = specific_transfers.size()-1;
-	    m_pub_keys[tx_scan_info[o].in_ephemeral.pub] = specific_transfers.size()-1;
+	      m_key_images[td.m_key_image] = m_transfers.size()-1;
+	    m_pub_keys[tx_scan_info[o].in_ephemeral.pub] = m_transfers.size()-1;
             if (output_tracker_cache)
-              (*output_tracker_cache)[std::make_pair(tx.vout[o].amount, td.m_global_output_index)] = specific_transfers.size() - 1;
+              (*output_tracker_cache)[std::make_pair(tx.vout[o].amount, td.m_global_output_index)] = m_transfers.size() - 1;
             if (m_multisig)
             {
               THROW_WALLET_EXCEPTION_IF(!m_multisig_rescan_k && m_multisig_rescan_info,
                   error::wallet_internal_error, "NULL m_multisig_rescan_k");
-              if (m_multisig_rescan_info && m_multisig_rescan_info->front().size() >= specific_transfers.size())
-                update_multisig_rescan_info(*m_multisig_rescan_k, *m_multisig_rescan_info, specific_transfers.size() - 1);
+              if (m_multisig_rescan_info && m_multisig_rescan_info->front().size() >= m_transfers.size())
+                update_multisig_rescan_info(*m_multisig_rescan_k, *m_multisig_rescan_info, m_transfers.size() - 1);
             }
 	    LOG_PRINT_L0("Received money: " << print_money(td.amount()) << ", with tx: " << txid);
 	    if (0 != m_callback)
@@ -2273,12 +2271,12 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
           total_received_1 += amount;
           notify = true;
         }
-	else if (specific_transfers[kit->second].m_spent || specific_transfers[kit->second].amount() >= tx_scan_info[o].amount)
+	else if (m_transfers[kit->second].m_spent || m_transfers[kit->second].amount() >= tx_scan_info[o].amount)
         {
 	  LOG_ERROR("Public key " << epee::string_tools::pod_to_hex(kit->first)
               << " from received " << print_money(tx_scan_info[o].amount) << " output already exists with "
-              << (specific_transfers[kit->second].m_spent ? "spent" : "unspent") << " "
-              << print_money(specific_transfers[kit->second].amount()) << " in tx " << specific_transfers[kit->second].m_txid << ", received output ignored");
+              << (m_transfers[kit->second].m_spent ? "spent" : "unspent") << " "
+              << print_money(m_transfers[kit->second].amount()) << " in tx " << m_transfers[kit->second].m_txid << ", received output ignored");
           THROW_WALLET_EXCEPTION_IF(tx_money_got_in_outs[tx_scan_info[o].received->index][tx_scan_info[o].asset_type] < tx_scan_info[o].amount,
               error::wallet_internal_error, "Unexpected values of new and old outputs");
 
@@ -2296,22 +2294,22 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
         {
 	  LOG_ERROR("Public key " << epee::string_tools::pod_to_hex(kit->first)
               << " from received " << print_money(tx_scan_info[o].amount) << " output already exists with "
-              << print_money(specific_transfers[kit->second].amount()) << ", replacing with new output");
+              << print_money(m_transfers[kit->second].amount()) << ", replacing with new output");
           // The new larger output replaced a previous smaller one
           THROW_WALLET_EXCEPTION_IF(tx_money_got_in_outs[tx_scan_info[o].received->index][tx_scan_info[o].asset_type] < tx_scan_info[o].amount,
               error::wallet_internal_error, "Unexpected values of new and old outputs");
-          THROW_WALLET_EXCEPTION_IF(specific_transfers[kit->second].amount() > tx_scan_info[o].amount,
+          THROW_WALLET_EXCEPTION_IF(m_transfers[kit->second].amount() > tx_scan_info[o].amount,
               error::wallet_internal_error, "Unexpected values of new and old outputs");
-          tx_money_got_in_outs[tx_scan_info[o].received->index][tx_scan_info[o].asset_type] -= specific_transfers[kit->second].amount();
+          tx_money_got_in_outs[tx_scan_info[o].received->index][tx_scan_info[o].asset_type] -= m_transfers[kit->second].amount();
 
           uint64_t amount = tx.vout[o].amount ? tx.vout[o].amount : tx_scan_info[o].amount;
           LOG_PRINT_L0("tx use output: " << print_money(amount));
 
-          uint64_t burnt = specific_transfers[kit->second].amount();
+          uint64_t burnt = m_transfers[kit->second].amount();
           uint64_t extra_amount = amount - burnt;
           if (!pool)
           {
-            transfer_details &td = specific_transfers[kit->second];
+            transfer_details &td = m_transfers[kit->second];
 	    td.m_block_height = height;
 	    td.m_internal_output_index = o;
 	    td.m_global_output_index = o_indices[o];
@@ -2346,8 +2344,8 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
             {
               THROW_WALLET_EXCEPTION_IF(!m_multisig_rescan_k && m_multisig_rescan_info,
                   error::wallet_internal_error, "NULL m_multisig_rescan_k");
-              if (m_multisig_rescan_info && m_multisig_rescan_info->front().size() >= specific_transfers.size())
-                update_multisig_rescan_info(*m_multisig_rescan_k, *m_multisig_rescan_info, specific_transfers.size() - 1);
+              if (m_multisig_rescan_info && m_multisig_rescan_info->front().size() >= m_transfers.size())
+                update_multisig_rescan_info(*m_multisig_rescan_k, *m_multisig_rescan_info, m_transfers.size() - 1);
             }
             THROW_WALLET_EXCEPTION_IF(td.get_public_key() != tx_scan_info[o].in_ephemeral.pub, error::wallet_internal_error, "Inconsistent public keys");
 	    THROW_WALLET_EXCEPTION_IF(td.m_spent, error::wallet_internal_error, "Inconsistent spent status");
@@ -2362,9 +2360,6 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
       }
     }
   }
-
-  LOG_PRINT_L2("33 tx_money_got_in_outs size: " << tx_money_got_in_outs.size());
-
 
   THROW_WALLET_EXCEPTION_IF(tx_money_got_in_outs.size() != tx_amounts_individual_outs.size(), error::wallet_internal_error, "Inconsistent size of output arrays");
 
@@ -2382,7 +2377,7 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
     auto it = m_key_images.find(in_to_key.k_image);
     if(it != m_key_images.end())
     {
-      transfer_details& td = m_transfers[in_to_key.asset_type][it->second];
+      transfer_details& td = m_transfers[it->second];
       uint64_t amount = in_to_key.amount;
       if (amount > 0)
       {
@@ -2409,7 +2404,7 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
       if (!pool)
       {
         LOG_PRINT_L0("Spent money: " << print_money(amount) << ", with tx: " << txid);
-        set_spent(in_to_key.asset_type, it->second, height);
+        set_spent(it->second, height);
         if (0 != m_callback)
           m_callback->on_money_spent(height, txid, tx, amount, in_to_key.asset_type, tx, td.m_subaddr_index);
       }
@@ -2428,12 +2423,12 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
           if (i != output_tracker_cache->end())
           {
             size_t idx = i->second;
-            THROW_WALLET_EXCEPTION_IF(idx >= m_transfers[in_to_key.asset_type].size(), error::wallet_internal_error, "Output tracker cache index out of range");
-            m_transfers[in_to_key.asset_type][idx].m_uses.push_back(std::make_pair(height, txid));
+            THROW_WALLET_EXCEPTION_IF(idx >= m_transfers.size(), error::wallet_internal_error, "Output tracker cache index out of range");
+            m_transfers[idx].m_uses.push_back(std::make_pair(height, txid));
           }
         }
       }
-      else for (transfer_details &td: m_transfers[in_to_key.asset_type])
+      else for (transfer_details &td: m_transfers)
       {
         if (amount != in_to_key.amount)
           continue;
@@ -3362,14 +3357,13 @@ void wallet2::process_unconfirmed_transfer(bool incremental, const crypto::hash 
         if (tx_details.m_tx.vin[vini].type() == typeid(txin_zephyr_key))
         {
           txin_zephyr_key &tx_in_to_key = boost::get<txin_zephyr_key>(tx_details.m_tx.vin[vini]);
-          wallet2::transfer_container specific_transfers = m_transfers[tx_in_to_key.asset_type];
-          for (size_t i = 0; i < specific_transfers.size(); ++i)
+          for (size_t i = 0; i < m_transfers.size(); ++i)
           {
-            const transfer_details &td = specific_transfers[i];
+            const transfer_details &td = m_transfers[i];
             if (td.m_key_image == tx_in_to_key.k_image)
             {
                 LOG_PRINT_L1("Resetting spent status for output " << vini << ": " << td.m_key_image);
-                set_unspent(tx_in_to_key.asset_type, i);
+                set_unspent(i);
                 break;
             }
           }
@@ -3699,9 +3693,9 @@ bool wallet2::delete_address_book_row(std::size_t row_id) {
 std::shared_ptr<std::map<std::pair<uint64_t, uint64_t>, size_t>> wallet2::create_output_tracker_cache() const
 {
   std::shared_ptr<std::map<std::pair<uint64_t, uint64_t>, size_t>> cache{new std::map<std::pair<uint64_t, uint64_t>, size_t>()};
-  for (size_t i = 0; i < m_transfers.at("ZEPH").size(); ++i)
+  for (size_t i = 0; i < m_transfers.size(); ++i)
   {
-    const transfer_details &td = m_transfers.at("ZEPH")[i];
+    const transfer_details &td = m_transfers[i];
     (*cache)[std::make_pair(td.is_rct() ? 0 : td.amount(), td.m_global_output_index)] = i;
   }
   return cache;
@@ -3720,9 +3714,7 @@ void wallet2::refresh(bool trusted_daemon, uint64_t start_height, uint64_t & blo
   blocks_fetched = 0;
   uint64_t added_blocks = 0;
   size_t try_count = 0;
-  crypto::hash last_tx_hash_id_zeph = m_transfers["ZEPH"].size() ? m_transfers["ZEPH"].back().m_txid : null_hash;
-  crypto::hash last_tx_hash_id_stable = m_transfers["ZEPHUSD"].size() ? m_transfers["ZEPHUSD"].back().m_txid : null_hash;
-  crypto::hash last_tx_hash_id_reserve = m_transfers["ZEPHRSV"].size() ? m_transfers["ZEPHRSV"].back().m_txid : null_hash;
+  crypto::hash last_tx_hash_id = m_transfers.size() ? m_transfers.back().m_txid : null_hash;
 
   std::list<crypto::hash> short_chain_history;
   tools::threadpool& tpool = tools::threadpool::getInstanceForCompute();
@@ -3910,14 +3902,9 @@ void wallet2::refresh(bool trusted_daemon, uint64_t start_height, uint64_t & blo
       }
     }
   }
-  if(last_tx_hash_id_zeph != (m_transfers["ZEPH"].size() ? m_transfers["ZEPH"].back().m_txid : null_hash))
-    received_money = true;
-  else if (last_tx_hash_id_stable != (m_transfers["ZEPHUSD"].size() ? m_transfers["ZEPHUSD"].back().m_txid : null_hash))
-    received_money = true;
-  else if (last_tx_hash_id_reserve != (m_transfers["ZEPHRSV"].size() ? m_transfers["ZEPHRSV"].back().m_txid : null_hash))
+  if(last_tx_hash_id != (m_transfers.size() ? m_transfers.back().m_txid : null_hash))
     received_money = true;
   
-
   try
   {
     // If stop() is called we don't need to check pending transactions
@@ -4005,51 +3992,47 @@ void wallet2::detach_blockchain(uint64_t height, std::map<std::pair<uint64_t, ui
 
   size_t transfers_detached = 0;
 
-  for (auto &asset_type: oracle::ASSET_TYPES) {
 
-    wallet2::transfer_container& specific_transfers = m_transfers.at(asset_type);
-
-    for (size_t i = 0; i < specific_transfers.size(); ++i)
+  for (size_t i = 0; i < m_transfers.size(); ++i)
+  {
+    wallet2::transfer_details &td = m_transfers[i];
+    if (td.m_spent && td.m_spent_height >= height)
     {
-      wallet2::transfer_details &td = specific_transfers[i];
-      if (td.m_spent && td.m_spent_height >= height)
-      {
-        LOG_PRINT_L1("Resetting spent/frozen status for output " << i << ": " << td.m_key_image);
-        set_unspent(asset_type, i);
-        thaw(asset_type, i);
-      }
+      LOG_PRINT_L1("Resetting spent/frozen status for output " << i << ": " << td.m_key_image);
+      set_unspent(i);
+      thaw(i);
     }
-
-    for (transfer_details &td: specific_transfers)
-    {
-      while (!td.m_uses.empty() && td.m_uses.back().first >= height)
-        td.m_uses.pop_back();
-    }
-
-    if (output_tracker_cache)
-      output_tracker_cache->clear();
-
-    auto it = std::find_if(specific_transfers.begin(), specific_transfers.end(), [&](const transfer_details& td){return td.m_block_height >= height;});
-    size_t i_start = it - specific_transfers.begin();
-
-    for(size_t i = i_start; i!= specific_transfers.size();i++)
-    {
-      if (!specific_transfers[i].m_key_image_known || specific_transfers[i].m_key_image_partial)
-        continue;
-      auto it_ki = m_key_images.find(specific_transfers[i].m_key_image);
-      THROW_WALLET_EXCEPTION_IF(it_ki == m_key_images.end(), error::wallet_internal_error, "key image not found: index " + std::to_string(i) + ", ki " + epee::string_tools::pod_to_hex(specific_transfers[i].m_key_image) + ", " + std::to_string(m_key_images.size()) + " key images known");
-      m_key_images.erase(it_ki);
-    }
-
-    for(size_t i = i_start; i!= specific_transfers.size();i++)
-    {
-      auto it_pk = m_pub_keys.find(specific_transfers[i].get_public_key());
-      THROW_WALLET_EXCEPTION_IF(it_pk == m_pub_keys.end(), error::wallet_internal_error, "public key not found");
-      m_pub_keys.erase(it_pk);
-    }
-    transfers_detached = std::distance(it, specific_transfers.end());
-    specific_transfers.erase(it, specific_transfers.end());
   }
+
+  for (transfer_details &td: m_transfers)
+  {
+    while (!td.m_uses.empty() && td.m_uses.back().first >= height)
+      td.m_uses.pop_back();
+  }
+
+  if (output_tracker_cache)
+    output_tracker_cache->clear();
+
+  auto it = std::find_if(m_transfers.begin(), m_transfers.end(), [&](const transfer_details& td){return td.m_block_height >= height;});
+  size_t i_start = it - m_transfers.begin();
+
+  for(size_t i = i_start; i!= m_transfers.size();i++)
+  {
+    if (!m_transfers[i].m_key_image_known || m_transfers[i].m_key_image_partial)
+      continue;
+    auto it_ki = m_key_images.find(m_transfers[i].m_key_image);
+    THROW_WALLET_EXCEPTION_IF(it_ki == m_key_images.end(), error::wallet_internal_error, "key image not found: index " + std::to_string(i) + ", ki " + epee::string_tools::pod_to_hex(m_transfers[i].m_key_image) + ", " + std::to_string(m_key_images.size()) + " key images known");
+    m_key_images.erase(it_ki);
+  }
+
+  for(size_t i = i_start; i!= m_transfers.size();i++)
+  {
+    auto it_pk = m_pub_keys.find(m_transfers[i].get_public_key());
+    THROW_WALLET_EXCEPTION_IF(it_pk == m_pub_keys.end(), error::wallet_internal_error, "public key not found");
+    m_pub_keys.erase(it_pk);
+  }
+  transfers_detached = std::distance(it, m_transfers.end());
+  m_transfers.erase(it, m_transfers.end());
 
   const uint64_t blocks_detached = m_blockchain.size() - height;
   m_blockchain.crop(height);
@@ -4089,9 +4072,7 @@ bool wallet2::deinit()
 bool wallet2::clear()
 {
   m_blockchain.clear();
-  for (auto &asset_type: m_transfers) {
-    asset_type.second.clear();
-  }
+  m_transfers.clear();
   m_key_images.clear();
   m_pub_keys.clear();
   m_unconfirmed_txs.clear();
@@ -4114,9 +4095,7 @@ bool wallet2::clear()
 void wallet2::clear_soft(bool keep_key_images)
 {
   m_blockchain.clear();
-  for (auto &asset_type: m_transfers) {
-    asset_type.second.clear();
-  }
+  m_transfers.clear();
   if (!keep_key_images)
     m_key_images.clear();
   m_pub_keys.clear();
@@ -5556,21 +5535,19 @@ bool wallet2::has_multisig_partial_key_images() const
 {
   if (!m_multisig)
     return false;
-  for (const auto &asset_type : oracle::ASSET_TYPES) {
-    for (const auto &td: m_transfers.at(asset_type))
-      if (td.m_key_image_partial)
-        return true;
-  }
-  
+
+  for (const auto &td: m_transfers)
+    if (td.m_key_image_partial)
+      return true;
+
   return false;
 }
 //----------------------------------------------------------------------------------------------------
 bool wallet2::has_unknown_key_images() const
 {
-  for (const auto &asset_type : oracle::ASSET_TYPES)
-    for (const auto &td: m_transfers.at(asset_type))
-      if (!td.m_key_image_known)
-        return true;
+  for (const auto &td: m_transfers)
+    if (!td.m_key_image_known)
+      return true;
   return false;
 }
 
@@ -6010,11 +5987,9 @@ void wallet2::trim_hashchain()
 {
   uint64_t height = m_checkpoints.get_max_height();
 
-
-  for (const auto &asset_type : oracle::ASSET_TYPES)
-    for (const transfer_details &td: m_transfers[asset_type])
-      if (td.m_block_height < height)
-        height = td.m_block_height;
+  for (const transfer_details &td: m_transfers)
+    if (td.m_block_height < height)
+      height = td.m_block_height;
 
   if (!m_blockchain.empty() && m_blockchain.size() == m_blockchain.offset())
   {
@@ -6260,10 +6235,9 @@ uint64_t wallet2::unlocked_balance(const std::string& asset_type, uint32_t index
 std::map<uint32_t, uint64_t> wallet2::balance_per_subaddress(const std::string& asset_type, uint32_t index_major, bool strict) const
 { 
   std::map<uint32_t, uint64_t> amount_per_subaddr;
-  if (m_transfers.find(asset_type) == m_transfers.end()) return amount_per_subaddr;
-  for (const auto& td: m_transfers.at(asset_type))
+  for (const auto& td: m_transfers)
   {
-    if (td.m_subaddr_index.major == index_major && !is_spent(td, strict) && !td.m_frozen)
+    if (td.m_subaddr_index.major == index_major && td.asset_type == asset_type && !is_spent(td, strict) && !td.m_frozen)
     {
       auto found = amount_per_subaddr.find(td.m_subaddr_index.minor);
       if (found == amount_per_subaddr.end())
@@ -6314,12 +6288,11 @@ std::map<uint32_t, uint64_t> wallet2::balance_per_subaddress(const std::string& 
 std::map<uint32_t, std::pair<uint64_t, std::pair<uint64_t, uint64_t>>> wallet2::unlocked_balance_per_subaddress(const std::string& asset_type, uint32_t index_major, bool strict)
 {
   std::map<uint32_t, std::pair<uint64_t, std::pair<uint64_t, uint64_t>>> amount_per_subaddr;
-  if (m_transfers.find(asset_type) == m_transfers.end()) return amount_per_subaddr;
   const uint64_t blockchain_height = get_blockchain_current_height();
   const uint64_t now = time(NULL);
-  for(const transfer_details& td: m_transfers.at(asset_type))
+  for(const transfer_details& td: m_transfers)
   {
-    if(td.m_subaddr_index.major == index_major && !is_spent(td, strict) && !td.m_frozen)
+    if(td.m_subaddr_index.major == index_major && td.asset_type == asset_type && !is_spent(td, strict) && !td.m_frozen)
     {
       uint64_t amount = 0, blocks_to_unlock = 0, time_to_unlock = 0;
       if (is_transfer_unlocked(td))
@@ -6380,12 +6353,7 @@ std::map<std::string, uint64_t> wallet2::unlocked_balance_all(bool strict, std::
 //----------------------------------------------------------------------------------------------------
 void wallet2::get_transfers(wallet2::transfer_container& incoming_transfers) const
 {
-  // incoming_transfers = m_transfers;
-  for (const auto &asset_type : oracle::ASSET_TYPES) {
-    for (const auto& td : m_transfers.at(asset_type)) {
-        incoming_transfers.push_back(td);
-    }
-  }
+  incoming_transfers = m_transfers;
 }
 //----------------------------------------------------------------------------------------------------
 void wallet2::get_payments(const crypto::hash& payment_id, std::list<wallet2::payment_details>& payments, uint64_t min_height, const boost::optional<uint32_t>& subaddr_account, const std::set<uint32_t>& subaddr_indices) const
@@ -6450,56 +6418,52 @@ void wallet2::get_unconfirmed_payments(std::list<std::pair<crypto::hash,wallet2:
 //----------------------------------------------------------------------------------------------------
 void wallet2::rescan_spent()
 {
-  for (auto &asset_type: oracle::ASSET_TYPES) {
+  // This is RPC call that can take a long time if there are many outputs,
+  // so we call it several times, in stripes, so we don't time out spuriously
+  std::vector<int> spent_status;
+  spent_status.reserve(m_transfers.size());
+  const size_t chunk_size = 1000;
+  for (size_t start_offset = 0; start_offset < m_transfers.size(); start_offset += chunk_size)
+  {
+    const size_t n_outputs = std::min<size_t>(chunk_size, m_transfers.size() - start_offset);
+    MDEBUG("Calling is_key_image_spent on " << start_offset << " - " << (start_offset + n_outputs - 1) << ", out of " << m_transfers.size());
+    COMMAND_RPC_IS_KEY_IMAGE_SPENT::request req = AUTO_VAL_INIT(req);
+    COMMAND_RPC_IS_KEY_IMAGE_SPENT::response daemon_resp = AUTO_VAL_INIT(daemon_resp);
+    for (size_t n = start_offset; n < start_offset + n_outputs; ++n)
+      req.key_images.push_back(string_tools::pod_to_hex(m_transfers[n].m_key_image));
 
-    transfer_container specific_transfers = m_transfers.at(asset_type);
-    // This is RPC call that can take a long time if there are many outputs,
-    // so we call it several times, in stripes, so we don't time out spuriously
-    std::vector<int> spent_status;
-    spent_status.reserve(specific_transfers.size());
-    const size_t chunk_size = 1000;
-    for (size_t start_offset = 0; start_offset < specific_transfers.size(); start_offset += chunk_size)
     {
-      const size_t n_outputs = std::min<size_t>(chunk_size, specific_transfers.size() - start_offset);
-      MDEBUG("Calling is_key_image_spent on " << start_offset << " - " << (start_offset + n_outputs - 1) << ", out of " << specific_transfers.size());
-      COMMAND_RPC_IS_KEY_IMAGE_SPENT::request req = AUTO_VAL_INIT(req);
-      COMMAND_RPC_IS_KEY_IMAGE_SPENT::response daemon_resp = AUTO_VAL_INIT(daemon_resp);
-      for (size_t n = start_offset; n < start_offset + n_outputs; ++n)
-        req.key_images.push_back(string_tools::pod_to_hex(specific_transfers[n].m_key_image));
-
-      {
-        const boost::lock_guard<boost::recursive_mutex> lock{m_daemon_rpc_mutex};
-        bool r = epee::net_utils::invoke_http_json("/is_key_image_spent", req, daemon_resp, *m_http_client, rpc_timeout);
-        THROW_ON_RPC_RESPONSE_ERROR(r, {}, daemon_resp, "is_key_image_spent", error::is_key_image_spent_error, get_rpc_status(daemon_resp.status));
-        THROW_WALLET_EXCEPTION_IF(daemon_resp.spent_status.size() != n_outputs, error::wallet_internal_error,
-          "daemon returned wrong response for is_key_image_spent, wrong amounts count = " +
-          std::to_string(daemon_resp.spent_status.size()) + ", expected " +  std::to_string(n_outputs));
-      }
-
-      std::copy(daemon_resp.spent_status.begin(), daemon_resp.spent_status.end(), std::back_inserter(spent_status));
+      const boost::lock_guard<boost::recursive_mutex> lock{m_daemon_rpc_mutex};
+      bool r = epee::net_utils::invoke_http_json("/is_key_image_spent", req, daemon_resp, *m_http_client, rpc_timeout);
+      THROW_ON_RPC_RESPONSE_ERROR(r, {}, daemon_resp, "is_key_image_spent", error::is_key_image_spent_error, get_rpc_status(daemon_resp.status));
+      THROW_WALLET_EXCEPTION_IF(daemon_resp.spent_status.size() != n_outputs, error::wallet_internal_error,
+        "daemon returned wrong response for is_key_image_spent, wrong amounts count = " +
+        std::to_string(daemon_resp.spent_status.size()) + ", expected " +  std::to_string(n_outputs));
     }
 
-    // update spent status
-    for (size_t i = 0; i < specific_transfers.size(); ++i)
+    std::copy(daemon_resp.spent_status.begin(), daemon_resp.spent_status.end(), std::back_inserter(spent_status));
+  }
+
+  // update spent status
+  for (size_t i = 0; i < m_transfers.size(); ++i)
+  {
+    transfer_details& td = m_transfers[i];
+    // a view wallet may not know about key images
+    if (!td.m_key_image_known || td.m_key_image_partial)
+      continue;
+    if (td.m_spent != (spent_status[i] != COMMAND_RPC_IS_KEY_IMAGE_SPENT::UNSPENT))
     {
-      transfer_details& td = specific_transfers[i];
-      // a view wallet may not know about key images
-      if (!td.m_key_image_known || td.m_key_image_partial)
-        continue;
-      if (td.m_spent != (spent_status[i] != COMMAND_RPC_IS_KEY_IMAGE_SPENT::UNSPENT))
+      if (td.m_spent)
       {
-        if (td.m_spent)
-        {
-          LOG_PRINT_L0("Marking output " << i << "(" << td.m_key_image << ") as unspent, it was marked as spent");
-          set_unspent(asset_type, i);
-          td.m_spent_height = 0;
-        }
-        else
-        {
-          LOG_PRINT_L0("Marking output " << i << "(" << td.m_key_image << ") as spent, it was marked as unspent");
-          set_spent(asset_type, i, td.m_spent_height);
-          // unknown height, if this gets reorged, it might still be missed
-        }
+        LOG_PRINT_L0("Marking output " << i << "(" << td.m_key_image << ") as unspent, it was marked as spent");
+        set_unspent(i);
+        td.m_spent_height = 0;
+      }
+      else
+      {
+        LOG_PRINT_L0("Marking output " << i << "(" << td.m_key_image << ") as spent, it was marked as unspent");
+        set_spent(i, td.m_spent_height);
+        // unknown height, if this gets reorged, it might still be missed
       }
     }
   }
@@ -6509,28 +6473,26 @@ void wallet2::rescan_blockchain(bool hard, bool refresh, bool keep_key_images)
 {
   CHECK_AND_ASSERT_THROW_MES(!hard || !keep_key_images, "Cannot preserve key images on hard rescan");
 
-  for (const auto &asset_type: oracle::ASSET_TYPES) {
-    const size_t transfers_cnt = m_transfers.at(asset_type).size();
-    crypto::hash transfers_hash{};
+  const size_t transfers_cnt = m_transfers.size();
+  crypto::hash transfers_hash{};
 
-    if(hard)
-    {
-      clear();
-      setup_new_blockchain();
-    }
-    else
-    {
-      if (keep_key_images && refresh)
-        hash_m_transfers(asset_type, (int64_t) transfers_cnt, transfers_hash);
-      clear_soft(keep_key_images);
-    }
-
-    if (refresh)
-      this->refresh(false);
-
-    if (refresh && keep_key_images)
-      finish_rescan_bc_keep_key_images(asset_type, transfers_cnt, transfers_hash);
+  if(hard)
+  {
+    clear();
+    setup_new_blockchain();
   }
+  else
+  {
+    if (keep_key_images && refresh)
+      hash_m_transfers((int64_t) transfers_cnt, transfers_hash);
+    clear_soft(keep_key_images);
+  }
+
+  if (refresh)
+    this->refresh(false);
+
+  if (refresh && keep_key_images)
+    finish_rescan_bc_keep_key_images(transfers_cnt, transfers_hash);
 }
 //----------------------------------------------------------------------------------------------------
 bool wallet2::is_transfer_unlocked(const transfer_details& td)
@@ -6707,9 +6669,9 @@ size_t wallet2::pop_best_value_from(const transfer_container &transfers, std::ve
   return pop_index (unused_indices, candidates[idx]);
 }
 //----------------------------------------------------------------------------------------------------
-size_t wallet2::pop_best_value(const std::string& asset_type, std::vector<size_t> &unused_indices, const std::vector<size_t>& selected_transfers, bool smallest) const
+size_t wallet2::pop_best_value(std::vector<size_t> &unused_indices, const std::vector<size_t>& selected_transfers, bool smallest) const
 {
-  return pop_best_value_from(m_transfers.at(asset_type), unused_indices, selected_transfers, smallest);
+  return pop_best_value_from(m_transfers, unused_indices, selected_transfers, smallest);
 }
 
 //----------------------------------------------------------------------------------------------------
@@ -6775,17 +6737,7 @@ crypto::hash wallet2::get_payment_id(const pending_tx &ptx) const
 void wallet2::commit_tx(pending_tx& ptx)
 {
   using namespace cryptonote;
-
-  // MDEBUG("commit_tx()");
-  // MDEBUG("ptx.tx: " << epee::string_tools::buff_to_hex_nodelimer(tx_to_blob(ptx.tx)));
-
-  std::string source;
-  std::string dest;
-  bool r = cryptonote::get_tx_asset_types(ptx.tx, ptx.tx.hash, source, dest, false);
-  THROW_WALLET_EXCEPTION_IF(!r, error::wallet_internal_error, "failed to get TX asset types");
   
-  transfer_container& specific_transfers = m_transfers[source];
-
   // Normal submit
   COMMAND_RPC_SEND_RAW_TX::request req;
   req.tx_as_hex = epee::string_tools::buff_to_hex_nodelimer(tx_to_blob(ptx.tx));
@@ -6802,14 +6754,14 @@ void wallet2::commit_tx(pending_tx& ptx)
   // sanity checks
   for (size_t idx: ptx.selected_transfers)
   {
-    THROW_WALLET_EXCEPTION_IF(idx >= specific_transfers.size(), error::wallet_internal_error,
+    THROW_WALLET_EXCEPTION_IF(idx >= m_transfers.size(), error::wallet_internal_error,
         "Bad output index in selected transfers: " + boost::lexical_cast<std::string>(idx));
   }
   crypto::hash txid;
   txid = get_transaction_hash(ptx.tx);
 
   // if it's already processed, bail
-  if (std::find_if(specific_transfers.begin(), specific_transfers.end(), [&txid](const transfer_details &td) { return td.m_txid == txid; }) != specific_transfers.end())
+  if (std::find_if(m_transfers.begin(), m_transfers.end(), [&txid](const transfer_details &td) { return td.m_txid == txid; }) != m_transfers.end())
   {
     MDEBUG("Transaction " << txid << " already processed");
     return;
@@ -6838,8 +6790,8 @@ void wallet2::commit_tx(pending_tx& ptx)
     payment_id = get_payment_id(ptx);
     dests = ptx.dests;
     for(size_t idx: ptx.selected_transfers)
-      if (specific_transfers[idx].asset_type == source_asset)
-        amount_in += specific_transfers[idx].amount();
+      if (m_transfers[idx].asset_type == source_asset)
+        amount_in += m_transfers[idx].amount();
   }
   add_unconfirmed_tx(ptx.tx, source_asset, amount_in, dests, payment_id, ptx.change_dts.amount, ptx.construction_data.subaddr_account, ptx.construction_data.subaddr_indices);
   if (store_tx_info() && ptx.tx_key != crypto::null_skey)
@@ -6852,12 +6804,12 @@ void wallet2::commit_tx(pending_tx& ptx)
 
   for(size_t idx: ptx.selected_transfers)
   {
-    set_spent(source_asset, idx, 0);
+    set_spent(idx, 0);
   }
 
   // tx generated, get rid of used k values
   for (size_t idx: ptx.selected_transfers)
-    memwipe(specific_transfers[idx].m_multisig_k.data(), specific_transfers[idx].m_multisig_k.size() * sizeof(specific_transfers[idx].m_multisig_k[0]));
+    memwipe(m_transfers[idx].m_multisig_k.data(), m_transfers[idx].m_multisig_k.size() * sizeof(m_transfers[idx].m_multisig_k[0]));
 
   //fee includes dust if dust policy specified it.
   LOG_PRINT_L1("Transaction successfully sent. <" << txid << ">" << ENDL
@@ -7160,12 +7112,12 @@ bool wallet2::sign_tx(unsigned_tx_set &exported_txs, std::vector<wallet2::pendin
   }
 
   // add key images
-  signed_txes.key_images.resize(m_transfers["ZEPH"].size());
-  for (size_t i = 0; i < m_transfers["ZEPH"].size(); ++i)
+  signed_txes.key_images.resize(m_transfers.size());
+  for (size_t i = 0; i < m_transfers.size(); ++i)
   {
-    if (!m_transfers["ZEPH"][i].m_key_image_known || m_transfers["ZEPH"][i].m_key_image_partial)
+    if (!m_transfers[i].m_key_image_known || m_transfers[i].m_key_image_partial)
       LOG_PRINT_L0("WARNING: key image not known in signing wallet at index " << i);
-    signed_txes.key_images[i] = m_transfers["ZEPH"][i].m_key_image;
+    signed_txes.key_images[i] = m_transfers[i].m_key_image;
   }
 
   return true;
@@ -7364,19 +7316,10 @@ std::string wallet2::save_multisig_tx(multisig_tx_set txs)
   LOG_PRINT_L0("saving " << txs.m_ptx.size() << " multisig transactions");
 
   // txes generated, get rid of used k values
-  for (size_t n = 0; n < txs.m_ptx.size(); ++n) {
-    for (size_t idx: txs.m_ptx[n].construction_data.selected_transfers) {
-      if (boost::get<txin_zephyr_key>(txs.m_ptx[n].tx.vin[0]).asset_type == "ZEPH") {
-        memwipe(m_transfers.at("ZEPH")[idx].m_multisig_k.data(), m_transfers.at("ZEPH")[idx].m_multisig_k.size() * sizeof(m_transfers.at("ZEPH")[idx].m_multisig_k[0]));
-      } else if (boost::get<txin_zephyr_key>(txs.m_ptx[n].tx.vin[0]).asset_type == "ZEPHUSD") {
-        memwipe(m_transfers["ZEPHUSD"][idx].m_multisig_k.data(), m_transfers["ZEPHUSD"][idx].m_multisig_k.size() * sizeof(m_transfers["ZEPHUSD"][idx].m_multisig_k[0]));
-      } else if (boost::get<txin_zephyr_key>(txs.m_ptx[n].tx.vin[0]).asset_type == "ZEPHRSV") { 
-        memwipe(m_transfers["ZEPHRSV"][idx].m_multisig_k.data(), m_transfers["ZEPHRSV"][idx].m_multisig_k.size() * sizeof(m_transfers["ZEPHRSV"][idx].m_multisig_k[0]));
-      } else {
-	      THROW_WALLET_EXCEPTION_IF(1, error::wallet_internal_error, "invalid VIN type");
-      }
-    }
-  }
+  for (size_t n = 0; n < txs.m_ptx.size(); ++n)
+    for (size_t idx: txs.m_ptx[n].construction_data.selected_transfers)
+      memwipe(m_transfers[idx].m_multisig_k.data(), m_transfers[idx].m_multisig_k.size() * sizeof(m_transfers[idx].m_multisig_k[0]));
+
   // zero out some data we don't want to share
   for (auto &ptx: txs.m_ptx)
   {
@@ -7492,10 +7435,10 @@ bool wallet2::parse_multisig_tx_from_str(std::string multisig_tx_st, multisig_tx
   {
     CHECK_AND_ASSERT_MES(ptx.selected_transfers.size() == ptx.tx.vin.size(), false, "Mismatched selected_transfers/vin sizes");
     for (size_t idx: ptx.selected_transfers)
-      CHECK_AND_ASSERT_MES(idx < m_transfers.at("ZEPH").size(), false, "Transfer index out of range");
+      CHECK_AND_ASSERT_MES(idx < m_transfers.size(), false, "Transfer index out of range");
     CHECK_AND_ASSERT_MES(ptx.construction_data.selected_transfers.size() == ptx.tx.vin.size(), false, "Mismatched cd selected_transfers/vin sizes");
     for (size_t idx: ptx.construction_data.selected_transfers)
-      CHECK_AND_ASSERT_MES(idx < m_transfers.at("ZEPH").size(), false, "Transfer index out of range");
+      CHECK_AND_ASSERT_MES(idx < m_transfers.size(), false, "Transfer index out of range");
     CHECK_AND_ASSERT_MES(ptx.construction_data.sources.size() == ptx.tx.vin.size(), false, "Mismatched sources/vin sizes");
   }
 
@@ -7695,19 +7638,10 @@ bool wallet2::sign_multisig_tx(multisig_tx_set &exported_txs, std::vector<crypto
 
   // signatures generated, get rid of any unused k values (must do export_multisig() to make more tx attempts with the
   //   inputs in the transactions worked on here)
-  for (size_t n = 0; n < exported_txs.m_ptx.size(); ++n) {
-    for (size_t idx: exported_txs.m_ptx[n].construction_data.selected_transfers) {
-      if (boost::get<txin_zephyr_key>(exported_txs.m_ptx[n].tx.vin[0]).asset_type == "ZEPH") {
-        memwipe(m_transfers.at("ZEPH")[idx].m_multisig_k.data(), m_transfers.at("ZEPH")[idx].m_multisig_k.size() * sizeof(m_transfers.at("ZEPH")[idx].m_multisig_k[0]));
-      } else if (boost::get<txin_zephyr_key>(exported_txs.m_ptx[n].tx.vin[0]).asset_type == "ZEPHUSD") {
-        memwipe(m_transfers["ZEPHUSD"][idx].m_multisig_k.data(), m_transfers["ZEPHUSD"][idx].m_multisig_k.size() * sizeof(m_transfers["ZEPHUSD"][idx].m_multisig_k[0]));
-      } else if (boost::get<txin_zephyr_key>(exported_txs.m_ptx[n].tx.vin[0]).asset_type == "ZEPHRSV") {
-        memwipe(m_transfers["ZEPHRSV"][idx].m_multisig_k.data(), m_transfers["ZEPHRSV"][idx].m_multisig_k.size() * sizeof(m_transfers["ZEPHRSV"][idx].m_multisig_k[0]));
-      } else {
-	      THROW_WALLET_EXCEPTION_IF(1, error::wallet_internal_error, "invalid VIN type");
-      }
-    }
-  }
+  for (size_t n = 0; n < exported_txs.m_ptx.size(); ++n)
+    for (size_t idx: exported_txs.m_ptx[n].construction_data.selected_transfers)
+      memwipe(m_transfers[idx].m_multisig_k.data(), m_transfers[idx].m_multisig_k.size() * sizeof(m_transfers[idx].m_multisig_k[0]));
+
   exported_txs.m_signers.insert(get_multisig_signer_public_key());
 
   return true;
@@ -8310,13 +8244,13 @@ std::pair<std::set<uint64_t>, size_t> outs_unique(const std::vector<std::vector<
   return std::make_pair(std::move(unique), total);
 }
 
-void wallet2::get_outs(const transfer_container &specific_transfers, std::vector<std::vector<tools::wallet2::get_outs_entry>> &outs, const std::vector<size_t> &selected_transfers, size_t fake_outputs_count, bool rct, std::unordered_set<crypto::public_key> &valid_public_keys_cache)
+void wallet2::get_outs(std::vector<std::vector<tools::wallet2::get_outs_entry>> &outs, const std::vector<size_t> &selected_transfers, size_t fake_outputs_count, bool rct, std::unordered_set<crypto::public_key> &valid_public_keys_cache)
 {
   std::vector<uint64_t> rct_offsets;
   uint64_t num_spendable_global_outs = 0;
   for (size_t attempts = 3; attempts > 0; --attempts)
   {
-    get_outs(specific_transfers, outs, selected_transfers, fake_outputs_count, rct_offsets, num_spendable_global_outs, valid_public_keys_cache);
+    get_outs(outs, selected_transfers, fake_outputs_count, rct_offsets, num_spendable_global_outs, valid_public_keys_cache);
 
     if (!rct)
       return;
@@ -8329,8 +8263,8 @@ void wallet2::get_outs(const transfer_container &specific_transfers, std::vector
 
     std::vector<crypto::key_image> key_images;
     key_images.reserve(selected_transfers.size());
-    std::for_each(selected_transfers.begin(), selected_transfers.end(), [this, &key_images, &specific_transfers](size_t index) {
-      key_images.push_back(specific_transfers[index].m_key_image);
+    std::for_each(selected_transfers.begin(), selected_transfers.end(), [this, &key_images](size_t index) {
+      key_images.push_back(m_transfers[index].m_key_image);
     });
     unset_ring(key_images);
   }
@@ -8338,7 +8272,7 @@ void wallet2::get_outs(const transfer_container &specific_transfers, std::vector
   THROW_WALLET_EXCEPTION(error::wallet_internal_error, tr("Transaction sanity check failed"));
 }
 
-void wallet2::get_outs(const transfer_container &specific_transfers, std::vector<std::vector<tools::wallet2::get_outs_entry>> &outs, const std::vector<size_t> &selected_transfers, size_t fake_outputs_count, std::vector<uint64_t> &rct_offsets, uint64_t &num_spendable_global_outs, std::unordered_set<crypto::public_key> &valid_public_keys_cache)
+void wallet2::get_outs(std::vector<std::vector<tools::wallet2::get_outs_entry>> &outs, const std::vector<size_t> &selected_transfers, size_t fake_outputs_count, std::vector<uint64_t> &rct_offsets, uint64_t &num_spendable_global_outs, std::unordered_set<crypto::public_key> &valid_public_keys_cache)
 {
   LOG_PRINT_L2("fake_outputs_count: " << fake_outputs_count);
   outs.clear();
@@ -8356,14 +8290,14 @@ void wallet2::get_outs(const transfer_container &specific_transfers, std::vector
     // if we have at least one rct out, get the distribution, or fall back to the previous system
     uint64_t rct_start_height;
     bool has_rct = false;
-    const std::string rct_asset_type = specific_transfers[selected_transfers[0]].asset_type; 
+    const std::string rct_asset_type = m_transfers[selected_transfers[0]].asset_type;
     uint64_t max_rct_index = 0;
     for (size_t idx: selected_transfers)
     {
-      if (specific_transfers[idx].is_rct())
+      if (m_transfers[idx].is_rct())
       {
         has_rct = true;
-        max_rct_index = std::max(max_rct_index, specific_transfers[idx].m_asset_type_output_index);
+        max_rct_index = std::max(max_rct_index, m_transfers[idx].m_asset_type_output_index);
       }
     }
 
@@ -8387,8 +8321,8 @@ void wallet2::get_outs(const transfer_container &specific_transfers, std::vector
     // request histogram for all pre-rct outputs
     req_t.amounts.reserve(selected_transfers.size());
     for(size_t idx: selected_transfers)
-      if (!specific_transfers[idx].is_rct())
-        req_t.amounts.push_back(specific_transfers[idx].is_rct() ? 0 : specific_transfers[idx].amount());
+      if (!m_transfers[idx].is_rct())
+        req_t.amounts.push_back(m_transfers[idx].is_rct() ? 0 : m_transfers[idx].amount());
     if (!req_t.amounts.empty())
     {
       std::sort(req_t.amounts.begin(), req_t.amounts.end());
@@ -8412,7 +8346,7 @@ void wallet2::get_outs(const transfer_container &specific_transfers, std::vector
       cryptonote::COMMAND_RPC_GET_OUTPUT_DISTRIBUTION::response resp_t = AUTO_VAL_INIT(resp_t);
       // req_t.amounts.reserve(req_t.amounts.size() + selected_transfers.size());
       for(size_t idx: selected_transfers)
-        req_t.amounts.push_back(specific_transfers[idx].is_rct() ? 0 : specific_transfers[idx].amount());
+        req_t.amounts.push_back(m_transfers[idx].is_rct() ? 0 : m_transfers[idx].amount());
       std::sort(req_t.amounts.begin(), req_t.amounts.end());
       auto end = std::unique(req_t.amounts.begin(), req_t.amounts.end());
       req_t.amounts.resize(std::distance(req_t.amounts.begin(), end));
@@ -8431,7 +8365,7 @@ void wallet2::get_outs(const transfer_container &specific_transfers, std::vector
       // check we got all data
       for(size_t idx: selected_transfers)
       {
-        const uint64_t amount = specific_transfers[idx].is_rct() ? 0 : specific_transfers[idx].amount();
+        const uint64_t amount = m_transfers[idx].is_rct() ? 0 : m_transfers[idx].amount();
         bool found = false;
         for (const auto &d: resp_t.distributions)
         {
@@ -8458,7 +8392,7 @@ void wallet2::get_outs(const transfer_container &specific_transfers, std::vector
     std::unordered_map<crypto::key_image, std::vector<uint64_t>> existing_rings;
     for(size_t idx: selected_transfers)
     {
-      const transfer_details &td = specific_transfers[idx];
+      const transfer_details &td = m_transfers[idx];
       if (td.m_key_image_known && !td.m_key_image_partial)
         ring_key_images.push_back(td.m_key_image);
     }
@@ -8489,7 +8423,7 @@ void wallet2::get_outs(const transfer_container &specific_transfers, std::vector
     for(size_t idx: selected_transfers)
     {
       ++num_selected_transfers;
-      const transfer_details &td = specific_transfers[idx];
+      const transfer_details &td = m_transfers[idx];
       const uint64_t amount = td.is_rct() ? 0 : td.amount();
       std::unordered_set<uint64_t> seen_indices;
       // request more for rct in base recent (locked) coinbases are picked, since they're locked for longer
@@ -8841,7 +8775,7 @@ void wallet2::get_outs(const transfer_container &specific_transfers, std::vector
     outs.reserve(num_selected_transfers);
     for(size_t idx: selected_transfers)
     {
-      const transfer_details &td = specific_transfers[idx];
+      const transfer_details &td = m_transfers[idx];
       size_t requested_outputs_count = base_requested_outputs_count + (td.is_rct() ? CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW - CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE : 0);
       outs.push_back(std::vector<get_outs_entry>());
       outs.back().reserve(fake_outputs_count + 1);
@@ -8948,7 +8882,7 @@ void wallet2::get_outs(const transfer_container &specific_transfers, std::vector
   {
     for (size_t idx: selected_transfers)
     {
-      const transfer_details &td = specific_transfers[idx];
+      const transfer_details &td = m_transfers[idx];
       std::vector<get_outs_entry> v;
       const rct::key mask = td.is_rct() ? rct::commit(td.amount(), td.m_mask) : rct::zeroCommit(td.amount());
       v.push_back(std::make_tuple(td.m_global_output_index, td.get_public_key(), mask));
@@ -8962,8 +8896,8 @@ void wallet2::get_outs(const transfer_container &specific_transfers, std::vector
   for (size_t i = 0; i < selected_transfers.size(); ++i)
   {
     const size_t idx = selected_transfers[i];
-    THROW_WALLET_EXCEPTION_IF(idx >= specific_transfers.size(), error::wallet_internal_error, "selected_transfers entry out of range");
-    const transfer_details &td = specific_transfers[idx];
+    THROW_WALLET_EXCEPTION_IF(idx >= m_transfers.size(), error::wallet_internal_error, "selected_transfers entry out of range");
+    const transfer_details &td = m_transfers[idx];
     std::vector<uint64_t> ring;
     ring.reserve(outs[i].size());
     for (const auto &e: outs[i])
@@ -9003,18 +8937,18 @@ void wallet2::transfer_selected(const std::vector<cryptonote::tx_destination_ent
   uint64_t found_money = 0;
   for(size_t idx: selected_transfers)
   {
-    found_money += m_transfers.at("ZEPH")[idx].amount();
+    found_money += m_transfers[idx].amount();
   }
 
   LOG_PRINT_L2("wanted " << print_money(needed_money) << ", found " << print_money(found_money) << ", fee " << print_money(fee));
   THROW_WALLET_EXCEPTION_IF(found_money < needed_money, error::not_enough_unlocked_money, found_money, needed_money - fee, fee);
 
-  uint32_t subaddr_account = m_transfers.at("ZEPH")[*selected_transfers.begin()].m_subaddr_index.major;
+  uint32_t subaddr_account = m_transfers[*selected_transfers.begin()].m_subaddr_index.major;
   for (auto i = ++selected_transfers.begin(); i != selected_transfers.end(); ++i)
-    THROW_WALLET_EXCEPTION_IF(subaddr_account != m_transfers.at("ZEPH")[*i].m_subaddr_index.major, error::wallet_internal_error, "the tx uses funds from multiple accounts");
+    THROW_WALLET_EXCEPTION_IF(subaddr_account != m_transfers[*i].m_subaddr_index.major, error::wallet_internal_error, "the tx uses funds from multiple accounts");
 
   if (outs.empty())
-    get_outs(m_transfers.at("ZEPH"), outs, selected_transfers, fake_outputs_count, false, valid_public_keys_cache); // may throw
+    get_outs(outs, selected_transfers, fake_outputs_count, false, valid_public_keys_cache); // may throw
 
   //prepare inputs
   LOG_PRINT_L2("preparing outputs");
@@ -9025,7 +8959,7 @@ void wallet2::transfer_selected(const std::vector<cryptonote::tx_destination_ent
   {
     sources.resize(sources.size()+1);
     cryptonote::tx_source_entry& src = sources.back();
-    const transfer_details& td = m_transfers.at("ZEPH")[idx];
+    const transfer_details& td = m_transfers[idx];
     src.amount = td.amount();
     src.rct = td.is_rct();
     //paste keys (fake and real)
@@ -9138,7 +9072,7 @@ void wallet2::transfer_selected(const std::vector<cryptonote::tx_destination_ent
   ptx.construction_data.subaddr_account = subaddr_account;
   ptx.construction_data.subaddr_indices.clear();
   for (size_t idx: selected_transfers)
-    ptx.construction_data.subaddr_indices.insert(m_transfers.at("ZEPH")[idx].m_subaddr_index.minor);
+    ptx.construction_data.subaddr_indices.insert(m_transfers[idx].m_subaddr_index.minor);
   LOG_PRINT_L2("transfer_selected done");
 }
 
@@ -9169,9 +9103,6 @@ void wallet2::transfer_selected_rct(
   LOG_PRINT_L2("transfer_selected_rct: starting with fee " << print_money (needed_money));
   LOG_PRINT_L2("selected transfers: " << strjoin(selected_transfers, " "));
 
-
-  const transfer_container& specific_transfers = m_transfers[source_asset];
-
   // calculate total amount being sent to all destinations
   // throw if total amount overflows uint64_t
   for(auto& dt: dsts)
@@ -9186,7 +9117,7 @@ void wallet2::transfer_selected_rct(
   std::deque<crypto::public_key> multisig_signers;
   size_t n_multisig_txes = 0;
   std::vector<std::unordered_set<crypto::public_key>> ignore_sets;
-  if (m_multisig && !specific_transfers.empty())
+  if (m_multisig && !m_transfers.empty())
   {
     const crypto::public_key local_signer = get_multisig_signer_public_key();
     size_t n_available_signers = 1;
@@ -9201,7 +9132,7 @@ void wallet2::transfer_selected_rct(
     {
       if (signer == local_signer)
         continue;
-      for (const auto &i: specific_transfers[0].m_multisig_info)
+      for (const auto &i: m_transfers[0].m_multisig_info)
       {
         if (i.m_signer == signer)
         {
@@ -9248,20 +9179,20 @@ void wallet2::transfer_selected_rct(
   uint64_t found_money = 0;
   for(size_t idx: selected_transfers)
   {
-    if (specific_transfers[idx].asset_type == source_asset)
-      found_money += specific_transfers[idx].amount();
-    all_rct &= specific_transfers[idx].is_rct();
+    if (m_transfers[idx].asset_type == source_asset)
+      found_money += m_transfers[idx].amount();
+    all_rct &= m_transfers[idx].is_rct();
   }
 
   LOG_PRINT_L2("wanted " << print_money(needed_money) << ", found " << print_money(found_money) << ", fee " << print_money(fee));
   THROW_WALLET_EXCEPTION_IF(found_money < needed_money, error::not_enough_unlocked_money, found_money, needed_money - fee, fee);
 
-  uint32_t subaddr_account = specific_transfers[*selected_transfers.begin()].m_subaddr_index.major;
+  uint32_t subaddr_account = m_transfers[*selected_transfers.begin()].m_subaddr_index.major;
   for (auto i = ++selected_transfers.begin(); i != selected_transfers.end(); ++i)
-    THROW_WALLET_EXCEPTION_IF(subaddr_account != specific_transfers[*i].m_subaddr_index.major, error::wallet_internal_error, "the tx uses funds from multiple accounts");
+    THROW_WALLET_EXCEPTION_IF(subaddr_account != m_transfers[*i].m_subaddr_index.major, error::wallet_internal_error, "the tx uses funds from multiple accounts");
 
   if (outs.empty())
-    get_outs(specific_transfers, outs, selected_transfers, fake_outputs_count, all_rct, valid_public_keys_cache); // may throw
+    get_outs(outs, selected_transfers, fake_outputs_count, all_rct, valid_public_keys_cache); // may throw
 
   //prepare inputs
   LOG_PRINT_L2("preparing outputs");
@@ -9271,7 +9202,7 @@ void wallet2::transfer_selected_rct(
   {
     sources.resize(sources.size()+1);
     cryptonote::tx_source_entry& src = sources.back();
-    const transfer_details& td = specific_transfers[idx];
+    const transfer_details& td = m_transfers[idx];
     src.amount = td.amount();
     src.rct = td.is_rct();
     src.asset_type = td.asset_type;
@@ -9385,7 +9316,7 @@ void wallet2::transfer_selected_rct(
     // prepare the core part of a multisig tx (many tx attempts for different signer groups can be spun off this core piece)
     std::set<std::uint32_t> subaddr_minor_indices;
     for (size_t idx: selected_transfers) {
-      subaddr_minor_indices.insert(specific_transfers[idx].m_subaddr_index.minor);
+      subaddr_minor_indices.insert(m_transfers[idx].m_subaddr_index.minor);
     }
     THROW_WALLET_EXCEPTION_IF(
       not multisig_tx_builder.init(m_account.get_keys(),
@@ -9570,7 +9501,7 @@ void wallet2::transfer_selected_rct(
   ptx.construction_data.subaddr_account = subaddr_account;
   ptx.construction_data.subaddr_indices.clear();
   for (size_t idx: selected_transfers)
-    ptx.construction_data.subaddr_indices.insert(specific_transfers[idx].m_subaddr_index.minor);
+    ptx.construction_data.subaddr_indices.insert(m_transfers[idx].m_subaddr_index.minor);
   LOG_PRINT_L2("transfer_selected_rct done");
 }
 
@@ -9578,7 +9509,7 @@ std::vector<size_t> wallet2::pick_preferred_rct_inputs(
   uint64_t needed_money,
   uint32_t subaddr_account,
   const std::set<uint32_t> &subaddr_indices,
-  const transfer_container &specific_transfers
+  const tools::wallet2::transfers_iterator_container &specific_transfers
 )
 {
   std::vector<size_t> picks;
@@ -9589,7 +9520,7 @@ std::vector<size_t> wallet2::pick_preferred_rct_inputs(
   // try to find a rct input of enough size
   for (size_t i = 0; i < specific_transfers.size(); ++i)
   {
-    const transfer_details& td = specific_transfers[i];
+    const transfer_details& td = *(specific_transfers[i]);
     if (!is_spent(td, false) && !td.m_frozen && td.is_rct() && td.amount() >= needed_money && is_transfer_unlocked(td) && td.m_subaddr_index.major == subaddr_account && subaddr_indices.count(td.m_subaddr_index.minor) == 1)
     {
       if (td.amount() > m_ignore_outputs_above || td.amount() < m_ignore_outputs_below)
@@ -9598,7 +9529,7 @@ std::vector<size_t> wallet2::pick_preferred_rct_inputs(
         continue;
       }
       LOG_PRINT_L2("We can use " << i << " alone: " << print_money(td.amount()));
-      picks.push_back(i);
+      picks.push_back((size_t)(specific_transfers[i] - m_transfers.begin()));
       return picks;
     }
   }
@@ -9609,7 +9540,7 @@ std::vector<size_t> wallet2::pick_preferred_rct_inputs(
   // it gets rid of it for the future
   for (size_t i = 0; i < specific_transfers.size(); ++i)
   {
-    const transfer_details& td = specific_transfers[i];
+    const transfer_details& td = *(specific_transfers[i]);
     if (!is_spent(td, false) && !td.m_frozen && !td.m_key_image_partial && td.is_rct() && is_transfer_unlocked(td) && td.m_subaddr_index.major == subaddr_account && subaddr_indices.count(td.m_subaddr_index.minor) == 1)
     {
       if (td.amount() > m_ignore_outputs_above || td.amount() < m_ignore_outputs_below)
@@ -9620,7 +9551,7 @@ std::vector<size_t> wallet2::pick_preferred_rct_inputs(
       LOG_PRINT_L2("Considering input " << i << ", " << print_money(td.amount()));
       for (size_t j = i + 1; j < specific_transfers.size(); ++j)
       {
-        const transfer_details& td2 = specific_transfers[j];
+        const transfer_details& td2 = *(specific_transfers[j]);
         if (td2.amount() > m_ignore_outputs_above || td2.amount() < m_ignore_outputs_below)
         {
           MDEBUG("Ignoring output " << j << " of amount " << print_money(td2.amount()) << " which is outside prescribed range [" << print_money(m_ignore_outputs_below) << ", " << print_money(m_ignore_outputs_above) << "]");
@@ -9639,8 +9570,8 @@ std::vector<size_t> wallet2::pick_preferred_rct_inputs(
             // if they're unrelated. If they are related, we'll end up returning
             // them if we find nothing better
             picks.clear();
-            picks.push_back(i);
-            picks.push_back(j);
+            picks.push_back((size_t)(specific_transfers[i] - m_transfers.begin()));
+            picks.push_back((size_t)(specific_transfers[j] - m_transfers.begin()));
             LOG_PRINT_L0("we could use " << i << " and " << j);
             if (relatedness == 0.0f)
               return picks;
@@ -9654,7 +9585,7 @@ std::vector<size_t> wallet2::pick_preferred_rct_inputs(
   return picks;
 }
 
-bool wallet2::should_pick_a_second_output(bool use_rct, size_t n_transfers, const std::vector<size_t> &unused_transfers_indices, const std::vector<size_t> &unused_dust_indices, const transfer_container &specific_transfers) const
+bool wallet2::should_pick_a_second_output(bool use_rct, size_t n_transfers, const std::vector<size_t> &unused_transfers_indices, const std::vector<size_t> &unused_dust_indices) const
 {
   if (!use_rct)
     return false;
@@ -9668,7 +9599,7 @@ bool wallet2::should_pick_a_second_output(bool use_rct, size_t n_transfers, cons
   bool found = false;
   for (auto i: unused_dust_indices)
   {
-    if (specific_transfers[i].is_rct())
+    if (m_transfers[i].is_rct())
     {
       found = true;
       break;
@@ -9676,7 +9607,7 @@ bool wallet2::should_pick_a_second_output(bool use_rct, size_t n_transfers, cons
   }
   if (!found) for (auto i: unused_transfers_indices)
   {
-    if (specific_transfers[i].is_rct())
+    if (m_transfers[i].is_rct())
     {
       found = true;
       break;
@@ -9687,14 +9618,14 @@ bool wallet2::should_pick_a_second_output(bool use_rct, size_t n_transfers, cons
   return true;
 }
 
-std::vector<size_t> wallet2::get_only_rct(const std::vector<size_t> &unused_dust_indices, const std::vector<size_t> &unused_transfers_indices, const transfer_container &specific_transfers) const
+std::vector<size_t> wallet2::get_only_rct(const std::vector<size_t> &unused_dust_indices, const std::vector<size_t> &unused_transfers_indices) const
 {
   std::vector<size_t> indices;
   for (size_t n: unused_dust_indices)
-    if (specific_transfers[n].is_rct())
+    if (m_transfers[n].is_rct())
       indices.push_back(n);
   for (size_t n: unused_transfers_indices)
-    if (specific_transfers[n].is_rct())
+    if (m_transfers[n].is_rct())
       indices.push_back(n);
   return indices;
 }
@@ -9853,9 +9784,8 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(
   THROW_WALLET_EXCEPTION_IF(!get_tx_type(source_asset, dest_asset, tx_type), error::wallet_internal_error, "invalid tx type");
   const uint64_t current_height = get_blockchain_current_height()-1;
   uint32_t hf_version = get_current_hard_fork();
-  const auto specific_transfers = m_transfers.at(source_asset);
+  const auto specific_transfers = get_specific_transfers(source_asset);
   oracle::pricing_record pricing_record;
-
   if (source_asset != dest_asset) {
     bool b = get_pricing_record(pricing_record, current_height);
     THROW_WALLET_EXCEPTION_IF(!b, error::wallet_internal_error, "Failed to get pricing record");
@@ -9965,7 +9895,8 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(
   size_t num_dust_outputs = 0;
   for (size_t i = 0; i < specific_transfers.size(); ++i)
   {
-    const transfer_details& td = specific_transfers[i];
+    const transfer_details& td = *specific_transfers[i];
+    const size_t m_transfer_index = (size_t)(specific_transfers[i] - m_transfers.begin());
     if (m_ignore_fractional_outputs && td.amount() < fractional_threshold)
     {
       MDEBUG("Ignoring output " << i << " of amount " << print_money(td.amount()) << " which is below fractional threshold " << print_money(fractional_threshold));
@@ -9985,11 +9916,11 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(
         auto found = std::find_if(unused_transfers_indices_per_subaddr.begin(), unused_transfers_indices_per_subaddr.end(), find_predicate);
         if (found == unused_transfers_indices_per_subaddr.end())
         {
-          unused_transfers_indices_per_subaddr.push_back({index_minor, {i}});
+          unused_transfers_indices_per_subaddr.push_back({index_minor, {m_transfer_index}});
         }
         else
         {
-          found->second.push_back(i);
+          found->second.push_back(m_transfer_index);
         }
         ++num_nondust_outputs;
       }
@@ -9998,11 +9929,11 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(
         auto found = std::find_if(unused_dust_indices_per_subaddr.begin(), unused_dust_indices_per_subaddr.end(), find_predicate);
         if (found == unused_dust_indices_per_subaddr.end())
         {
-          unused_dust_indices_per_subaddr.push_back({index_minor, {i}});
+          unused_dust_indices_per_subaddr.push_back({index_minor, {m_transfer_index}});
         }
         else
         {
-          found->second.push_back(i);
+          found->second.push_back(m_transfer_index);
         }
         ++num_dust_outputs;
       }
@@ -10058,11 +9989,11 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(
     if (!preferred_inputs.empty())
     {
       string s;
-      for (auto i: preferred_inputs) s += boost::lexical_cast<std::string>(i) + " (" + print_money(specific_transfers[i].amount()) + ") ";
+      for (auto i: preferred_inputs) s += boost::lexical_cast<std::string>(i) + " (" + print_money(m_transfers[i].amount()) + ") ";
       LOG_PRINT_L1("Found preferred rct inputs for rct tx: " << s);
 
       // bring the list of available outputs stored by the same subaddress index to the front of the list
-      uint32_t index_minor = specific_transfers[preferred_inputs[0]].m_subaddr_index.minor;
+      uint32_t index_minor = m_transfers[preferred_inputs[0]].m_subaddr_index.minor;
       for (size_t i = 1; i < unused_transfers_indices_per_subaddr.size(); ++i)
       {
         if (unused_transfers_indices_per_subaddr[i].first == index_minor)
@@ -10092,7 +10023,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(
   std::vector<size_t>* unused_dust_indices      = &unused_dust_indices_per_subaddr[0].second;
   
   hwdev.set_mode(hw::device::TRANSACTION_CREATE_FAKE);
-  while ((!dsts.empty() && dsts[0].amount > 0) || adding_fee || !preferred_inputs.empty() || should_pick_a_second_output(use_rct, txes.back().selected_transfers.size(), *unused_transfers_indices, *unused_dust_indices, specific_transfers)) {
+  while ((!dsts.empty() && dsts[0].amount > 0) || adding_fee || !preferred_inputs.empty() || should_pick_a_second_output(use_rct, txes.back().selected_transfers.size(), *unused_transfers_indices, *unused_dust_indices)) {
     TX &tx = txes.back();
 
     LOG_PRINT_L2("Start of loop with " << unused_transfers_indices->size() << " " << unused_dust_indices->size() << ", tx.dsts.size() " << tx.dsts.size());
@@ -10116,8 +10047,8 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(
       pop_if_present(*unused_dust_indices, idx);
     } else if ((dsts.empty() || dsts[0].amount == 0) && !adding_fee) {
       // the "make rct txes 2/2" case - we pick a small value output to "clean up" the wallet too
-      std::vector<size_t> indices = get_only_rct(*unused_dust_indices, *unused_transfers_indices, specific_transfers);
-      idx = pop_best_value(source_asset, indices, tx.selected_transfers, true);
+      std::vector<size_t> indices = get_only_rct(*unused_dust_indices, *unused_transfers_indices);
+      idx = pop_best_value(indices, tx.selected_transfers, true);
 
       // we might not want to add it if it's a large output and we don't have many left
       uint64_t min_output_value = m_min_output_value;
@@ -10127,8 +10058,8 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(
         min_output_value = DEFAULT_MIN_OUTPUT_VALUE;
         min_output_count = DEFAULT_MIN_OUTPUT_COUNT;
       }
-      if (specific_transfers[idx].amount() >= min_output_value) {
-        if (get_count_above(specific_transfers, *unused_transfers_indices, min_output_value) < min_output_count) {
+      if (m_transfers[idx].amount() >= min_output_value) {
+        if (get_count_above(m_transfers, *unused_transfers_indices, min_output_value) < min_output_count) {
           LOG_PRINT_L2("Second output was not strictly needed, and we're running out of outputs above " << print_money(min_output_value) << ", not adding");
           break;
         }
@@ -10136,7 +10067,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(
 
       // since we're trying to add a second output which is not strictly needed,
       // we only add it if it's unrelated enough to the first one
-      float relatedness = get_output_relatedness(specific_transfers[idx], specific_transfers[tx.selected_transfers.front()]);
+      float relatedness = get_output_relatedness(m_transfers[idx], m_transfers[tx.selected_transfers.front()]);
       if (relatedness > SECOND_OUTPUT_RELATEDNESS_THRESHOLD)
       {
         LOG_PRINT_L2("Second output was not strictly needed, and relatedness " << relatedness << ", not adding");
@@ -10145,9 +10076,9 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(
       pop_if_present(*unused_transfers_indices, idx);
       pop_if_present(*unused_dust_indices, idx);
     } else
-      idx = pop_best_value(source_asset, unused_transfers_indices->empty() ? *unused_dust_indices : *unused_transfers_indices, tx.selected_transfers);
+      idx = pop_best_value(unused_transfers_indices->empty() ? *unused_dust_indices : *unused_transfers_indices, tx.selected_transfers);
 
-    const transfer_details &td = specific_transfers[idx];
+    const transfer_details &td = m_transfers[idx];
     LOG_PRINT_L2("Picking output " << idx << ", amount " << print_money(td.amount()) << ", ki " << td.m_key_image);
 
     // add this output to the list to spend
@@ -10236,7 +10167,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(
       cryptonote::transaction test_tx;
       pending_tx test_ptx;
 
-      const size_t num_outputs = get_num_outputs(tx.dsts, specific_transfers, tx.selected_transfers);
+      const size_t num_outputs = get_num_outputs(tx.dsts, m_transfers, tx.selected_transfers);
       needed_fee = estimate_fee(use_per_byte_fee, use_rct ,tx.selected_transfers.size(), fake_outs_count, num_outputs, extra.size(), bulletproof, clsag, bulletproof_plus, use_view_tags, base_fee, fee_quantization_mask);
       if (source_asset != "ZEPH" && source_asset != dest_asset) {
         needed_fee = get_fee_in_asset_equivalent(source_asset, needed_fee, pricing_record);
@@ -10288,7 +10219,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(
       }
 
       uint64_t inputs = 0, outputs = needed_fee;
-      for (size_t idx: tx.selected_transfers) inputs += specific_transfers[idx].amount();
+      for (size_t idx: tx.selected_transfers) inputs += m_transfers[idx].amount();
       for (const auto &o: tx.dsts) outputs += o.amount;
 
       if (inputs < outputs)
@@ -10453,8 +10384,8 @@ skip_tx:
     TX &tx = *i;
     uint64_t tx_money = 0;
     for (size_t idx: tx.selected_transfers)
-      if (specific_transfers[idx].asset_type == source_asset)
-        tx_money += specific_transfers[idx].amount();
+      if (m_transfers[idx].asset_type == source_asset)
+        tx_money += m_transfers[idx].amount();
     LOG_PRINT_L1("  Transaction " << (1+std::distance(txes.begin(), i)) << "/" << txes.size() <<
       " " << get_transaction_hash(tx.ptx.tx) << ": " << get_weight_string(tx.weight) << ", sending " << print_money(tx_money) << " in " << tx.selected_transfers.size() <<
       " outputs to " << tx.dsts.size() << " destination(s), including " <<
@@ -10485,17 +10416,17 @@ bool wallet2::sanity_check(const std::vector<wallet2::pending_tx> &ptx_vector, s
   }
 
   // add change
-  // uint64_t change = 0;
-  // for (const auto &ptx: ptx_vector)
-  // {
-  //   for (size_t idx: ptx.selected_transfers)
-  //     if (m_transfers[idx].asset_type == ptx.change_dts.dest_asset_type)
-  //       change += m_transfers[idx].amount();
-  //   change -= ptx.fee;
-  // }
-  // for (const auto &r: required)
-  //   change -= r.second.first;
-  // MDEBUG("Adding " << cryptonote::print_money(change) << " expected change");
+  uint64_t change = 0;
+  for (const auto &ptx: ptx_vector)
+  {
+    for (size_t idx: ptx.selected_transfers)
+      if (m_transfers[idx].asset_type == ptx.change_dts.dest_asset_type)
+        change += m_transfers[idx].amount();
+    change -= ptx.fee;
+  }
+  for (auto &r: required)
+    change -= r.second.first[ptx_vector[0].change_dts.dest_asset_type];
+  MDEBUG("Adding " << cryptonote::print_money(change) << " expected change");
 
   // for all txes that have actual change, check change is coming back to the sending wallet
   for (const pending_tx &ptx: ptx_vector)
@@ -10578,7 +10509,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_all(
 
   THROW_WALLET_EXCEPTION_IF(unlocked_balance(source_asset, subaddr_account, false) == 0, error::wallet_internal_error, "No unlocked balance in the specified account");
 
-  wallet2::transfer_container specific_transfers = get_specific_transfers(source_asset);
+  const auto specific_transfers = get_specific_transfers(source_asset);
 
   std::map<uint32_t, std::pair<std::vector<size_t>, std::vector<size_t>>> unused_transfer_dust_indices_per_subaddr;
 
@@ -10586,7 +10517,8 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_all(
   bool fund_found = false;
   for (size_t i = 0; i < specific_transfers.size(); ++i)
   {
-    const transfer_details& td = specific_transfers[i];
+    const transfer_details& td = *specific_transfers[i];
+    const size_t m_transfer_index = (size_t)(specific_transfers[i] - m_transfers.begin());
     if (m_ignore_fractional_outputs && td.amount() < fractional_threshold)
     {
       MDEBUG("Ignoring output " << i << " of amount " << print_money(td.amount()) << " which is below threshold " << print_money(fractional_threshold));
@@ -10598,9 +10530,9 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_all(
       if (below == 0 || td.amount() < below)
       {
         if ((td.is_rct()) || is_valid_decomposed_amount(td.amount()))
-          unused_transfer_dust_indices_per_subaddr[td.m_subaddr_index.minor].first.push_back(i);
+          unused_transfer_dust_indices_per_subaddr[td.m_subaddr_index.minor].first.push_back(m_transfer_index);
         else
-          unused_transfer_dust_indices_per_subaddr[td.m_subaddr_index.minor].second.push_back(i);
+          unused_transfer_dust_indices_per_subaddr[td.m_subaddr_index.minor].second.push_back(m_transfer_index);
       }
     }
   }
@@ -10638,9 +10570,9 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_single(const crypt
   const bool use_rct = true;
   std::string asset_type = "ZEPH";
   // find output with the given key image
-  for (size_t i = 0; i < m_transfers.at(asset_type).size(); ++i)
+  for (size_t i = 0; i < m_transfers.size(); ++i)
   {
-    const transfer_details& td = m_transfers.at(asset_type)[i];
+    const transfer_details& td = m_transfers[i];
     if (td.m_key_image_known && td.m_key_image == ki && !is_spent(td, false) && !td.m_frozen && (use_rct ? true : !td.is_rct()) && is_transfer_unlocked(td))
     {
       if (td.is_rct() || is_valid_decomposed_amount(td.amount()))
@@ -10719,9 +10651,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(
   THROW_WALLET_EXCEPTION_IF(!get_tx_type(source_asset, dest_asset, tx_type), error::wallet_internal_error, "invalid tx type");
   const uint64_t current_height = get_blockchain_current_height()-1;
   uint32_t hf_version = get_current_hard_fork();
-  const auto specific_transfers = m_transfers.at(source_asset);
   oracle::pricing_record pricing_record;
-
   if (source_asset != dest_asset) {
     bool b = get_pricing_record(pricing_record, current_height);
     THROW_WALLET_EXCEPTION_IF(!b, error::wallet_internal_error, "Failed to get pricing record");
@@ -10741,14 +10671,14 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(
  
     size_t idx =
       unused_transfers_indices.empty()
-        ? pop_best_value(source_asset, unused_dust_indices, tx.selected_transfers)
+        ? pop_best_value(unused_dust_indices, tx.selected_transfers)
       : unused_dust_indices.empty()
-        ? pop_best_value(source_asset, unused_transfers_indices, tx.selected_transfers)
+        ? pop_best_value(unused_transfers_indices, tx.selected_transfers)
       : ((tx.selected_transfers.size() & 1) || accumulated_outputs > fee_dust_threshold)
-        ? pop_best_value(source_asset, unused_dust_indices, tx.selected_transfers)
-      : pop_best_value(source_asset, unused_transfers_indices, tx.selected_transfers);
+        ? pop_best_value(unused_dust_indices, tx.selected_transfers)
+      : pop_best_value(unused_transfers_indices, tx.selected_transfers);
 
-    const transfer_details &td = m_transfers.at(source_asset)[idx];
+    const transfer_details &td = m_transfers[idx];
     LOG_PRINT_L2("Picking output " << idx << ", amount " << print_money(td.amount()));
 
     // add this output to the list to spend
@@ -10769,7 +10699,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(
       cryptonote::transaction test_tx;
       pending_tx test_ptx;
 
-      const size_t num_outputs = get_num_outputs(tx.dsts, m_transfers.at(source_asset), tx.selected_transfers);
+      const size_t num_outputs = get_num_outputs(tx.dsts, m_transfers, tx.selected_transfers);
       needed_fee = estimate_fee(use_per_byte_fee, use_rct, tx.selected_transfers.size(), fake_outs_count, num_outputs, extra.size(), bulletproof, clsag, bulletproof_plus, use_view_tags, base_fee, fee_quantization_mask);
       if (source_asset != "ZEPH" && source_asset != dest_asset) {
         needed_fee = get_fee_in_asset_equivalent(source_asset, needed_fee, pricing_record);
@@ -10931,7 +10861,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(
     TX &tx = *i;
     uint64_t tx_money = 0;
     for (size_t idx: tx.selected_transfers)
-      tx_money += m_transfers.at(source_asset)[idx].amount();
+      tx_money += m_transfers[idx].amount();
     LOG_PRINT_L1("  Transaction " << (1+std::distance(txes.begin(), i)) << "/" << txes.size() <<
       " " << get_transaction_hash(tx.ptx.tx) << ": " << get_weight_string(tx.weight) << ", sending " << print_money(tx_money) << " in " << tx.selected_transfers.size() <<
       " outputs to " << tx.dsts.size() << " destination(s), including " <<
@@ -10944,7 +10874,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(
   {
     for (size_t idx: tx.selected_transfers)
     {
-      a += m_transfers.at(source_asset)[idx].amount();
+      a += m_transfers[idx].amount();
     }
     a -= tx.ptx.fee;
   }
@@ -10998,7 +10928,7 @@ void wallet2::cold_sign_tx(const std::vector<pending_tx>& ptx_vector, signed_tx_
   {
     txs.txes.push_back(get_construction_data_with_decrypted_short_payment_id(tx, m_account.get_device()));
   }
-  txs.transfers = std::make_tuple(0, m_transfers.at("ZEPH").size(), m_transfers.at("ZEPH"));
+  txs.transfers = std::make_tuple(0, m_transfers.size(), m_transfers);
 
   auto dev_cold = dynamic_cast<::hw::device_cold*>(&hwdev);
   CHECK_AND_ASSERT_THROW_MES(dev_cold, "Device does not implement cold signing interface");
@@ -11028,7 +10958,7 @@ uint64_t wallet2::cold_key_image_sync(uint64_t &spent, uint64_t &unspent) {
   hw::wallet_shim wallet_shim;
   setup_shim(&wallet_shim, this);
 
-  dev_cold->ki_sync(&wallet_shim, m_transfers.at("ZEPH"), ski);
+  dev_cold->ki_sync(&wallet_shim, m_transfers, ski);
 
   // Call COMMAND_RPC_IS_KEY_IMAGE_SPENT only if daemon is trusted.
   uint64_t import_res = import_key_images(ski, 0, spent, unspent, is_trusted_daemon());
@@ -11100,7 +11030,7 @@ std::vector<size_t> wallet2::select_available_outputs(const std::function<bool(c
 {
   std::vector<size_t> outputs;
   size_t n = 0;
-  for (transfer_container::const_iterator i = m_transfers.at("ZEPH").begin(); i != m_transfers.at("ZEPH").end(); ++i, ++n)
+  for (transfer_container::const_iterator i = m_transfers.begin(); i != m_transfers.end(); ++i, ++n)
   {
     if (is_spent(*i, false))
       continue;
@@ -11119,7 +11049,7 @@ std::vector<size_t> wallet2::select_available_outputs(const std::function<bool(c
 std::vector<uint64_t> wallet2::get_unspent_amounts_vector(bool strict)
 {
   std::set<uint64_t> set;
-  for (const auto &td: m_transfers.at("ZEPH"))
+  for (const auto &td: m_transfers)
   {
     if (!is_spent(td, strict) && !td.m_frozen)
       set.insert(td.is_rct() ? 0 : td.amount());
@@ -11193,10 +11123,10 @@ uint64_t wallet2::get_num_rct_outputs()
   return resp_t.histogram[0].total_instances;
 }
 //----------------------------------------------------------------------------------------------------
-const wallet2::transfer_details &wallet2::get_transfer_details(const std::string& asset_type, size_t idx)
+const wallet2::transfer_details &wallet2::get_transfer_details(size_t idx)
 {
-  THROW_WALLET_EXCEPTION_IF(idx >= m_transfers.at(asset_type).size(), error::wallet_internal_error, "Bad transfer index");
-  return m_transfers.at(asset_type)[idx];
+  THROW_WALLET_EXCEPTION_IF(idx >= m_transfers.size(), error::wallet_internal_error, "Bad transfer index");
+  return m_transfers[idx];
 }
 //----------------------------------------------------------------------------------------------------
 std::vector<size_t> wallet2::select_available_unmixable_outputs()
@@ -11232,7 +11162,7 @@ std::vector<wallet2::pending_tx> wallet2::create_unmixable_sweep_transactions()
   std::vector<size_t> unmixable_transfer_outputs, unmixable_dust_outputs;
   for (auto n: unmixable_outputs)
   {
-    if (m_transfers.at("ZEPH")[n].amount() < base_fee)
+    if (m_transfers[n].amount() < base_fee)
       unmixable_dust_outputs.push_back(n);
     else
       unmixable_transfer_outputs.push_back(n);
@@ -11247,7 +11177,7 @@ void wallet2::discard_unmixable_outputs()
   std::vector<size_t> unmixable_outputs = select_available_unmixable_outputs();
   for (size_t idx : unmixable_outputs)
   {
-    freeze("ZEPH", idx);
+    freeze(idx);
   }
 }
 
@@ -11454,7 +11384,7 @@ std::string wallet2::get_spend_proof(const crypto::hash &txid, const std::string
     }
 
     // derive the real output keypair
-    const transfer_details& in_td = m_transfers.at("ZEPH")[found->second];
+    const transfer_details& in_td = m_transfers[found->second];
     crypto::public_key in_tx_out_pkey = in_td.get_public_key();
     const crypto::public_key in_tx_pub_key = get_tx_pub_key_from_extra(in_td.m_tx, in_td.m_pk_index);
     const std::vector<crypto::public_key> in_additionakl_tx_pub_keys = get_additional_tx_pub_keys_from_extra(in_td.m_tx);
@@ -12096,9 +12026,9 @@ std::string wallet2::get_reserve_proof(const boost::optional<std::pair<uint32_t,
 
   // determine which outputs to include in the proof
   std::vector<size_t> selected_transfers;
-  for (size_t i = 0; i < m_transfers.at("ZEPH").size(); ++i)
+  for (size_t i = 0; i < m_transfers.size(); ++i)
   {
-    const transfer_details &td = m_transfers.at("ZEPH")[i];
+    const transfer_details &td = m_transfers[i];
     if (!is_spent(td, true) && !td.m_frozen && (!account_minreserve || account_minreserve->first == td.m_subaddr_index.major))
       selected_transfers.push_back(i);
   }
@@ -12108,14 +12038,14 @@ std::string wallet2::get_reserve_proof(const boost::optional<std::pair<uint32_t,
     THROW_WALLET_EXCEPTION_IF(account_minreserve->second == 0, error::wallet_internal_error, "Proved amount must be greater than 0");
     // minimize the number of outputs included in the proof, by only picking the N largest outputs that can cover the requested min reserve amount
     std::sort(selected_transfers.begin(), selected_transfers.end(), [&](const size_t a, const size_t b)
-      { return m_transfers.at("ZEPH")[a].amount() > m_transfers.at("ZEPH")[b].amount(); });
-    while (selected_transfers.size() >= 2 && m_transfers.at("ZEPH")[selected_transfers[1]].amount() >= account_minreserve->second)
+      { return m_transfers[a].amount() > m_transfers[b].amount(); });
+    while (selected_transfers.size() >= 2 && m_transfers[selected_transfers[1]].amount() >= account_minreserve->second)
       selected_transfers.erase(selected_transfers.begin());
     size_t sz = 0;
     uint64_t total = 0;
     while (total < account_minreserve->second)
     {
-      total += m_transfers.at("ZEPH")[selected_transfers[sz]].amount();
+      total += m_transfers[selected_transfers[sz]].amount();
       ++sz;
     }
     selected_transfers.resize(sz);
@@ -12126,7 +12056,7 @@ std::string wallet2::get_reserve_proof(const boost::optional<std::pair<uint32_t,
   prefix_data.append((const char*)&m_account.get_keys().m_account_address, sizeof(cryptonote::account_public_address));
   for (size_t i = 0; i < selected_transfers.size(); ++i)
   {
-    prefix_data.append((const char*)&m_transfers.at("ZEPH")[selected_transfers[i]].m_key_image, sizeof(crypto::key_image));
+    prefix_data.append((const char*)&m_transfers[selected_transfers[i]].m_key_image, sizeof(crypto::key_image));
   }
   crypto::hash prefix_hash;
   crypto::cn_fast_hash(prefix_data.data(), prefix_data.size(), prefix_hash);
@@ -12136,7 +12066,7 @@ std::string wallet2::get_reserve_proof(const boost::optional<std::pair<uint32_t,
   std::unordered_set<cryptonote::subaddress_index> subaddr_indices = { {0,0} };
   for (size_t i = 0; i < selected_transfers.size(); ++i)
   {
-    const transfer_details &td = m_transfers.at("ZEPH")[selected_transfers[i]];
+    const transfer_details &td = m_transfers[selected_transfers[i]];
     reserve_proof_entry& proof = proofs[i];
     proof.txid = td.m_txid;
     proof.index_in_tx = td.m_internal_output_index;
@@ -12770,14 +12700,14 @@ std::pair<uint64_t, std::vector<std::pair<crypto::key_image, crypto::signature>>
   size_t offset = 0;
   if (!all)
   {
-    while (offset < m_transfers.at("ZEPH").size() && !m_transfers.at("ZEPH")[offset].m_key_image_request)
+    while (offset < m_transfers.size() && !m_transfers[offset].m_key_image_request)
       ++offset;
   }
 
-  ski.reserve(m_transfers.at("ZEPH").size() - offset);
-  for (size_t n = offset; n < m_transfers.at("ZEPH").size(); ++n)
+  ski.reserve(m_transfers.size() - offset);
+  for (size_t n = offset; n < m_transfers.size(); ++n)
   {
-    const transfer_details &td = m_transfers.at("ZEPH")[n];
+    const transfer_details &td = m_transfers[n];
 
     // get ephemeral public key
     const crypto::public_key pkey = td.get_public_key();
@@ -12849,7 +12779,7 @@ uint64_t wallet2::import_key_images(const std::string &filename, uint64_t &spent
   {
     THROW_WALLET_EXCEPTION(error::wallet_internal_error, std::string( "Key images from ") + filename + " are for a different account");
   }
-  THROW_WALLET_EXCEPTION_IF(offset > m_transfers.at("ZEPH").size(), error::wallet_internal_error, "Offset larger than known outputs");
+  THROW_WALLET_EXCEPTION_IF(offset > m_transfers.size(), error::wallet_internal_error, "Offset larger than known outputs");
 
   const size_t record_size = sizeof(crypto::key_image) + sizeof(crypto::signature);
   THROW_WALLET_EXCEPTION_IF((data.size() - headerlen) % record_size,
@@ -12876,8 +12806,8 @@ uint64_t wallet2::import_key_images(const std::vector<std::pair<crypto::key_imag
   COMMAND_RPC_IS_KEY_IMAGE_SPENT::request req = AUTO_VAL_INIT(req);
   COMMAND_RPC_IS_KEY_IMAGE_SPENT::response daemon_resp = AUTO_VAL_INIT(daemon_resp);
 
-  THROW_WALLET_EXCEPTION_IF(offset > m_transfers.at("ZEPH").size(), error::wallet_internal_error, "Offset larger than known outputs");
-  THROW_WALLET_EXCEPTION_IF(signed_key_images.size() > m_transfers.at("ZEPH").size() - offset, error::wallet_internal_error,
+  THROW_WALLET_EXCEPTION_IF(offset > m_transfers.size(), error::wallet_internal_error, "Offset larger than known outputs");
+  THROW_WALLET_EXCEPTION_IF(signed_key_images.size() > m_transfers.size() - offset, error::wallet_internal_error,
       "The blockchain is out of date compared to the signed key images");
 
   if (signed_key_images.empty() && offset == 0)
@@ -12892,7 +12822,7 @@ uint64_t wallet2::import_key_images(const std::vector<std::pair<crypto::key_imag
   PERF_TIMER_START(import_key_images_A);
   for (size_t n = 0; n < signed_key_images.size(); ++n)
   {
-    const transfer_details &td = m_transfers.at("ZEPH")[n + offset];
+    const transfer_details &td = m_transfers[n + offset];
     const crypto::key_image &key_image = signed_key_images[n].first;
     const crypto::signature &signature = signed_key_images[n].second;
 
@@ -12919,11 +12849,11 @@ uint64_t wallet2::import_key_images(const std::vector<std::pair<crypto::key_imag
   PERF_TIMER_START(import_key_images_B);
   for (size_t n = 0; n < signed_key_images.size(); ++n)
   {
-    m_transfers.at("ZEPH")[n + offset].m_key_image = signed_key_images[n].first;
-    m_key_images[m_transfers.at("ZEPH")[n + offset].m_key_image] = n + offset;
-    m_transfers.at("ZEPH")[n + offset].m_key_image_known = true;
-    m_transfers.at("ZEPH")[n + offset].m_key_image_request = false;
-    m_transfers.at("ZEPH")[n + offset].m_key_image_partial = false;
+    m_transfers[n + offset].m_key_image = signed_key_images[n].first;
+    m_key_images[m_transfers[n + offset].m_key_image] = n + offset;
+    m_transfers[n + offset].m_key_image_known = true;
+    m_transfers[n + offset].m_key_image_request = false;
+    m_transfers[n + offset].m_key_image_partial = false;
   }
   PERF_TIMER_STOP(import_key_images_B);
 
@@ -12941,7 +12871,7 @@ uint64_t wallet2::import_key_images(const std::vector<std::pair<crypto::key_imag
 
     for (size_t n = 0; n < daemon_resp.spent_status.size(); ++n)
     {
-      transfer_details &td = m_transfers.at("ZEPH")[n + offset];
+      transfer_details &td = m_transfers[n + offset];
       td.m_spent = daemon_resp.spent_status[n] != COMMAND_RPC_IS_KEY_IMAGE_SPENT::UNSPENT;
     }
   }
@@ -12953,7 +12883,7 @@ uint64_t wallet2::import_key_images(const std::vector<std::pair<crypto::key_imag
   std::unordered_map<crypto::key_image, crypto::hash> spent_key_images;
 
   PERF_TIMER_START(import_key_images_C);
-  for (const transfer_details &td: m_transfers.at("ZEPH"))
+  for (const transfer_details &td: m_transfers)
   {
     for (const cryptonote::txin_v& in : td.m_tx.vin)
     {
@@ -12966,7 +12896,7 @@ uint64_t wallet2::import_key_images(const std::vector<std::pair<crypto::key_imag
   // accumulate outputs before the updated data
   for(size_t i = 0; i < offset; ++i)
   {
-    const transfer_details &td = m_transfers.at("ZEPH")[i];
+    const transfer_details &td = m_transfers[i];
     if (td.m_frozen)
       continue;
     uint64_t amount = td.amount();
@@ -12979,7 +12909,7 @@ uint64_t wallet2::import_key_images(const std::vector<std::pair<crypto::key_imag
   PERF_TIMER_START(import_key_images_D);
   for(size_t i = 0; i < signed_key_images.size(); ++i)
   {
-    const transfer_details &td = m_transfers.at("ZEPH")[i + offset];
+    const transfer_details &td = m_transfers[i + offset];
     if (td.m_frozen)
       continue;
     uint64_t amount = td.amount();
@@ -13095,8 +13025,8 @@ uint64_t wallet2::import_key_images(const std::vector<std::pair<crypto::key_imag
         auto it = m_key_images.find(boost::get<cryptonote::txin_zephyr_key>(in).k_image);
         if (it != m_key_images.end())
         {
-          THROW_WALLET_EXCEPTION_IF(it->second >= m_transfers.at("ZEPH").size(), error::wallet_internal_error, std::string("Key images cache contains illegal transfer offset: ") + std::to_string(it->second) + std::string(" m_transfers[ZEPH].size() = ") + std::to_string(m_transfers.at("ZEPH").size()));
-          const transfer_details& td = m_transfers.at("ZEPH")[it->second];
+          THROW_WALLET_EXCEPTION_IF(it->second >= m_transfers.size(), error::wallet_internal_error, std::string("Key images cache contains illegal transfer offset: ") + std::to_string(it->second) + std::string(" m_transfers.size() = ") + std::to_string(m_transfers.size()));
+          const transfer_details& td = m_transfers[it->second];
           uint64_t amount = boost::get<cryptonote::txin_zephyr_key>(in).amount;
           if (amount > 0)
           {
@@ -13108,7 +13038,7 @@ uint64_t wallet2::import_key_images(const std::vector<std::pair<crypto::key_imag
           tx_money_spent_in_ins += amount;
 
           LOG_PRINT_L0("Spent money: " << print_money(amount) << ", with tx: " << *spent_txid);
-          set_spent("ZEPH", it->second, e.block_height);
+          set_spent(it->second, e.block_height);
           if (m_callback)
             m_callback->on_money_spent(e.block_height, *spent_txid, spent_tx, amount, "ZEPH", spent_tx, td.m_subaddr_index);
           if (subaddr_account != (uint32_t)-1 && subaddr_account != td.m_subaddr_index.major)
@@ -13138,7 +13068,7 @@ uint64_t wallet2::import_key_images(const std::vector<std::pair<crypto::key_imag
     PERF_TIMER_START(import_key_images_G);
     for (size_t n : swept_transfers)
     {
-      const transfer_details& td = m_transfers.at("ZEPH")[n];
+      const transfer_details& td = m_transfers[n];
       confirmed_transfer_details pd;
       pd.m_change = (uint64_t)-1;                             // change is unknown
       pd.m_amount_in = pd.m_amount_out = td.amount();         // fee is unknown
@@ -13150,12 +13080,12 @@ uint64_t wallet2::import_key_images(const std::vector<std::pair<crypto::key_imag
   }
 
   // this can be 0 if we do not know the height
-  return m_transfers.at("ZEPH")[signed_key_images.size() + offset - 1].m_block_height;
+  return m_transfers[signed_key_images.size() + offset - 1].m_block_height;
 }
 
 bool wallet2::import_key_images(std::vector<crypto::key_image> key_images, size_t offset, boost::optional<std::unordered_set<size_t>> selected_transfers)
 {
-  if (key_images.size() + offset > m_transfers.at("ZEPH").size())
+  if (key_images.size() + offset > m_transfers.size())
   {
     LOG_PRINT_L1("More key images returned that we know outputs for");
     return false;
@@ -13166,7 +13096,7 @@ bool wallet2::import_key_images(std::vector<crypto::key_image> key_images, size_
     if (selected_transfers && selected_transfers.get().find(transfer_idx) == selected_transfers.get().end())
       continue;
 
-    transfer_details &td = m_transfers.at("ZEPH")[transfer_idx];
+    transfer_details &td = m_transfers[transfer_idx];
     if (td.m_key_image_known && !td.m_key_image_partial && td.m_key_image != key_images[ki_idx])
       LOG_PRINT_L0("WARNING: imported key image differs from previously known key image at index " << ki_idx << ": trusting imported one");
     td.m_key_image = key_images[ki_idx];
@@ -13269,15 +13199,15 @@ std::tuple<uint64_t, uint64_t, std::vector<tools::wallet2::exported_transfer_det
 
   size_t offset = 0;
   if (!all)
-    while (offset < m_transfers.at("ZEPH").size() && (m_transfers.at("ZEPH")[offset].m_key_image_known && !m_transfers.at("ZEPH")[offset].m_key_image_request))
+    while (offset < m_transfers.size() && (m_transfers[offset].m_key_image_known && !m_transfers[offset].m_key_image_request))
       ++offset;
   else
     offset = start;
 
-  outs.reserve(m_transfers.at("ZEPH").size() - offset);
-  for (size_t n = offset; n < m_transfers.at("ZEPH").size() && n - offset < count; ++n)
+  outs.reserve(m_transfers.size() - offset);
+  for (size_t n = offset; n < m_transfers.size() && n - offset < count; ++n)
   {
-    const transfer_details &td = m_transfers.at("ZEPH")[n];
+    const transfer_details &td = m_transfers[n];
 
     exported_transfer_details etd;
     etd.m_pubkey = td.get_public_key();
@@ -13299,7 +13229,7 @@ std::tuple<uint64_t, uint64_t, std::vector<tools::wallet2::exported_transfer_det
     outs.push_back(etd);
   }
 
-  return std::make_tuple(offset, m_transfers.at("ZEPH").size(), outs);
+  return std::make_tuple(offset, m_transfers.size(), outs);
 }
 //----------------------------------------------------------------------------------------------------
 std::string wallet2::export_outputs_to_str(bool all, uint32_t start, uint32_t count) const
@@ -13333,17 +13263,17 @@ size_t wallet2::import_outputs(const std::tuple<uint64_t, uint64_t, std::vector<
   const size_t num_outputs = std::get<1>(outputs);
   const std::vector<tools::wallet2::transfer_details> &output_array = std::get<2>(outputs);
 
-  THROW_WALLET_EXCEPTION_IF(offset > m_transfers.at("ZEPH").size(), error::wallet_internal_error,
+  THROW_WALLET_EXCEPTION_IF(offset > m_transfers.size(), error::wallet_internal_error,
       "Imported outputs omit more outputs that we know of");
 
   THROW_WALLET_EXCEPTION_IF(offset + output_array.size() > num_outputs, error::wallet_internal_error,
       "Offset is larger than total outputs");
 
-  const size_t original_size = m_transfers.at("ZEPH").size();
-  if (offset + output_array.size() > m_transfers.at("ZEPH").size())
-    m_transfers.at("ZEPH").resize(offset + output_array.size());
-  else if (num_outputs < m_transfers.at("ZEPH").size())
-    m_transfers.at("ZEPH").resize(num_outputs);
+  const size_t original_size = m_transfers.size();
+  if (offset + output_array.size() > m_transfers.size())
+    m_transfers.resize(offset + output_array.size());
+  else if (num_outputs < m_transfers.size())
+    m_transfers.resize(num_outputs);
 
   for (size_t i = 0; i < output_array.size(); ++i)
   {
@@ -13353,7 +13283,7 @@ size_t wallet2::import_outputs(const std::tuple<uint64_t, uint64_t, std::vector<
     if (i + offset < original_size)
     {
       // compare the data used to create the key image below
-      const transfer_details &org_td = m_transfers.at("ZEPH")[i + offset];
+      const transfer_details &org_td = m_transfers[i + offset];
       if (!org_td.m_key_image_known)
         goto process;
 #define CMPF(f) if (!(td.f == org_td.f)) goto process
@@ -13365,7 +13295,7 @@ size_t wallet2::import_outputs(const std::tuple<uint64_t, uint64_t, std::vector<
         goto process;
 
       // copy anyway, since the comparison does not include ancillary fields which may have changed
-      m_transfers.at("ZEPH")[i + offset] = std::move(td);
+      m_transfers[i + offset] = std::move(td);
       continue;
     }
 
@@ -13395,10 +13325,10 @@ process:
 
     m_key_images[td.m_key_image] = i + offset;
     m_pub_keys[td.get_public_key()] = i + offset;
-    m_transfers.at("ZEPH")[i + offset] = std::move(td);
+    m_transfers[i + offset] = std::move(td);
   }
 
-  return m_transfers.at("ZEPH").size();
+  return m_transfers.size();
 }
 //----------------------------------------------------------------------------------------------------
 size_t wallet2::import_outputs(const std::tuple<uint64_t, uint64_t, std::vector<tools::wallet2::exported_transfer_details>> &outputs)
@@ -13413,22 +13343,22 @@ size_t wallet2::import_outputs(const std::tuple<uint64_t, uint64_t, std::vector<
   const size_t num_outputs = std::get<1>(outputs);
   const std::vector<tools::wallet2::exported_transfer_details> &output_array = std::get<2>(outputs);
 
-  THROW_WALLET_EXCEPTION_IF(offset > m_transfers.at("ZEPH").size(), error::wallet_internal_error,
+  THROW_WALLET_EXCEPTION_IF(offset > m_transfers.size(), error::wallet_internal_error,
       "Imported outputs omit more outputs that we know of. Try using export_outputs all.");
 
   THROW_WALLET_EXCEPTION_IF(offset + output_array.size() > num_outputs, error::wallet_internal_error,
       "Offset is larger than total outputs");
 
-  const size_t original_size = m_transfers.at("ZEPH").size();
-  if (offset + output_array.size() > m_transfers.at("ZEPH").size())
-    m_transfers.at("ZEPH").resize(offset + output_array.size());
-  else if (num_outputs < m_transfers.at("ZEPH").size())
-    m_transfers.at("ZEPH").resize(num_outputs);
+  const size_t original_size = m_transfers.size();
+  if (offset + output_array.size() > m_transfers.size())
+    m_transfers.resize(offset + output_array.size());
+  else if (num_outputs < m_transfers.size())
+    m_transfers.resize(num_outputs);
 
   for (size_t i = 0; i < output_array.size(); ++i)
   {
     exported_transfer_details etd = output_array[i];
-    transfer_details &td = m_transfers.at("ZEPH")[i + offset];
+    transfer_details &td = m_transfers[i + offset];
 
     // setup td with "cheap" loaded data
     td.m_block_height = 0;
@@ -13501,7 +13431,7 @@ size_t wallet2::import_outputs(const std::tuple<uint64_t, uint64_t, std::vector<
     m_pub_keys[td.get_public_key()] = i + offset;
   }
 
-  return m_transfers.at("ZEPH").size();
+  return m_transfers.size();
 }
 //----------------------------------------------------------------------------------------------------
 size_t wallet2::import_outputs_from_str(const std::string &outputs_st)
@@ -13621,8 +13551,8 @@ crypto::public_key wallet2::get_multisig_signing_public_key(size_t idx) const
 void wallet2::get_multisig_k(size_t idx, const std::unordered_set<rct::key> &used_L, rct::key &nonce)
 {
   CHECK_AND_ASSERT_THROW_MES(m_multisig, "Wallet is not multisig");
-  CHECK_AND_ASSERT_THROW_MES(idx < m_transfers.at("ZEPH").size(), "idx out of range");
-  for (auto &k: m_transfers.at("ZEPH")[idx].m_multisig_k)
+  CHECK_AND_ASSERT_THROW_MES(idx < m_transfers.size(), "idx out of range");
+  for (auto &k: m_transfers[idx].m_multisig_k)
   {
     if (k == rct::zero())
       continue;
@@ -13642,23 +13572,23 @@ void wallet2::get_multisig_k(size_t idx, const std::unordered_set<rct::key> &use
 //----------------------------------------------------------------------------------------------------
 rct::multisig_kLRki wallet2::get_multisig_kLRki(size_t n, const rct::key &k) const
 {
-  CHECK_AND_ASSERT_THROW_MES(n < m_transfers.at("ZEPH").size(), "Bad m_transfers index");
+  CHECK_AND_ASSERT_THROW_MES(n < m_transfers.size(), "Bad m_transfers index");
   rct::multisig_kLRki kLRki;
   kLRki.k = k;
-  multisig::generate_multisig_LR(m_transfers.at("ZEPH")[n].get_public_key(), rct::rct2sk(kLRki.k), (crypto::public_key&)kLRki.L, (crypto::public_key&)kLRki.R);
-  kLRki.ki = rct::ki2rct(m_transfers.at("ZEPH")[n].m_key_image);
+  multisig::generate_multisig_LR(m_transfers[n].get_public_key(), rct::rct2sk(kLRki.k), (crypto::public_key&)kLRki.L, (crypto::public_key&)kLRki.R);
+  kLRki.ki = rct::ki2rct(m_transfers[n].m_key_image);
   return kLRki;
 }
 //----------------------------------------------------------------------------------------------------
 rct::multisig_kLRki wallet2::get_multisig_composite_kLRki(size_t n, const std::unordered_set<crypto::public_key> &ignore_set, std::unordered_set<rct::key> &used_L, std::unordered_set<rct::key> &new_used_L) const
 {
-  CHECK_AND_ASSERT_THROW_MES(n < m_transfers.at("ZEPH").size(), "Bad transfer index");
+  CHECK_AND_ASSERT_THROW_MES(n < m_transfers.size(), "Bad transfer index");
 
   rct::multisig_kLRki kLRki = get_multisig_kLRki(n, rct::skGen());
 
   // pick a L/R pair from every other participant but one
   size_t n_signers_used = 1;
-  for (const auto &p: m_transfers.at("ZEPH")[n].m_multisig_info)
+  for (const auto &p: m_transfers[n].m_multisig_info)
   {
     if (ignore_set.find(p.m_signer) != ignore_set.end())
       continue;
@@ -13682,9 +13612,9 @@ rct::multisig_kLRki wallet2::get_multisig_composite_kLRki(size_t n, const std::u
 //----------------------------------------------------------------------------------------------------
 crypto::key_image wallet2::get_multisig_composite_key_image(size_t n) const
 {
-  CHECK_AND_ASSERT_THROW_MES(n < m_transfers.at("ZEPH").size(), "Bad output index");
+  CHECK_AND_ASSERT_THROW_MES(n < m_transfers.size(), "Bad output index");
 
-  const transfer_details &td = m_transfers.at("ZEPH")[n];
+  const transfer_details &td = m_transfers[n];
   const crypto::public_key tx_key = get_tx_pub_key_from_received_outs(td);
   const std::vector<crypto::public_key> additional_tx_keys = cryptonote::get_additional_tx_pub_keys_from_extra(td.m_tx);
   crypto::key_image ki;
@@ -13710,9 +13640,9 @@ cryptonote::blobdata wallet2::export_multisig()
   //    - Calling this function will reset any nonces recorded by the previous call to this function. Doing so will
   //      invalidate any in-progress signing attempts that rely on the previous output of this function.
   info.resize(m_transfers.size());
-  for (size_t n = 0; n < m_transfers.at("ZEPH").size(); ++n)
+  for (size_t n = 0; n < m_transfers.size(); ++n)
   {
-    transfer_details &td = m_transfers.at("ZEPH")[n];
+    transfer_details &td = m_transfers[n];
     crypto::key_image ki;
     if (td.m_multisig_k.size())
       memwipe(td.m_multisig_k.data(), td.m_multisig_k.size() * sizeof(td.m_multisig_k[0]));
@@ -13767,11 +13697,11 @@ cryptonote::blobdata wallet2::export_multisig()
 //----------------------------------------------------------------------------------------------------
 void wallet2::update_multisig_rescan_info(const std::vector<std::vector<rct::key>> &multisig_k, const std::vector<std::vector<tools::wallet2::multisig_info>> &info, size_t n)
 {
-  CHECK_AND_ASSERT_THROW_MES(n < m_transfers.at("ZEPH").size(), "Bad index in update_multisig_info");
-  CHECK_AND_ASSERT_THROW_MES(multisig_k.size() >= m_transfers.at("ZEPH").size(), "Mismatched sizes of multisig_k and info");
+  CHECK_AND_ASSERT_THROW_MES(n < m_transfers.size(), "Bad index in update_multisig_info");
+  CHECK_AND_ASSERT_THROW_MES(multisig_k.size() >= m_transfers.size(), "Mismatched sizes of multisig_k and info");
 
   MDEBUG("update_multisig_rescan_info: updating index " << n);
-  transfer_details &td = m_transfers.at("ZEPH")[n];
+  transfer_details &td = m_transfers[n];
   td.m_multisig_info.clear();
   for (const auto &pi: info)
   {
@@ -13864,12 +13794,12 @@ size_t wallet2::import_multisig(std::vector<cryptonote::blobdata> blobs)
 
   std::vector<std::vector<rct::key>> k;
   auto wiper = epee::misc_utils::create_scope_leave_handler([&](){for (auto &v: k) memwipe(v.data(), v.size() * sizeof(v[0]));});
-  k.reserve(m_transfers.at("ZEPH").size());
-  for (const auto &td: m_transfers.at("ZEPH"))
+  k.reserve(m_transfers.size());
+  for (const auto &td: m_transfers)
     k.push_back(td.m_multisig_k);
 
   // how many outputs we're going to update
-  size_t n_outputs = m_transfers.at("ZEPH").size();
+  size_t n_outputs = m_transfers.size();
   for (const auto &pi: info)
     if (pi.size() < n_outputs)
       n_outputs = pi.size();
@@ -13899,7 +13829,7 @@ size_t wallet2::import_multisig(std::vector<cryptonote::blobdata> blobs)
   // first pass to determine where to detach the blockchain
   for (size_t n = 0; n < n_outputs; ++n)
   {
-    const transfer_details &td = m_transfers.at("ZEPH")[n];
+    const transfer_details &td = m_transfers[n];
     if (!td.m_key_image_partial)
       continue;
     MINFO("Multisig info importing from block height " << td.m_block_height);
@@ -13907,7 +13837,7 @@ size_t wallet2::import_multisig(std::vector<cryptonote::blobdata> blobs)
     break;
   }
 
-  for (size_t n = 0; n < n_outputs && n < m_transfers.at("ZEPH").size(); ++n)
+  for (size_t n = 0; n < n_outputs && n < m_transfers.size(); ++n)
   {
     update_multisig_rescan_info(k, info, n);
   }
@@ -14335,7 +14265,7 @@ mms::multisig_wallet_state wallet2::get_multisig_wallet_state() const
   state.multisig = multisig(&state.multisig_is_ready);
   state.has_multisig_partial_key_images = has_multisig_partial_key_images();
   state.multisig_rounds_passed = m_multisig_rounds_passed;
-  state.num_transfer_details = m_transfers.at("ZEPH").size();
+  state.num_transfer_details = m_transfers.size();
   if (state.multisig)
   {
     THROW_WALLET_EXCEPTION_IF(!m_original_keys_available, error::wallet_internal_error, "MMS use not possible because own original Zephyr address not available");
@@ -14512,16 +14442,16 @@ void wallet2::hash_m_transfer(const transfer_details & transfer, crypto::hash &h
   keccak_finish(&state, (uint8_t *) hash.data);
 }
 //----------------------------------------------------------------------------------------------------
-uint64_t wallet2::hash_m_transfers(const std::string& asset_type, boost::optional<uint64_t> transfer_height, crypto::hash &hash) const
+uint64_t wallet2::hash_m_transfers(boost::optional<uint64_t> transfer_height, crypto::hash &hash) const
 {
-  CHECK_AND_ASSERT_THROW_MES(!transfer_height || *transfer_height <= m_transfers.at(asset_type).size(), "Hash height is greater than number of transfers");
+  CHECK_AND_ASSERT_THROW_MES(!transfer_height || *transfer_height <= m_transfers.size(), "Hash height is greater than number of transfers");
 
   KECCAK_CTX state;
   crypto::hash tmp_hash{};
   uint64_t current_height = 0;
 
   keccak_init(&state);
-  for(const transfer_details & transfer : m_transfers.at(asset_type)){
+  for(const transfer_details & transfer : m_transfers){
     if (transfer_height && current_height >= *transfer_height){
       break;
     }
@@ -14536,22 +14466,22 @@ uint64_t wallet2::hash_m_transfers(const std::string& asset_type, boost::optiona
   return current_height;
 }
 //----------------------------------------------------------------------------------------------------
-void wallet2::finish_rescan_bc_keep_key_images(const std::string& asset_type, uint64_t transfer_height, const crypto::hash &hash)
+void wallet2::finish_rescan_bc_keep_key_images(uint64_t transfer_height, const crypto::hash &hash)
 {
   // Compute hash of m_transfers, if differs there had to be BC reorg.
-  if (transfer_height <= m_transfers.at(asset_type).size()) {
+  if (transfer_height <= m_transfers.size()) {
     crypto::hash new_transfers_hash{};
-    hash_m_transfers(asset_type, transfer_height, new_transfers_hash);
+    hash_m_transfers(transfer_height, new_transfers_hash);
 
     if (new_transfers_hash == hash) {
       // Restore key images in m_transfers from m_key_images
       for(auto it = m_key_images.begin(); it != m_key_images.end(); it++)
       {
-        THROW_WALLET_EXCEPTION_IF(it->second >= m_transfers.at(asset_type).size(),
+        THROW_WALLET_EXCEPTION_IF(it->second >= m_transfers.size(),
                                   error::wallet_internal_error,
                                   "Key images cache contains illegal transfer offset");
-        m_transfers.at(asset_type)[it->second].m_key_image = it->first;
-        m_transfers.at(asset_type)[it->second].m_key_image_known = true;
+        m_transfers[it->second].m_key_image = it->first;
+        m_transfers[it->second].m_key_image_known = true;
       }
 
       return;
