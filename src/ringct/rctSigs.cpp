@@ -40,7 +40,6 @@
 #include "blockchain_db/blockchain_db.h"
 #include "cryptonote_config.h"
 
-#include "bulletproofs_plus.h"
 #include "bulletproofs.cc"
 
 using namespace crypto;
@@ -613,8 +612,9 @@ namespace rct {
       CHECK_AND_ASSERT_THROW_MES(!rv.mixRing.empty(), "Empty mixRing");
       const size_t inputs = is_rct_simple(rv.type) ? rv.mixRing.size() : rv.mixRing[0].size();
       const size_t outputs = rv.ecdhInfo.size();
+      const bool conversion_tx = rv.maskSums.size() == 2;
       key prehash;
-      CHECK_AND_ASSERT_THROW_MES(const_cast<rctSig&>(rv).serialize_rctsig_base(ba, inputs, outputs),
+      CHECK_AND_ASSERT_THROW_MES(const_cast<rctSig&>(rv).serialize_rctsig_base(ba, inputs, outputs, conversion_tx),
           "Failed to serialize rctSigBase");
       cryptonote::get_blob_hash(ss.str(), h);
       hashes.push_back(hash2rct(h));
@@ -1113,7 +1113,6 @@ namespace rct {
       const cryptonote::transaction_type tx_type,
       const std::string& in_asset_type,
       const oracle::pricing_record& pr,
-      const std::vector<std::pair<std::string, std::string>> circ_amounts,
       const vector<xmr_amount> &inamounts,
       const vector<xmr_amount> &outamounts,
       std::map<size_t, std::string> &outamounts_features,
@@ -1125,10 +1124,6 @@ namespace rct {
       const RCTConfig &rct_config,
       hw::device &hwdev
     ) {
-        MDEBUG("genRctSimple");
-        MDEBUG("rct_config.range_proof_type: " << rct_config.range_proof_type);
-        MDEBUG("rct_config.bp_version: " << rct_config.bp_version);
-
         const bool bulletproof_or_plus = rct_config.range_proof_type > RangeProofBorromean;
         CHECK_AND_ASSERT_THROW_MES(inamounts.size() > 0, "Empty inamounts");
         CHECK_AND_ASSERT_THROW_MES(inamounts.size() == inSk.size(), "Different number of inamounts/inSk");
@@ -1156,14 +1151,19 @@ namespace rct {
         else
           ASSERT_MES_AND_THROW("Unsupported BP version: " << rct_config.bp_version);
 
-        using tt = cryptonote::transaction_type;
-        bool conversion_tx = tx_type == tt::MINT_STABLE || tx_type == tt::REDEEM_STABLE || tx_type == tt::MINT_RESERVE || tx_type == tt::REDEEM_RESERVE;
-
         rv.message = message;
         rv.outPk.resize(destinations.size());
         if (!bulletproof_or_plus)
           rv.p.rangeSigs.resize(destinations.size());
         rv.ecdhInfo.resize(destinations.size());
+
+        using tt = cryptonote::transaction_type;
+        bool conversion_tx = tx_type == tt::MINT_STABLE || tx_type == tt::REDEEM_STABLE || tx_type == tt::MINT_RESERVE || tx_type == tt::REDEEM_RESERVE;
+        if (conversion_tx) {
+          rv.maskSums.resize(2);
+          rv.maskSums[0] = zero();
+          rv.maskSums[1] = zero();
+        }
 
         size_t i;
         keyV masks(destinations.size()); //sk mask..
@@ -1217,6 +1217,12 @@ namespace rct {
                 {
                     rv.outPk[i].mask = rct::scalarmult8(C[i]);
                     outSk[i].mask = masks[i];
+                    if (conversion_tx) {
+                      // sum the change output masks
+                      if (outamounts_features.at(i) == in_asset_type) {
+                        sc_add(rv.maskSums[1].bytes, rv.maskSums[1].bytes, masks[i].bytes);
+                      }
+                    }
                 }
             }
             else while (amounts_proved < n_amounts)
@@ -1268,17 +1274,18 @@ namespace rct {
             key outSk_scaled = zero();
             key tempkey = zero();
 
-            boost::multiprecision::uint128_t exchange_128 = pr.zEPHUSD;
-            // boost::multiprecision::uint128_t conversion_fee = (exchange_128 * 2) / 100; // 2% fee
-            // exchange_128 -= conversion_fee;
-
-            // will add more here for reserve using a spdecial pricing record like value passed in
             // Convert commitment mask by exchange rate for equalKeys() testing
             if (tx_type == tt::MINT_STABLE) {
               if (outamounts_features[i] == "ZEPHUSD") {
-                key inverse_rate = invert(d2h((uint64_t)exchange_128));
-                // key inverse_rate = invert(d2h(pr.zEPHUSD));
+                boost::multiprecision::uint128_t exchange_128 = std::max(pr.stable, pr.stable_ma);
+                boost::multiprecision::uint128_t rate_128 = COIN;
+                rate_128 *= COIN;
+                rate_128 /= exchange_128;
+                boost::multiprecision::uint128_t conversion_fee = (rate_128 * 2) / 100; // 2% fee
+                rate_128 -= conversion_fee;
+                rate_128 -= (rate_128 % 10000);
 
+                key inverse_rate = invert(d2h((uint64_t)rate_128));
                 sc_mul(tempkey.bytes, outSk[i].mask.bytes, atomic.bytes);
                 sc_mul(outSk_scaled.bytes, tempkey.bytes, inverse_rate.bytes);
               } else {
@@ -1287,11 +1294,12 @@ namespace rct {
               }
             } else if (tx_type == tt::REDEEM_STABLE) {
               if (outamounts_features[i] == "ZEPH") {
-                boost::multiprecision::uint128_t rate_128 = COIN;
-                rate_128 *= COIN;
-                rate_128 /= exchange_128;
-                rate_128 -= (rate_128 % 100000000);
-                key inverse_rate = invert(d2h((uint64_t)rate_128));
+                boost::multiprecision::uint128_t exchange_128 = std::min(pr.stable, pr.stable_ma);
+                boost::multiprecision::uint128_t conversion_fee = (exchange_128 * 2) / 100; // 2% fee
+                exchange_128 -= conversion_fee;
+                exchange_128 -= (exchange_128 % 10000);
+
+                key inverse_rate = invert(d2h((uint64_t)exchange_128));
                 sc_mul(tempkey.bytes, outSk[i].mask.bytes, atomic.bytes);
                 sc_mul(outSk_scaled.bytes, tempkey.bytes, inverse_rate.bytes);
               } else {
@@ -1300,11 +1308,11 @@ namespace rct {
               }
             } else if (tx_type == tt::MINT_RESERVE) {
                if (outamounts_features[i] == "ZEPHRSV") {
-                uint64_t reserve_coin_price = pr.zEPHRSV;
+                uint64_t reserve_coin_price = std::max(pr.reserve, pr.reserve_ma);
                 boost::multiprecision::uint128_t rate_128 = COIN;
                 rate_128 *= COIN;
                 rate_128 /= reserve_coin_price;
-                rate_128 -= (rate_128 % 100000000);
+                rate_128 -= (rate_128 % 10000);
                 
                 key inverse_rate = invert(d2h((uint64_t)rate_128));
 
@@ -1316,13 +1324,16 @@ namespace rct {
               }
             } else if (tx_type == tt::REDEEM_RESERVE) {
               if (outamounts_features[i] == "ZEPH") {
-                uint64_t reserve_coin_price = pr.zEPHRSV;
-                key inverse_rate = invert(d2h(reserve_coin_price));
-                // key inverse_rate = invert(d2h(reserve_coin_price));
+                boost::multiprecision::uint128_t reserve_coin_price = std::min(pr.reserve, pr.reserve_ma);
+                boost::multiprecision::uint128_t conversion_fee = (reserve_coin_price * 2) / 100; // 2% fee
+                reserve_coin_price -= conversion_fee;
+                reserve_coin_price -= (reserve_coin_price % 10000);
+
+                key inverse_rate = invert(d2h((uint64_t)reserve_coin_price));
                 sc_mul(tempkey.bytes, outSk[i].mask.bytes, atomic.bytes);
                 sc_mul(outSk_scaled.bytes, tempkey.bytes, inverse_rate.bytes);
               } else {
-                // ZEPHUSD change output
+                // ZEPHRSV change output
                 outSk_scaled = outSk[i].mask;
               }
             } else {
@@ -1358,6 +1369,11 @@ namespace rct {
         sc_sub(a[i].bytes, sumout.bytes, sumpouts.bytes);
         genC(pseudoOuts[i], a[i], inamounts[i]);
 
+        // set the sum of input blinding factors
+        if (conversion_tx) {
+          sc_add(rv.maskSums[0].bytes, a[i].bytes, sumpouts.bytes);
+        }
+
         DP(pseudoOuts[i]);
 
         key full_message = get_pre_mlsag_hash(rv,hwdev);
@@ -1387,7 +1403,6 @@ namespace rct {
       const cryptonote::transaction_type tx_type,
       const std::string& in_asset_type,
       const oracle::pricing_record& pr,
-      const std::vector<std::pair<std::string, std::string>> circ_amounts,
       const vector<xmr_amount> &inamounts,
       const vector<xmr_amount> &outamounts,
       std::map<size_t, std::string> &outamounts_features,
@@ -1406,7 +1421,7 @@ namespace rct {
           mixRing[i].resize(mixin+1);
           index[i] = populateFromBlockchainSimple(mixRing[i], inPk[i], mixin);
         }
-        return genRctSimple(message, inSk, destinations, tx_type, in_asset_type, pr, circ_amounts, inamounts, outamounts, outamounts_features, txnFee, mixRing, amount_keys, index, outSk, rct_config, hwdev);
+        return genRctSimple(message, inSk, destinations, tx_type, in_asset_type, pr, inamounts, outamounts, outamounts_features, txnFee, mixRing, amount_keys, index, outSk, rct_config, hwdev);
     }
 
     //RingCT protocol
@@ -1491,10 +1506,9 @@ namespace rct {
     //
     //ver RingCT simple
     //assumes only post-rct style inputs (at least for max anonymity)
-    bool verRctSemanticsSimple2(
+    bool verRctSemanticsSimple(
       const rctSig& rv, 
       const oracle::pricing_record& pr,
-      const std::vector<std::pair<std::string, std::string>> circ_amounts,
       const cryptonote::transaction_type& tx_type,
       const std::string& strSource, 
       const std::string& strDest,
@@ -1506,7 +1520,7 @@ namespace rct {
 
       try
       {
-        PERF_TIMER(verRctSemanticsSimple2);
+        PERF_TIMER(verRctSemanticsSimple);
 
         tools::threadpool& tpool = tools::threadpool::getInstanceForCompute();
         tools::threadpool::waiter waiter(tpool);
@@ -1527,7 +1541,9 @@ namespace rct {
         CHECK_AND_ASSERT_MES(std::find(oracle::ASSET_TYPES.begin(), oracle::ASSET_TYPES.end(), strDest) != oracle::ASSET_TYPES.end(), false, "Invalid Dest Asset!");
         CHECK_AND_ASSERT_MES(tx_type != tt::UNSET, false, "Invalid transaction type.");
         if (strSource != strDest) {
+          CHECK_AND_ASSERT_MES(rv.maskSums.size() == 2, false, "maskSums size is not 2");
           CHECK_AND_ASSERT_MES(!pr.empty(), false, "Empty pricing record found for a conversion tx");
+          CHECK_AND_ASSERT_MES(!pr.has_missing_rates(), false, "Missing values in pricing record for a conversion tx");
           CHECK_AND_ASSERT_MES(amount_burnt, false, "0 amount_burnt found for a conversion tx");        
         }
         
@@ -1580,53 +1596,50 @@ namespace rct {
         // Subtract the sum of converted output commitments from the sum of consumed output commitments in D colour (if any are present)
         subKeys(sumD, zerokey, sumOutpks_D);
 
-        boost::multiprecision::uint128_t exchange_128 = pr.zEPHUSD;
-        // MDEBUG("exchange_128: " << exchange_128);
-        // boost::multiprecision::uint128_t conversion_fee = (exchange_128 * 2) / 100; // 2% fee
-        // MDEBUG("conversion_fee: " << conversion_fee);
-        // exchange_128 -= conversion_fee;
-        // MDEBUG("exchange_128: " << exchange_128);
 
-                // Get the circulating supply data
-        // std::vector<std::pair<std::string, std::string>> circ_amounts;
-        // THROW_WALLET_EXCEPTION_IF(!get_circulating_supply(circ_amounts), error::wallet_internal_error, "Failed to get circulating supply");
-
-        // NEAC: attempt to only calculate forward
         // CALCULATE Zi
         if (tx_type == tt::MINT_STABLE) {
-          key D_scaled = scalarmultKey(sumD, d2h(COIN));
-          // key yC_invert = invert(d2h(pr.zEPHUSD));
-          key yC_invert = invert(d2h((uint64_t)exchange_128));
-          key D_final = scalarmultKey(D_scaled, yC_invert);
-          Zi = addKeys(sumC, D_final);
-        } else if (tx_type == tt::REDEEM_STABLE) {
+          boost::multiprecision::uint128_t exchange_128 = std::max(pr.stable, pr.stable_ma);
           boost::multiprecision::uint128_t rate_128 = COIN;
           rate_128 *= COIN;
           rate_128 /= exchange_128;
-          rate_128 -= (rate_128 % 100000000);
+          boost::multiprecision::uint128_t conversion_fee = (rate_128 * 2) / 100; // 2% fee
+          rate_128 -= conversion_fee;
+          rate_128 -= (rate_128 % 10000);
 
           key D_scaled = scalarmultKey(sumD, d2h(COIN));
           key yC_invert = invert(d2h((uint64_t)rate_128));
           key D_final = scalarmultKey(D_scaled, yC_invert);
           Zi = addKeys(sumC, D_final);
+        } else if (tx_type == tt::REDEEM_STABLE) {
+          boost::multiprecision::uint128_t exchange_128 = std::min(pr.stable, pr.stable_ma);
+          boost::multiprecision::uint128_t conversion_fee = (exchange_128 * 2) / 100; // 2% fee
+          exchange_128 -= conversion_fee;
+          exchange_128 -= (exchange_128 % 10000);
+
+          key D_scaled = scalarmultKey(sumD, d2h(COIN));
+          key yC_invert = invert(d2h((uint64_t)exchange_128));
+          key D_final = scalarmultKey(D_scaled, yC_invert);
+          Zi = addKeys(sumC, D_final);
         } else if (tx_type == tt::MINT_RESERVE) {
-          uint64_t reserve_coin_price = pr.zEPHRSV;
-          MDEBUG("reserve_coin_price: " << reserve_coin_price);
+          uint64_t reserve_coin_price = std::max(pr.reserve, pr.reserve_ma);
           boost::multiprecision::uint128_t rate_128 = COIN;
           rate_128 *= COIN;
           rate_128 /= reserve_coin_price;
-          rate_128 -= (rate_128 % 100000000);
+          rate_128 -= (rate_128 % 10000);
 
           key D_scaled = scalarmultKey(sumD, d2h(COIN));
           key yC_invert = invert(d2h((uint64_t)rate_128));
           key D_final = scalarmultKey(D_scaled, yC_invert);
           Zi = addKeys(sumC, D_final);
         } else if (tx_type == tt::REDEEM_RESERVE) {
-          uint64_t reserve_coin_price = pr.zEPHRSV;
-          MDEBUG("reserve_coin_price: " << reserve_coin_price);
+          boost::multiprecision::uint128_t reserve_coin_price = std::min(pr.reserve, pr.reserve_ma);
+          boost::multiprecision::uint128_t conversion_fee = (reserve_coin_price * 2) / 100; // 2% fee
+          reserve_coin_price -= conversion_fee;
+          reserve_coin_price -= (reserve_coin_price % 10000);
           
           key D_scaled = scalarmultKey(sumD, d2h(COIN));
-          key yC_invert = invert(d2h(reserve_coin_price));
+          key yC_invert = invert(d2h((uint64_t)reserve_coin_price));
           key D_final = scalarmultKey(D_scaled, yC_invert);
           Zi = addKeys(sumC, D_final);
         } else if (tx_type == tt::TRANSFER || tx_type == tt::STABLE_TRANSFER || tx_type == tt::RESERVE_TRANSFER) {
@@ -1640,6 +1653,33 @@ namespace rct {
         if (!equalKeys(Zi, zerokey)) {
           LOG_PRINT_L1("Sum check failed (Zi)");
           return false;
+        }
+
+        // Validate TX amount burnt/mint for conversions
+        if (strSource != strDest) {
+          // m = sum of all masks of inputs
+          // n = sum of masks of change outputs
+          // rv.maskSums[0] = m
+          // rv.maskSums[1] = n
+          // The value the current sumC is C = xG + aH where
+          // x = m - n, a = actual converted amount(burnt), and G, H are constants
+
+          // add the n back to x, so x = m in calculation C = xG + aH
+          // but we can't add it directly. So first calculate the C for n(mask) and 0(amount)
+          key C_n;
+          genC(C_n, rv.maskSums[1], 0);
+          key C_burnt = addKeys(sumC, C_n);
+
+          // Now, x actually should be rv.maskSums[0]
+          // so if we calculate a C with rv.maskSums[0] and amount_burnt, C should be same as C_burnt
+          key pseudoC_burnt;
+          genC(pseudoC_burnt, rv.maskSums[0], amount_burnt);
+
+          // check whether they are equal
+          if (!equalKeys(C_burnt, pseudoC_burnt)) {
+            LOG_PRINT_L1("Tx amount burnt/minted validation failed.");
+            return false;
+          }
         }
 
         for (size_t i = 0; i < rv.p.bulletproofs.size(); i++)
@@ -1666,16 +1706,9 @@ namespace rct {
       }
     }
 
-    //ver RingCT simple
-    //assumes only post-rct style inputs (at least for max anonymity)
-    bool verRctSemanticsSimple(
-      const rctSig& rv, 
-      const oracle::pricing_record& pr, 
-      const cryptonote::transaction_type& type,
-      const std::string& strSource, 
-      const std::string& strDest
-    ){
-      return false;
+    bool verRctSemanticsSimple(const rctSig& rv)
+    {
+      return verRctSemanticsSimple(rv, oracle::pricing_record(), cryptonote::transaction_type::TRANSFER, "ZEPH", "ZEPH", 0, {}, {}, 0);
     }
 
     //ver RingCT simple
@@ -1811,58 +1844,68 @@ namespace rct {
       return decodeRctSimple(rv, sk, i, mask, hwdev);
     }
 
-    bool checkBurntAndMinted(const rctSig &rv, const xmr_amount amount_burnt, const xmr_amount amount_minted, const oracle::pricing_record pr, const std::string& source, const std::string& destination, const uint8_t version) {
+    bool validateMintedAmount(const rctSig &rv, const xmr_amount amount_burnt, const xmr_amount amount_minted, const oracle::pricing_record pr, const std::string& source, const std::string& destination, const uint8_t version) {
       if (source == "ZEPH" && destination == "ZEPHUSD") {
         boost::multiprecision::uint128_t zeph_128 = amount_burnt;
-        boost::multiprecision::uint128_t exchange_128 = pr.zEPHUSD;
-        // boost::multiprecision::uint128_t conversion_fee = (exchange_128 * 2) / 100; // 2% fee
-        // exchange_128 -= conversion_fee;
-        boost::multiprecision::uint128_t stable_128 = zeph_128 * exchange_128;
+        boost::multiprecision::uint128_t exchange_128 = std::max(pr.stable, pr.stable_ma);
+        boost::multiprecision::uint128_t rate_128 = COIN;
+        rate_128 *= COIN;
+        rate_128 /= exchange_128;
+        boost::multiprecision::uint128_t conversion_fee = (rate_128 * 2) / 100; // 2% fee
+        rate_128 -= conversion_fee;
+        rate_128 -= (rate_128 % 10000);
+
+        boost::multiprecision::uint128_t stable_128 = zeph_128 * rate_128;
         stable_128 /= COIN;
         boost::multiprecision::uint128_t minted_128 = amount_minted;
         if (stable_128 != minted_128) {
-          LOG_PRINT_L1("Minted/burnt verification failed (oracle)");
+          LOG_PRINT_L1("Minted/burnt verification failed (zeph -> zephusd)");
           return false;
         }
       } else if (source == "ZEPHUSD" && destination == "ZEPH") {
         boost::multiprecision::uint128_t stable_128 = amount_burnt;
-        boost::multiprecision::uint128_t exchange_128 = pr.zEPHUSD;
-        // boost::multiprecision::uint128_t conversion_fee = (exchange_128 * 2) / 100; // 2% fee
-        // exchange_128 -= conversion_fee;
+        boost::multiprecision::uint128_t exchange_128 = std::min(pr.stable, pr.stable_ma);
+        boost::multiprecision::uint128_t conversion_fee = (exchange_128 * 2) / 100; // 2% fee
+        exchange_128 -= conversion_fee;
+        exchange_128 -= (exchange_128 % 10000);
 
-        boost::multiprecision::uint128_t zeph_128 = stable_128 * COIN;
-        zeph_128 /= exchange_128;
+        boost::multiprecision::uint128_t zeph_128 = stable_128 * exchange_128;
+        zeph_128 /= COIN;
         boost::multiprecision::uint128_t minted_128 = amount_minted;
         if ((uint64_t)zeph_128 != minted_128) {
-          LOG_PRINT_L1("Minted/burnt verification failed (onshore)");
+          LOG_PRINT_L1("Minted/burnt verification failed (zephusd -> zeph)");
           return false;
         }
       } else if (source == "ZEPH" && destination == "ZEPHRSV") {
-        // boost::multiprecision::uint128_t zeph_128 = amount_burnt;
-        // boost::multiprecision::uint128_t exchange_128 = pr.zEPHUSD;
-        // boost::multiprecision::uint128_t conversion_fee = (exchange_128 * 2) / 100; // 2% fee
-        // exchange_128 -= conversion_fee;
-        // boost::multiprecision::uint128_t stable_128 = zeph_128 * exchange_128;
-        // stable_128 /= COIN;
-        // boost::multiprecision::uint128_t minted_128 = amount_minted;
-        // if (stable_128 != minted_128) {
-        //   LOG_PRINT_L1("Minted/burnt verification failed (oracle)");
-        //   return false;
-        // }
+        boost::multiprecision::uint128_t zeph_128 = amount_burnt;
+        boost::multiprecision::uint128_t exchange_128 = std::max(pr.reserve, pr.reserve_ma);
+        boost::multiprecision::uint128_t rate_128 = COIN;
+        rate_128 *= COIN;
+        rate_128 /= exchange_128;
+        rate_128 -= (rate_128 % 10000);
+
+        boost::multiprecision::uint128_t reserve_amount_128 = zeph_128 * rate_128;
+        reserve_amount_128 /= COIN;
+        boost::multiprecision::uint128_t minted_128 = amount_minted;
+        if (reserve_amount_128 != minted_128) {
+          LOG_PRINT_L1("Minted/burnt verification failed (zeph -> zephrsv)");
+          return false;
+        }
         return true;
       } else if (source == "ZEPHRSV" && destination == "ZEPH") {
-        // boost::multiprecision::uint128_t stable_128 = amount_burnt;
-        // boost::multiprecision::uint128_t exchange_128 = pr.zEPHUSD;
-        // boost::multiprecision::uint128_t conversion_fee = (exchange_128 * 2) / 100; // 2% fee
-        // exchange_128 -= conversion_fee;
+        boost::multiprecision::uint128_t stable_128 = amount_burnt;
+        boost::multiprecision::uint128_t exchange_128 = std::min(pr.reserve, pr.reserve_ma);
+        boost::multiprecision::uint128_t conversion_fee = (exchange_128 * 2) / 100; // 2% fee
+        exchange_128 -= conversion_fee;
+        exchange_128 -= (exchange_128 % 10000);
 
-        // boost::multiprecision::uint128_t zeph_128 = stable_128 * COIN;
-        // zeph_128 /= exchange_128;
-        // boost::multiprecision::uint128_t minted_128 = amount_minted;
-        // if ((uint64_t)zeph_128 != minted_128) {
-        //   LOG_PRINT_L1("Minted/burnt verification failed (onshore)");
-        //   return false;
-        // }
+        boost::multiprecision::uint128_t zeph_128 = stable_128 * exchange_128;
+        zeph_128 /= COIN;
+        boost::multiprecision::uint128_t minted_128 = amount_minted;
+        if ((uint64_t)zeph_128 != minted_128) {
+          LOG_PRINT_L1("Minted/burnt verification failed (zephrsv -> zeph)");
+          return false;
+        }
         return true;
       } else {
         LOG_PRINT_L1("Invalid request - minted/burnt values only valid for minting/redeeming stable/reserve TXs");

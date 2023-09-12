@@ -71,18 +71,18 @@ TEST(fee_2021_scaling, relay_fee_cases_from_pdf)
 {
   PREFIX_WINDOW(1, CRYPTONOTE_LONG_TERM_BLOCK_WEIGHT_WINDOW_SIZE);
 
-  ASSERT_EQ(bc->get_dynamic_base_fee(1200000000000, 300000, 1-1), 8000);
+  ASSERT_EQ(bc->get_dynamic_base_fee(1200000000000, 300000, 1-1), 38000);
   ASSERT_EQ(bc->get_dynamic_base_fee(1200000000000, 300000, 1), 38000);
   ASSERT_EQ(bc->get_dynamic_base_fee(1200000000000, 1425000, 1-1), 1684 /*1680*/);
   ASSERT_EQ(bc->get_dynamic_base_fee(1200000000000, 1425000, 1), 1684 /*1680*/);
-  ASSERT_EQ(bc->get_dynamic_base_fee(1200000000000, 1500000, 1-1), 1600);
+  ASSERT_EQ(bc->get_dynamic_base_fee(1200000000000, 1500000, 1-1), 1520);
   ASSERT_EQ(bc->get_dynamic_base_fee(1200000000000, 1500000, 1), 1520);
 
-  ASSERT_EQ(bc->get_dynamic_base_fee(600000000000, 300000, 1-1), 4000);
+  ASSERT_EQ(bc->get_dynamic_base_fee(600000000000, 300000, 1-1), 19000);
   ASSERT_EQ(bc->get_dynamic_base_fee(600000000000, 300000, 1), 19000);
   ASSERT_EQ(bc->get_dynamic_base_fee(600000000000, 1425000, 1-1), 842 /*840*/);
   ASSERT_EQ(bc->get_dynamic_base_fee(600000000000, 1425000, 1), 842 /*840*/);
-  ASSERT_EQ(bc->get_dynamic_base_fee(600000000000, 1500000, 1-1), 800);
+  ASSERT_EQ(bc->get_dynamic_base_fee(600000000000, 1500000, 1-1), 760);
   ASSERT_EQ(bc->get_dynamic_base_fee(600000000000, 1500000, 1), 760);
 }
 

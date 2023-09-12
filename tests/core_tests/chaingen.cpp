@@ -86,7 +86,9 @@ namespace
         , uint64_t long_term_block_weight
         , const cryptonote::difficulty_type& cumulative_difficulty
         , const uint64_t& coins_generated
+        , const uint64_t& reserve_reward
         , uint64_t num_rct_outs
+        , oracle::asset_type_counts& cum_rct_by_asset_type
         , const crypto::hash& blk_hash
     ) override
     {
@@ -174,7 +176,8 @@ static std::unique_ptr<cryptonote::Blockchain> init_blockchain(const std::vector
 
     const block *blk = &boost::get<block>(ev);
     auto blk_hash = get_block_hash(*blk);
-    bdb->add_block(*blk, 1, 1, 1, 0, 0, blk_hash);
+    oracle::asset_type_counts num_rct_outs_by_asset_type;
+    bdb->add_block(*blk, 1, 1, 1, 0, 0, 0, num_rct_outs_by_asset_type, blk_hash);
   }
 
   bool r = blockchain->init(bdb, nettype, true, test_options, 2, nullptr);
@@ -263,9 +266,11 @@ bool test_generator::construct_block(cryptonote::block& blk, uint64_t height, co
 
   blk.miner_tx = AUTO_VAL_INIT(blk.miner_tx);
   size_t target_block_weight = txs_weight + get_transaction_weight(blk.miner_tx);
+  std::map<std::string, uint64_t> fee_map;
+  fee_map["ZEPH"] = total_fee;
   while (true)
   {
-    if (!construct_miner_tx(height, misc_utils::median(block_weights), already_generated_coins, target_block_weight, total_fee, miner_acc.get_keys().m_account_address, blk.miner_tx, blobdata(), 10, hf_ver ? hf_ver.get() : 1))
+    if (!construct_miner_tx(height, misc_utils::median(block_weights), already_generated_coins, target_block_weight, fee_map, miner_acc.get_keys().m_account_address, blk.miner_tx, blobdata(), 10, hf_ver ? hf_ver.get() : 1))
       return false;
 
     size_t actual_block_weight = txs_weight + get_transaction_weight(blk.miner_tx);
@@ -367,8 +372,10 @@ bool test_generator::construct_block_manually(block& blk, const block& prev_bloc
   else
   {
     size_t current_block_weight = txs_weight + get_transaction_weight(blk.miner_tx);
+    std::map<std::string, uint64_t> fee_map;
+    fee_map["ZEPH"] = fees;
     // TODO: This will work, until size of constructed block is less then CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE
-    if (!construct_miner_tx(height, misc_utils::median(block_weights), already_generated_coins, current_block_weight, fees, miner_acc.get_keys().m_account_address, blk.miner_tx, blobdata(), max_outs, hf_version))
+    if (!construct_miner_tx(height, misc_utils::median(block_weights), already_generated_coins, current_block_weight, fee_map, miner_acc.get_keys().m_account_address, blk.miner_tx, blobdata(), max_outs, hf_version))
       return false;
   }
 
@@ -1076,7 +1083,8 @@ bool construct_tx_rct(const cryptonote::account_keys& sender_account_keys, std::
   std::vector<crypto::secret_key> additional_tx_keys;
   std::vector<tx_destination_entry> destinations_copy = destinations;
   rct::RCTConfig rct_config = {range_proof_type, bp_version};
-  return construct_tx_and_get_tx_key(sender_account_keys, subaddresses, sources, destinations_copy, change_addr, extra, tx, unlock_time, tx_key, additional_tx_keys, rct, rct_config);
+  std::vector<std::pair<std::string, std::string>> circ_amounts;
+  return construct_tx_and_get_tx_key(sender_account_keys, subaddresses, sources, destinations_copy, change_addr, extra, tx, "ZEPH", "ZEPH", 1, 2, oracle::pricing_record(), circ_amounts, unlock_time, tx_key, additional_tx_keys, rct, rct_config);
 }
 
 transaction construct_tx_with_fee(std::vector<test_event_entry>& events, const block& blk_head,

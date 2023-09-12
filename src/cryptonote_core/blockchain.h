@@ -523,13 +523,13 @@ namespace cryptonote
     bool handle_get_objects(NOTIFY_REQUEST_GET_OBJECTS::request& arg, NOTIFY_RESPONSE_GET_OBJECTS::request& rsp);
 
     /**
-     * @brief get number of outputs of an amount past the minimum spendable age
+     * @brief get number of outputs of an asset type past the minimum spendable age
      *
-     * @param amount the output amount
+     * @param asset_type the asset type to query
      *
-     * @return the number of mature outputs
+     * @return the number of mature outputs of the asset type
      */
-    uint64_t get_num_mature_outputs(uint64_t amount) const;
+    uint64_t get_num_mature_outputs(const std::string asset_type) const;
 
     /**
      * @brief get the public key for an output
@@ -701,7 +701,7 @@ namespace cryptonote
      *
      * @return true if the fee is enough, false otherwise
      */
-    bool check_fee(size_t tx_weight, uint64_t fee) const;
+    bool check_fee(size_t tx_weight, uint64_t fee, const std::string& source_asset, const oracle::pricing_record& pr) const;
 
     /**
      * @brief check that a transaction's outputs conform to current standards
@@ -1428,7 +1428,7 @@ namespace cryptonote
      *
      * @return false if anything is found wrong with the miner transaction, otherwise true
      */
-    bool validate_miner_transaction(const block& b, size_t cumulative_block_weight, std::map<std::string, uint64_t>& fee_map, uint64_t& base_reward, uint64_t already_generated_coins, bool &partial_block_reward, uint8_t version);
+    bool validate_miner_transaction(const block& b, size_t cumulative_block_weight, std::map<std::string, uint64_t>& fee_map, uint64_t& base_reward, uint64_t already_generated_coins, uint8_t version);
 
     /**
      * @brief reverts the blockchain to its previous state following a failed switch

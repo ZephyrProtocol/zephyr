@@ -988,16 +988,6 @@ namespace cryptonote
           tx_info[n].tvc.m_verifivation_failed = true;
           tx_info[n].result = false;
           break;
-        case rct::RCTTypeSimple:
-          if (!rct::verRctSemanticsSimple(rv, tx_info[n].tvc.pr, tx_info[n].tvc.m_type, tx_info[n].tvc.m_source_asset, tx_info[n].tvc.m_dest_asset))
-          {
-            MERROR_VER("rct signature semantics check failed");
-            set_semantics_failed(tx_info[n].tx_hash);
-            tx_info[n].tvc.m_verifivation_failed = true;
-            tx_info[n].result = false;
-            break;
-          }
-          break;
         case rct::RCTTypeFull:
           if (!rct::verRct(rv, true))
           {
@@ -1044,6 +1034,7 @@ namespace cryptonote
     {
       LOG_PRINT_L1("Verifying one transaction at a time");
       ret = false;
+      std::vector<std::pair<std::string, std::string>> circ_supply = m_blockchain_storage.get_db().get_circulating_supply();
       for (size_t n = 0; n < tx_info.size(); ++n)
       {
         if (!tx_info[n].result)
@@ -1052,8 +1043,7 @@ namespace cryptonote
           continue;
 
         const uint8_t hf_version = m_blockchain_storage.get_current_hard_fork_version();
-        std::vector<std::pair<std::string, std::string>> circ_supply = m_blockchain_storage.get_db().get_circulating_supply();
-        if (!rct::verRctSemanticsSimple2(tx_info[n].tx->rct_signatures, tx_info[n].tvc.pr, circ_supply, tx_info[n].tvc.m_type, tx_info[n].tvc.m_source_asset, tx_info[n].tvc.m_dest_asset, tx_info[n].tx->amount_burnt, tx_info[n].tx->vout, tx_info[n].tx->vin, hf_version))
+        if (!rct::verRctSemanticsSimple(tx_info[n].tx->rct_signatures, tx_info[n].tvc.pr, tx_info[n].tvc.m_type, tx_info[n].tvc.m_source_asset, tx_info[n].tvc.m_dest_asset, tx_info[n].tx->amount_burnt, tx_info[n].tx->vout, tx_info[n].tx->vin, hf_version))
         {
           MDEBUG("Damn, rct signature semantics check failed");
           set_semantics_failed(tx_info[n].tx_hash);

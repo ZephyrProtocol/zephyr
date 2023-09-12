@@ -898,6 +898,7 @@ namespace wallet_rpc
       bool do_not_relay;
       bool get_tx_hex;
       bool get_tx_metadata;
+      std::string asset_type;
 
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(address)
@@ -914,6 +915,7 @@ namespace wallet_rpc
         KV_SERIALIZE_OPT(do_not_relay, false)
         KV_SERIALIZE_OPT(get_tx_hex, false)
         KV_SERIALIZE_OPT(get_tx_metadata, false)
+        KV_SERIALIZE(asset_type)
       END_KV_SERIALIZE_MAP()
     };
     typedef epee::misc_utils::struct_init<request_t> request;
@@ -2654,6 +2656,50 @@ namespace wallet_rpc
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(version)
         KV_SERIALIZE(release)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<response_t> response;
+  };
+
+  struct COMMAND_RPC_GET_RESERVE_INFO
+  {
+    struct request_t
+    {
+      BEGIN_KV_SERIALIZE_MAP()
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<request_t> request;
+
+    struct response_t
+    {
+      std::string status;
+      uint64_t height;
+      oracle::pricing_record pr;
+      std::string zeph_reserve;
+      std::string num_stables;
+      std::string num_reserves;
+      std::string assets;
+      std::string assets_ma;
+      std::string liabilities;
+      std::string equity;
+      std::string equity_ma;
+      std::string reserve_ratio;
+      std::string reserve_ratio_ma;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(status)
+        KV_SERIALIZE(height)
+        KV_SERIALIZE(pr)
+        KV_SERIALIZE(zeph_reserve)
+        KV_SERIALIZE(num_stables)
+        KV_SERIALIZE(num_reserves)
+        KV_SERIALIZE(assets)
+        KV_SERIALIZE(assets_ma)
+        KV_SERIALIZE(liabilities)
+        KV_SERIALIZE(equity)
+        KV_SERIALIZE(equity_ma)
+        KV_SERIALIZE(reserve_ratio)
+        KV_SERIALIZE(reserve_ratio_ma)
       END_KV_SERIALIZE_MAP()
     };
     typedef epee::misc_utils::struct_init<response_t> response;

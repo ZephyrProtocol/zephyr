@@ -31,6 +31,7 @@
 
 namespace cryptonote
 {
+  bool tx_sanity_check_input_asset_type(const cryptonote::blobdata &tx_blob, std::string& input_asset);
   bool tx_sanity_check(const cryptonote::blobdata &tx_blob, uint64_t rct_outs_available);
   bool tx_sanity_check(const std::set<uint64_t> &rct_indices, size_t n_indices, uint64_t rct_outs_available);
 }

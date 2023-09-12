@@ -48,12 +48,14 @@ namespace cryptonote
     transaction& tx,
     const blobdata& extra_nonce = blobdata(),
     size_t max_outs = 999,
-    uint8_t hard_fork_version = 1
+    uint8_t hard_fork_version = 1,
+    cryptonote::network_type nettype = MAINNET
   );
 
     keypair get_deterministic_keypair_from_height(uint64_t height);
 
-    uint64_t get_governance_reward(uint64_t height, uint64_t base_reward);
+    uint64_t get_governance_reward(uint64_t base_reward);
+    uint64_t get_reserve_reward(uint64_t base_reward);
     
     bool get_deterministic_output_key(const account_public_address& address, const keypair& tx_key, size_t output_index, crypto::public_key& output_key);
     bool get_deterministic_output_key(const account_public_address& address, const keypair& tx_key, size_t output_index, crypto::public_key& output_key, crypto::key_derivation& derivation);
@@ -230,27 +232,56 @@ namespace cryptonote
   bool tx_pr_height_valid(const uint64_t current_height, const uint64_t pr_height, const crypto::hash& tx_hash);
   
 
-  
+  void get_reserve_info(
+    const std::vector<std::pair<std::string, std::string>>& circ_amounts,
+    const oracle::pricing_record& pricing_record,
+    boost::multiprecision::uint128_t& zeph_reserve,
+    boost::multiprecision::uint128_t& num_stables,
+    boost::multiprecision::uint128_t& num_reserves,
+    boost::multiprecision::uint128_t& assets,
+    boost::multiprecision::uint128_t& assets_ma,
+    boost::multiprecision::uint128_t& liabilities,
+    boost::multiprecision::uint128_t& equity,
+    boost::multiprecision::uint128_t& equity_ma,
+    double& reserve_ratio,
+    double& reserve_ratio_ma
+  );
 
-  uint64_t get_mint_stable_fee(const std::vector<cryptonote::tx_destination_entry>& dsts);
-  uint64_t get_redeem_stable_fee(const std::vector<cryptonote::tx_destination_entry>& dsts);
-  uint64_t get_mint_reserve_fee(const std::vector<cryptonote::tx_destination_entry>& dsts);
-  uint64_t get_redeem_reserve_fee(const std::vector<cryptonote::tx_destination_entry>& dsts);
+  double get_reserve_ratio(const std::vector<std::pair<std::string, std::string>>& circ_amounts, const uint64_t oracle_price);
+  double get_spot_reserve_ratio(const std::vector<std::pair<std::string, std::string>>& circ_amounts, const oracle::pricing_record& pr);
+  double get_ma_reserve_ratio(const std::vector<std::pair<std::string, std::string>>& circ_amounts, const oracle::pricing_record& pr);
 
-  void get_reserve_info(const std::vector<std::pair<std::string, std::string>>& circ_amounts, const oracle::pricing_record& pricing_record, uint64_t& zeph_reserve, uint64_t& num_stables, uint64_t& num_reserves, uint64_t& assets, uint64_t& liabilities, uint64_t& equity, double& reserve_ratio);
-  double get_reserve_ratio(const std::vector<std::pair<std::string, std::string>>& circ_amounts, const oracle::pricing_record& pr);
 
-  bool reserve_ratio_satisfied(std::vector<std::pair<std::string, std::string>> circ_amounts, const oracle::pricing_record& pr, const transaction_type& tx_type, int64_t tally_zeph, int64_t tally_stables, int64_t tally_reserves);
-  bool reserve_ratio_satisfied(std::vector<std::pair<std::string, std::string>> circ_amounts, const oracle::pricing_record& pr, const transaction_type& tx_type, int64_t tally_zeph, int64_t tally_stables, int64_t tally_reserves, std::string& error_reason);
+  bool reserve_ratio_satisfied(
+    const std::vector<std::pair<std::string, std::string>>& circ_amounts,
+    const oracle::pricing_record& pr,
+    const transaction_type& tx_type,
+    boost::multiprecision::int128_t tally_zeph,
+    boost::multiprecision::int128_t tally_stables,
+    boost::multiprecision::int128_t tally_reserves
+  );
+  bool reserve_ratio_satisfied(
+    const std::vector<std::pair<std::string, std::string>>& circ_amounts,
+    const oracle::pricing_record& pr,
+    const transaction_type& tx_type,
+    boost::multiprecision::int128_t tally_zeph,
+    boost::multiprecision::int128_t tally_stables,
+    boost::multiprecision::int128_t tally_reserves,
+    std::string& error_reason
+  );
 
-  uint64_t get_stable_coin_price(std::vector<std::pair<std::string, std::string>> circ_amounts, uint64_t oracle_price);
-  uint64_t get_reserve_coin_price(std::vector<std::pair<std::string, std::string>> circ_amounts, const oracle::pricing_record& pr);
+  uint64_t get_stable_coin_price(const std::vector<std::pair<std::string, std::string>>& circ_amounts, uint64_t oracle_price);
+  uint64_t get_reserve_coin_price(const std::vector<std::pair<std::string, std::string>>& circ_amounts, uint64_t exchange_rate);
 
-  uint64_t get_zeph_amount_from_reserve(const uint64_t amount, const oracle::pricing_record& pr);
-  uint64_t get_reserve_amount(const uint64_t amount, const oracle::pricing_record& pr);
+  uint64_t zephrsv_to_zeph(const uint64_t amount, const oracle::pricing_record& pr);
+  uint64_t zeph_to_zephrsv(const uint64_t amount, const oracle::pricing_record& pr);
+  uint64_t zeph_to_zephusd(const uint64_t amount, const oracle::pricing_record& pr);
+  uint64_t zephusd_to_zeph(const uint64_t amount, const oracle::pricing_record& pr);
 
-  uint64_t get_stable_amount(const uint64_t amount, const oracle::pricing_record& pr);
-  uint64_t get_zeph_amount(const uint64_t amount, const oracle::pricing_record& pr);
+  uint64_t zeph_to_asset_fee(const uint64_t amount, const uint64_t exchange_rate);
+  uint64_t asset_to_zeph_fee(const uint64_t amount, const uint64_t exchange_rate);
+  uint64_t get_fee_in_zeph_equivalent(const std::string& fee_asset, uint64_t fee_amount, const oracle::pricing_record& pr);
+  uint64_t get_fee_in_asset_equivalent(const std::string& to_asset_type, uint64_t fee_amount, const oracle::pricing_record& pr);
 }
 
 BOOST_CLASS_VERSION(cryptonote::tx_source_entry, 1)

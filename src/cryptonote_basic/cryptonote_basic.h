@@ -186,13 +186,7 @@ namespace cryptonote
 
     BEGIN_SERIALIZE()
       VARINT_FIELD(version)
-      // if((version == 0 || CURRENT_TRANSACTION_VERSION < version)) return false;
       VARINT_FIELD(unlock_time)
-
-      // if (version >= 2) {
-        
-      // }
-
       FIELD(vin)
       FIELD(vout)
       FIELD(extra)
@@ -308,8 +302,9 @@ namespace cryptonote
         ar.tag("rct_signatures");
         if (!vin.empty())
         {
+          const bool conversion_tx = this->amount_burnt > 0 && this->amount_minted > 0;
           ar.begin_object();
-          bool r = rct_signatures.serialize_rctsig_base(ar, vin.size(), vout.size());
+          bool r = rct_signatures.serialize_rctsig_base(ar, vin.size(), vout.size(), conversion_tx);
           if (!r || !ar.good()) return false;
           ar.end_object();
 
@@ -344,8 +339,9 @@ namespace cryptonote
         ar.tag("rct_signatures");
         if (!vin.empty())
         {
+          const bool conversion_tx = this->amount_burnt > 0 && this->amount_minted > 0;
           ar.begin_object();
-          bool r = rct_signatures.serialize_rctsig_base(ar, vin.size(), vout.size());
+          bool r = rct_signatures.serialize_rctsig_base(ar, vin.size(), vout.size(), conversion_tx);
           if (!r || !ar.good()) return false;
           ar.end_object();
         }
@@ -484,7 +480,26 @@ namespace cryptonote
       VARINT_FIELD(timestamp)
       FIELD(prev_id)
       FIELD(nonce)
-      FIELD(pricing_record)
+
+      if (major_version >= HF_VERSION_DJED)
+      {
+        FIELD(pricing_record)
+      }
+      else
+      {
+        oracle::pricing_record_v1 pr_v1;
+        if (!typename Archive<W>::is_saving())
+        {
+          FIELD(pr_v1)
+          pr_v1.write_to_pr(pricing_record);
+        }
+        else
+        {
+          pr_v1.read_from_pr(pricing_record);
+          FIELD(pr_v1)
+        }
+      }
+
     END_SERIALIZE()
   };
 
@@ -584,7 +599,6 @@ namespace std {
 }
 
 
-// BLOB_SERIALIZER(cryptonote::txout_zephyr_tagged_key);
 BLOB_SERIALIZER(cryptonote::txout_to_scripthash);
 
 VARIANT_TAG(binary_archive, cryptonote::txin_gen, 0xff);
@@ -593,7 +607,6 @@ VARIANT_TAG(binary_archive, cryptonote::txin_to_scripthash, 0x1);
 VARIANT_TAG(binary_archive, cryptonote::txin_zephyr_key, 0x2);
 VARIANT_TAG(binary_archive, cryptonote::txout_to_script, 0x0);
 VARIANT_TAG(binary_archive, cryptonote::txout_to_scripthash, 0x1);
-// VARIANT_TAG(binary_archive, cryptonote::txout_to_key, 0x2);
 VARIANT_TAG(binary_archive, cryptonote::txout_zephyr_tagged_key, 0x2);
 VARIANT_TAG(binary_archive, cryptonote::transaction, 0xcc);
 VARIANT_TAG(binary_archive, cryptonote::block, 0xbb);
@@ -604,7 +617,6 @@ VARIANT_TAG(json_archive, cryptonote::txin_to_scripthash, "scripthash");
 VARIANT_TAG(json_archive, cryptonote::txin_zephyr_key, "key");
 VARIANT_TAG(json_archive, cryptonote::txout_to_script, "script");
 VARIANT_TAG(json_archive, cryptonote::txout_to_scripthash, "scripthash");
-// VARIANT_TAG(json_archive, cryptonote::txout_to_key, "key");
 VARIANT_TAG(json_archive, cryptonote::txout_zephyr_tagged_key, "tagged_key");
 VARIANT_TAG(json_archive, cryptonote::transaction, "tx");
 VARIANT_TAG(json_archive, cryptonote::block, "block");
@@ -615,7 +627,6 @@ VARIANT_TAG(debug_archive, cryptonote::txin_to_scripthash, "scripthash");
 VARIANT_TAG(debug_archive, cryptonote::txin_zephyr_key, "key");
 VARIANT_TAG(debug_archive, cryptonote::txout_to_script, "script");
 VARIANT_TAG(debug_archive, cryptonote::txout_to_scripthash, "scripthash");
-// VARIANT_TAG(debug_archive, cryptonote::txout_to_key, "key");
 VARIANT_TAG(debug_archive, cryptonote::txout_zephyr_tagged_key, "tagged_key");
 VARIANT_TAG(debug_archive, cryptonote::transaction, "tx");
 VARIANT_TAG(debug_archive, cryptonote::block, "block");

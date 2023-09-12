@@ -128,7 +128,7 @@ namespace cryptonote
   bool parse_and_validate_block_from_blob(const blobdata_ref& b_blob, block& b);
   bool parse_and_validate_block_from_blob(const blobdata_ref& b_blob, block& b, crypto::hash &block_hash);
   bool get_inputs_money_amount(const transaction& tx, uint64_t& money);
-  uint64_t get_outs_money_amount(const transaction& tx);
+  uint64_t get_outs_money_amount(const transaction& tx, const std::string& asset_type = "ZEPH");
   bool get_output_public_key(const cryptonote::tx_out& out, crypto::public_key& output_public_key);
   boost::optional<crypto::view_tag> get_output_view_tag(const cryptonote::tx_out& out);
   bool check_inputs_types_supported(const transaction& tx);
@@ -149,6 +149,7 @@ namespace cryptonote
   void set_default_decimal_point(unsigned int decimal_point = CRYPTONOTE_DISPLAY_DECIMAL_POINT);
   unsigned int get_default_decimal_point();
   std::string get_unit(unsigned int decimal_point = -1);
+  std::string print_money(std::string amount, unsigned int decimal_point = -1);
   std::string print_money(uint64_t amount, unsigned int decimal_point = -1);
   std::string print_money(const boost::multiprecision::uint128_t &amount, unsigned int decimal_point = -1);
   uint64_t round_money_up(uint64_t amount, unsigned significant_digits);

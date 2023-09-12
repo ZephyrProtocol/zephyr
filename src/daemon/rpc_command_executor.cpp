@@ -2545,4 +2545,58 @@ bool t_rpc_command_executor::version()
     return true;
 }
 
+bool t_rpc_command_executor::reserve_info()
+{
+    cryptonote::COMMAND_RPC_GET_RESERVE_INFO::request req;
+    cryptonote::COMMAND_RPC_GET_RESERVE_INFO::response res;
+    epee::json_rpc::error error_resp;
+
+    const char *fail_message = "Problem fetching reserve info";
+
+    if (m_is_rpc)
+    {
+        if (!m_rpc_client->rpc_request(req, res, "/get_reserve_info", fail_message))
+        {
+            return true;
+        }
+    }
+    else
+    {
+        if (!m_rpc_server->on_get_reserve_info(req, res, error_resp) || res.status != CORE_RPC_STATUS_OK)
+        {
+            tools::fail_msg_writer() << make_error(fail_message, res.status);
+            return true;
+        }
+    }
+
+    tools::success_msg_writer() << "Reserve Info at height " << res.height;
+    tools::msg_writer() << "";
+    tools::msg_writer() << boost::format("Reserve:            %d ƶeph") % cryptonote::print_money(res.zeph_reserve);
+    tools::msg_writer() << boost::format("ZephUSD circ:       %d ƶephusd") % cryptonote::print_money(res.num_stables);
+    tools::msg_writer() << boost::format("ZephRSV circ:       %d ƶephrsv") % cryptonote::print_money(res.num_reserves);
+
+    tools::msg_writer() << "";
+    tools::msg_writer() << boost::format("Assets:             $%d") % cryptonote::print_money(res.assets);
+    tools::msg_writer() << boost::format("Liabilities:        $%d") % cryptonote::print_money(res.liabilities);
+    tools::msg_writer() << boost::format("Equity:             $%d") % cryptonote::print_money(res.equity);
+    tools::msg_writer() << "";
+    tools::msg_writer() << boost::format("Assets (MA):        $%d") % cryptonote::print_money(res.assets_ma);
+    tools::msg_writer() << boost::format("Liabilities:        $%d") % cryptonote::print_money(res.liabilities);
+    tools::msg_writer() << boost::format("Equity (MA):        $%d") % cryptonote::print_money(res.equity_ma);
+    tools::msg_writer() << "";
+    tools::msg_writer() << boost::format("Reserve ratio:      %.2f") % res.reserve_ratio;
+    tools::msg_writer() << boost::format("Reserve ratio (MA): %.2f") % res.reserve_ratio_ma;
+
+    tools::msg_writer() << "";
+    tools::msg_writer() << "Exchange Rates";
+    tools::msg_writer() << boost::format("Spot:               $%d") % cryptonote::print_money(res.pr.spot);
+    tools::msg_writer() << boost::format("Moving average:     $%d") % cryptonote::print_money(res.pr.moving_average);
+    tools::msg_writer() << boost::format("Stable:             %d ƶeph") % cryptonote::print_money(res.pr.stable);
+    tools::msg_writer() << boost::format("Stable (MA):        %d ƶeph") % cryptonote::print_money(res.pr.stable_ma);
+    tools::msg_writer() << boost::format("Reserve:            %d ƶeph") % cryptonote::print_money(res.pr.reserve);
+    tools::msg_writer() << boost::format("Reserve (MA):       %d ƶeph") % cryptonote::print_money(res.pr.reserve_ma);
+
+    return true;
+}
+
 }// namespace daemonize

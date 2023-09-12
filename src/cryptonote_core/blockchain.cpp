@@ -280,14 +280,14 @@ bool Blockchain::get_latest_acceptable_pr(oracle::pricing_record& pr) const
       continue;
     }
 
-    if (!latest_bl.pricing_record.empty()) {
+    if (!latest_bl.pricing_record.empty() && !latest_bl.pricing_record.has_missing_rates()) {
       break;
     }
   }
   pr = latest_bl.pricing_record;
 
 
-  if (!pr.empty()) {
+  if (!pr.empty() && !pr.has_missing_rates()) {
     return true;
   }
 
@@ -382,7 +382,7 @@ bool Blockchain::init(BlockchainDB* db, const network_type nettype, bool offline
     transaction tx_mine_1;
     std::map<std::string, uint64_t> fee_map;
     fee_map["ZEPH"] = 0;
-    construct_miner_tx(0, 0, 0, 0, fee_map, governance_wallet_address.address, tx_mine_1, blobdata(), 1);
+    construct_miner_tx(0, 0, 0, 0, fee_map, governance_wallet_address.address, tx_mine_1, blobdata(), 1, m_nettype);
 
     LOG_PRINT_L1("genesis miner tx: " << obj_to_json_str(tx_mine_1));
 
@@ -1363,7 +1363,6 @@ bool Blockchain::validate_miner_transaction(
   std::map<std::string, uint64_t>& fee_map,
   uint64_t& base_reward,
   uint64_t already_generated_coins,
-  bool &partial_block_reward,
   uint8_t version
 ){
   LOG_PRINT_L3("Blockchain::" << __func__);
@@ -1376,10 +1375,9 @@ bool Blockchain::validate_miner_transaction(
   }
 
   // check output size
-  // it must be number of unique assets times 2 and + 2 for zeph.
-  // For now we have 2 + unique_assets.size() until hardfork
   const size_t output_size = b.miner_tx.vout.size();
-  if (already_generated_coins != 0 && output_size != ((2 + unique_assets.size()))  ) {
+  const size_t expected_output_size = 2 + unique_assets.size();
+  if (already_generated_coins != 0 && output_size != expected_output_size) {
     MERROR("Miner tx has invalid output size!");
     return false;
   }
@@ -1395,7 +1393,6 @@ bool Blockchain::validate_miner_transaction(
       return false;
     }
   }
-  partial_block_reward = false;
 
   uint64_t median_weight = m_current_block_cumul_weight_median;
   
@@ -1408,7 +1405,7 @@ bool Blockchain::validate_miner_transaction(
 
   if (already_generated_coins != 0)
   {
-    // validate first & second outputs are ZEPH
+    // validate first & second outputs are ZEPH (miner tx and governance reward)
     std::string first_output_asset_type, second_output_asset_type;
     bool ok = cryptonote::get_output_asset_type(b.miner_tx.vout[0], first_output_asset_type);
     ok     |= cryptonote::get_output_asset_type(b.miner_tx.vout[1], second_output_asset_type);
@@ -1417,15 +1414,13 @@ bool Blockchain::validate_miner_transaction(
       return false;
     }
 
-    uint64_t governance_reward = get_governance_reward(m_db->height(), base_reward);
-
+    uint64_t governance_reward = get_governance_reward(base_reward);
     if (b.miner_tx.vout[1].amount != governance_reward)
     {
       MERROR("Governance reward amount incorrect.  Should be: " << print_money(governance_reward) << ", is: " << print_money(b.miner_tx.vout[1].amount));
       return false;
     }
-    
-    // get the governance wallet address and validate zeph reward
+
     std::string governance_wallet_address_str = cryptonote::get_governance_address(m_nettype);
     if (!validate_governance_reward_key(m_db->height(), governance_wallet_address_str, 1, boost::get<txout_zephyr_tagged_key>(b.miner_tx.vout[1].target).key, m_nettype))
     {
@@ -1433,20 +1428,37 @@ bool Blockchain::validate_miner_transaction(
       return false;
     }
 
-    // TODO: validate asset reward amounts
+    if (unique_assets.size() > 0) {
+      for (uint64_t idx = 2; idx < output_size; idx++) {
+        ok = cryptonote::get_output_asset_type(b.miner_tx.vout[idx], first_output_asset_type);
+        if (!ok) {
+          MERROR("Failed to get output asset type from miner TX vout[" << idx << "]");
+          return false;
+        }
+
+        if (first_output_asset_type == "ZEPH") {
+          MERROR("ZEPH not allowed in additional asset types for miner TX : tx.vout[" << idx << "]");
+          return false;
+        }
+
+        if (b.miner_tx.vout[idx].amount != fee_map[first_output_asset_type]) {
+          MERROR("Miner reward amount for " << first_output_asset_type << " is incorrect. Should be: " << print_money(fee_map[first_output_asset_type]) << ", is: " << print_money(b.miner_tx.vout[idx].amount));
+          return false;
+        }
+      }
+    }
   }
 
-  if(money_in_use_map["ZEPH"] > (base_reward + fee_map["ZEPH"]))
+  uint64_t reserve_reward = 0;
+  if (version >= HF_VERSION_DJED) {
+    reserve_reward = get_reserve_reward(base_reward);
+  }
+
+  if(money_in_use_map["ZEPH"] != base_reward - reserve_reward + fee_map["ZEPH"])
   {
-    MERROR_VER("coinbase transaction spend too much money (" << print_money(money_in_use_map["ZEPH"]) << "). Block reward is " << print_money(base_reward + fee_map["ZEPH"]) << "(" << print_money(base_reward) << "+" << print_money(fee_map["ZEPH"]) << ")");
+    MERROR_VER("coinbase transaction amount mismatch (" << print_money(money_in_use_map["ZEPH"]) << "). Block reward is " << print_money(base_reward - reserve_reward + fee_map["ZEPH"]) << "(" << print_money(base_reward - reserve_reward) << "+" << print_money(fee_map["ZEPH"]) << ")");
     return false;
   }
-
-  CHECK_AND_ASSERT_MES(money_in_use_map["ZEPH"] - fee_map["ZEPH"] <= base_reward, false, "base reward calculation bug");
-  if(base_reward + fee_map["ZEPH"] != money_in_use_map["ZEPH"])
-    partial_block_reward = true;
-  base_reward = money_in_use_map["ZEPH"] - fee_map["ZEPH"];
-
 
   if (version >= HF_VERSION_DJED) {
     for (auto &money_in_use_map_entry: money_in_use_map) {
@@ -1771,7 +1783,7 @@ bool Blockchain::create_block_template(block& b, const crypto::hash *from_block,
   //make blocks coin-base tx looks close to real coinbase tx to get truthful blob weight
   uint8_t hf_version = b.major_version;
   size_t max_outs = 1;
-  bool r = construct_miner_tx(height, median_weight, already_generated_coins, txs_weight, fee_map, miner_address, b.miner_tx, ex_nonce, max_outs, hf_version);
+  bool r = construct_miner_tx(height, median_weight, already_generated_coins, txs_weight, fee_map, miner_address, b.miner_tx, ex_nonce, max_outs, hf_version, m_nettype);
   CHECK_AND_ASSERT_MES(r, false, "Failed to construct miner tx, first chance");
   size_t cumulative_weight = txs_weight + get_transaction_weight(b.miner_tx);
 #if defined(DEBUG_CREATE_BLOCK_TEMPLATE)
@@ -1780,7 +1792,7 @@ bool Blockchain::create_block_template(block& b, const crypto::hash *from_block,
 #endif
   for (size_t try_count = 0; try_count != 10; ++try_count)
   {
-    r = construct_miner_tx(height, median_weight, already_generated_coins, cumulative_weight, fee_map, miner_address, b.miner_tx, ex_nonce, max_outs, hf_version);
+    r = construct_miner_tx(height, median_weight, already_generated_coins, cumulative_weight, fee_map, miner_address, b.miner_tx, ex_nonce, max_outs, hf_version, m_nettype);
 
     CHECK_AND_ASSERT_MES(r, false, "Failed to construct miner tx, second chance");
     size_t coinbase_weight = get_transaction_weight(b.miner_tx);
@@ -1836,41 +1848,65 @@ bool Blockchain::get_pricing_record(oracle::pricing_record& pr, uint64_t timesta
 {
   LOG_PRINT_L1("Requesting pricing record from Oracle - time : " << timestamp);
 
-  // bool r = false;
-
-  // epee::net_utils::http::http_simple_client http_client;
-  // COMMAND_RPC_GET_PRICING_RECORD::request req = AUTO_VAL_INIT(req);
-  // COMMAND_RPC_GET_PRICING_RECORD::response res = AUTO_VAL_INIT(res);
-  
-  // std::array<std::string, 3> oracle_urls = get_config(m_nettype).ORACLE_URLS;
-  // std::shuffle(oracle_urls.begin(), oracle_urls.end(), std::default_random_engine(crypto::rand<unsigned>()));
-  // for (size_t n = 0; n < oracle_urls.size(); n++) {
-  //   http_client.set_server(oracle_urls[n], boost::none, epee::net_utils::ssl_support_t::e_ssl_support_autodetect);
-  //   std::string url = "/price/?timestamp=" + boost::lexical_cast<std::string>(timestamp) + "&version=" + std::to_string(m_hardfork->get_current_version());
-  //   r = epee::net_utils::invoke_http_json(url, req, res, http_client, std::chrono::seconds(10), "GET");
-  //   if (r) {
-  //     LOG_PRINT_L1("Obtained pricing record from Oracle : " << oracle_urls[n]);
-  //     break;
-  //   }
-  //   LOG_PRINT_L1("Failed to obtain pricing record from Oracle : " << oracle_urls[n]);
-  // }
-    
-  // if (!r) {
-  //   LOG_PRINT_L0("Failed to get pricing record from Oracle - returning empty PR");
-  //   res.pr = oracle::pricing_record();
-  // }
-
-  pr = oracle::pricing_record();
-  pr.zEPHUSD = 0;
-  pr.zEPHRSV = 0;
-  pr.timestamp = 0;
-
   const uint8_t hf_version = m_hardfork->get_current_version();
   if (hf_version >= HF_VERSION_DJED) {
+    bool r = false;
+
+    epee::net_utils::http::http_simple_client http_client;
+    COMMAND_RPC_GET_PRICING_RECORD::request req = AUTO_VAL_INIT(req);
+    COMMAND_RPC_GET_PRICING_RECORD::response res = AUTO_VAL_INIT(res);
+    
+    std::array<std::string, 3> oracle_urls = get_config(m_nettype).ORACLE_URLS;
+    std::shuffle(oracle_urls.begin(), oracle_urls.end(), std::default_random_engine(crypto::rand<unsigned>()));
+    for (size_t n = 0; n < oracle_urls.size(); n++) {
+      http_client.set_server(oracle_urls[n], boost::none, epee::net_utils::ssl_support_t::e_ssl_support_autodetect);
+      std::string url = "/price/?timestamp=" + boost::lexical_cast<std::string>(timestamp) + "&version=" + std::to_string(m_hardfork->get_current_version());
+
+      r = epee::net_utils::invoke_http_json(url, req, res, http_client, std::chrono::seconds(10), "GET");
+      if (r) {
+        LOG_PRINT_L1("Obtained pricing record from Oracle : " << oracle_urls[n]);
+        break;
+      }
+      LOG_PRINT_L1("Failed to obtain pricing record from Oracle : " << oracle_urls[n]);
+    }
+
+    if (!r) {
+      LOG_PRINT_L0("Failed to get pricing record from Oracle - returning empty PR");
+      pr = oracle::pricing_record();
+      return true;
+    }
+
+    // Verify the signature
+    if (res.pr.verifySignature(get_config(m_nettype).ORACLE_PUBLIC_KEY)) {
+      pr = res.pr;
+    } else {
+      LOG_PRINT_L0("Failed to verify signature of pricing record from Oracle - returning empty PR");
+      pr = oracle::pricing_record();
+      return true;
+    }
+
     std::vector<std::pair<std::string, std::string>> circ_supply = get_db().get_circulating_supply();
-    pr.zEPHUSD = cryptonote::get_stable_coin_price(circ_supply, 2000000000000); // hardcode 2 USD for testing
-    pr.zEPHRSV = cryptonote::get_reserve_coin_price(circ_supply, pr);
-    pr.timestamp = timestamp;
+
+    pr.stable = cryptonote::get_stable_coin_price(circ_supply, pr.spot);
+    pr.stable_ma = cryptonote::get_stable_coin_price(circ_supply, pr.moving_average);
+    pr.reserve = cryptonote::get_reserve_coin_price(circ_supply, pr.spot);
+    pr.reserve_ma = cryptonote::get_reserve_coin_price(circ_supply, pr.moving_average);
+
+    if (pr.has_missing_rates()) {
+      LOG_PRINT_L0("Failed to calculate stable and reserve prices - returning empty PR");
+      pr = oracle::pricing_record();
+      return true;
+    }
+
+    std::string sig_hex;
+    for (size_t i = 0; i < 64; i++) {
+      std::stringstream ss;
+      ss << std::hex << std::setw(2) << std::setfill('0') << (0xff & pr.signature[i]);
+      sig_hex += ss.str();
+    }
+    LOG_PRINT_L1("Received pricing record - signature = " << sig_hex);
+  } else {
+    pr = oracle::pricing_record();
   }
 
   return true;
@@ -2337,22 +2373,25 @@ size_t Blockchain::get_alternative_blocks_count() const
 //------------------------------------------------------------------
 // This function adds the output specified by <amount, i> to the result_outs container
 // unlocked and other such checks should be done by here.
-uint64_t Blockchain::get_num_mature_outputs(uint64_t amount) const
+uint64_t Blockchain::get_num_mature_outputs(const std::string asset_type) const
 {
-  uint64_t num_outs = m_db->get_num_outputs(amount);
+  uint64_t num_outs_of_asset_type = m_db->get_num_outputs_of_asset_type(asset_type);
+
   // ensure we don't include outputs that aren't yet eligible to be used
   // outpouts are sorted by height
   const uint64_t blockchain_height = m_db->height();
-  while (num_outs > 0)
+  while (num_outs_of_asset_type > 0)
   {
-    const tx_out_index toi = m_db->get_output_tx_and_index(amount, num_outs - 1);
+    uint64_t output_id = m_db->get_output_id_from_asset_type_output_index(asset_type, num_outs_of_asset_type - 1);
+    const tx_out_index toi = m_db->get_output_tx_and_index_from_global(output_id);
+
     const uint64_t height = m_db->get_tx_block_height(toi.first);
     if (height + CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE <= blockchain_height)
       break;
-    --num_outs;
+    --num_outs_of_asset_type;
   }
 
-  return num_outs;
+  return num_outs_of_asset_type;
 }
 
 crypto::public_key Blockchain::get_output_key(uint64_t amount, uint64_t global_index) const
@@ -2485,7 +2524,7 @@ bool Blockchain::get_output_distribution(uint64_t amount, std::string asset_type
     for (uint64_t h = real_start_height; h <= to_height; ++h)
       heights.push_back(h);
     
-    std::pair<std::vector<uint64_t>, uint64_t> block_cum_outputs = m_db->get_block_cumulative_rct_outputs(heights, asset_type, 10);
+    std::pair<std::vector<uint64_t>, uint64_t> block_cum_outputs = m_db->get_block_cumulative_rct_outputs(heights, asset_type);
     distribution = block_cum_outputs.first;
     num_spendable_global_outs = block_cum_outputs.second;
     if (start_height > 0)
@@ -3181,7 +3220,6 @@ bool Blockchain::check_tx_outputs(const transaction& tx, tx_verification_context
   }
 
   // from v11, allow only bulletproofs v2
-  // if (hf_version > HF_VERSION_SMALLER_BP) {
   if (tx.version >= 2) {
     if (tx.rct_signatures.type == rct::RCTTypeBulletproof)
     {
@@ -3192,26 +3230,63 @@ bool Blockchain::check_tx_outputs(const transaction& tx, tx_verification_context
   }
 
   // from v14, allow only CLSAGs
-  // if (hf_version > HF_VERSION_CLSAG) {
-    if (tx.version >= 2) {
-      if (tx.rct_signatures.type <= rct::RCTTypeBulletproof2)
-      {
-        MERROR_VER("Ringct type " << (unsigned)tx.rct_signatures.type << " is not allowed from v" << (1 + 1));
-        tvc.m_invalid_output = true;
-        return false;
-      }
+  if (tx.version >= 2) {
+    if (tx.rct_signatures.type <= rct::RCTTypeBulletproof2)
+    {
+      MERROR_VER("Ringct type " << (unsigned)tx.rct_signatures.type << " is not allowed from v" << (1 + 1));
+      tvc.m_invalid_output = true;
+      return false;
     }
+  }
 
   // Forbid bulletproofs
-    if (tx.version >= 2) {
-      const bool bulletproof = rct::is_rct_bulletproof(tx.rct_signatures.type);
-      if (bulletproof)
-      {
-        MERROR_VER("Bulletproof range proofs are not allowed after v" + std::to_string(1));
+  if (tx.version >= 2) {
+    const bool bulletproof = rct::is_rct_bulletproof(tx.rct_signatures.type);
+    if (bulletproof)
+    {
+      MERROR_VER("Bulletproof range proofs are not allowed after v" + std::to_string(1));
+      tvc.m_invalid_output = true;
+      return false;
+    }
+  }
+
+  if (tx.version >= 2) {
+    if (tx.rct_signatures.type != rct::RCTTypeBulletproofPlus) {
+      tvc.m_verifivation_failed = true;
+      return false;
+    }
+  }
+
+  // enforce dummy change output for conversions.
+  if (tvc.m_source_asset != tvc.m_dest_asset) {
+    if (tx.vout.size() >= 4) {
+      std::map<std::string, uint32_t> asset_counter;
+      std::string asset;
+      for (const auto &o: tx.vout) {
+        if (!cryptonote::get_output_asset_type(o, asset)) {
+          MERROR_VER("Invalid output type detected in conversion TX.");
+          tvc.m_invalid_output = true;
+          return false;
+        }
+        asset_counter[asset]++;
+      }
+
+      if (asset_counter.size() != 2) {
+        MERROR_VER("Conversion tx has more or less than 2 different asset types in the outputs.");
         tvc.m_invalid_output = true;
         return false;
       }
+      if (asset_counter[tvc.m_source_asset] < 2 || asset_counter[tvc.m_dest_asset] < 2) {
+        MERROR_VER("Conversion Txs should have at least 2 outputs that are the same asset type as source asset and 2 outputs that are the same asset type as dest asset.");
+        tvc.m_invalid_output = true;
+        return false;
+      }
+    } else {
+      MERROR_VER("Conversion Txs should have at least 4 outputs");
+      tvc.m_invalid_output = true;
+      return false;
     }
+  }
 
   // Require view tags on outputs
   if (!check_output_types(tx, hf_version))
@@ -3714,10 +3789,11 @@ uint64_t Blockchain::get_dynamic_base_fee(uint64_t block_reward, size_t median_b
 }
 
 //------------------------------------------------------------------
-bool Blockchain::check_fee(size_t tx_weight, uint64_t fee) const
+bool Blockchain::check_fee(size_t tx_weight, uint64_t fee, const std::string& source_asset, const oracle::pricing_record& pr) const
 {
-  const uint8_t version = get_current_hard_fork_version();
+  if (!fee) return false;
 
+  const uint8_t version = get_current_hard_fork_version();
   uint64_t median = 0;
   uint64_t already_generated_coins = 0;
   uint64_t base_reward = 0;
@@ -3739,13 +3815,17 @@ bool Blockchain::check_fee(size_t tx_weight, uint64_t fee) const
   const uint64_t mask = get_fee_quantization_mask();
   needed_fee = (needed_fee + mask - 1) / mask * mask;
 
+  uint64_t zeph_fee = get_fee_in_zeph_equivalent(source_asset, fee, pr);
+  if (!zeph_fee) {
+    MERROR_VER("Failed to get fee in zeph equivalent");
+    return false;
+  }
 
-  MDEBUG("NEEDED FEE: " << print_money(needed_fee) << " FEE: " << print_money(fee));
+  MDEBUG("needed_fee: " << print_money(needed_fee) << " fee: " << print_money(fee) << " zeph_fee: " << print_money(zeph_fee));
 
-
-  if (fee < needed_fee - needed_fee / 50) // keep a little 2% buffer on acceptance - no integer overflow
+  if (zeph_fee < needed_fee - needed_fee / 50) // keep a little 2% buffer on acceptance - no integer overflow
   {
-    MERROR_VER("transaction fee is not enough: " << print_money(fee) << ", minimum fee: " << print_money(needed_fee));
+    MERROR_VER("transaction fee is not enough. tx fee: " << print_money(fee) << ", zeph equivalent: " << print_money(zeph_fee) << ", minimum fee: " << print_money(needed_fee));
     return false;
   }
   return true;
@@ -4132,6 +4212,31 @@ leave:
   }
   TIME_MEASURE_FINISH(pricing_record);
 
+  // validate pricing record values
+  if (hf_version >= HF_VERSION_DJED && !bl.pricing_record.empty()) {
+    TIME_MEASURE_START(pricing_record_values);
+    std::vector<std::pair<std::string, std::string>> circ_supply = get_db().get_circulating_supply();
+    uint64_t stable_price = cryptonote::get_stable_coin_price(circ_supply, bl.pricing_record.spot);
+    uint64_t stable_price_ma = cryptonote::get_stable_coin_price(circ_supply, bl.pricing_record.moving_average);
+    uint64_t reserve_price = cryptonote::get_reserve_coin_price(circ_supply, bl.pricing_record.spot);
+    uint64_t reserve_price_ma = cryptonote::get_reserve_coin_price(circ_supply, bl.pricing_record.moving_average);
+
+    MDEBUG("bl.pricing_record.stable: " << bl.pricing_record.stable << " bl.pricing_record.stable_ma: " << bl.pricing_record.stable_ma << " bl.pricing_record.reserve: " << bl.pricing_record.reserve << " bl.pricing_record.reserve_ma: " << bl.pricing_record.reserve_ma);
+    MDEBUG("stable_price: " << stable_price << " stable_price_ma: " << stable_price_ma << " reserve_price: " << reserve_price << " reserve_price_ma: " << reserve_price_ma);
+
+    if (
+      stable_price != bl.pricing_record.stable ||
+      stable_price_ma != bl.pricing_record.stable_ma ||
+      reserve_price != bl.pricing_record.reserve ||
+      reserve_price_ma != bl.pricing_record.reserve_ma
+    ){
+      MERROR_VER("Block with id: " << id << std::endl << "has invalid pricing record values!");
+      bvc.m_verifivation_failed = true;
+      goto leave;
+    }
+    TIME_MEASURE_FINISH(pricing_record_values);
+  }
+
   //check proof of work
   TIME_MEASURE_START(target_calculating_time);
 
@@ -4246,20 +4351,19 @@ leave:
 
   // Total minted/burnt for each asset type in the block
   // Used to check that the reserve ratio rules are maintained
-  int64_t total_conversion_zeph = 0;
-  int64_t total_conversion_stables = 0;
-  int64_t total_conversion_reserves = 0;
+  boost::multiprecision::int128_t total_conversion_zeph = 0;
+  boost::multiprecision::int128_t total_conversion_stables = 0;
+  boost::multiprecision::int128_t total_conversion_reserves = 0;
+  std::vector<std::pair<std::string, std::string>> circ_supply = get_db().get_circulating_supply();
 
   bool have_valid_pr = true;
   oracle::pricing_record latest_pr;
-  std::vector<std::pair<std::string, std::string>> supply_amounts;
   if (!get_latest_acceptable_pr(latest_pr)) {
     if (hf_version >= HF_VERSION_DJED) {
       MWARNING("Failed to find a pricing record in last 10 blocks.");
     }
     have_valid_pr = false;
   }
-
 
   size_t tx_index = 0;
   // Iterate over the block's transaction hashes, grabbing each
@@ -4380,20 +4484,20 @@ leave:
       goto leave;
     }
 
-    int64_t conversion_this_tx_zeph = 0;
-    int64_t conversion_this_tx_stables = 0;
-    int64_t conversion_this_tx_reserves = 0;
+    boost::multiprecision::int128_t conversion_this_tx_zeph = 0;
+    boost::multiprecision::int128_t conversion_this_tx_stables = 0;
+    boost::multiprecision::int128_t conversion_this_tx_reserves = 0;
 
      // Validate tx pr height
     if (source != dest) {
        if (!have_valid_pr) {
-        LOG_PRINT_L2(" ofshore/onshore tx found in the block but no acceptable pricing record. Invlalid block." << tx.hash);
+        LOG_PRINT_L2(" tx found in the block but no acceptable pricing record. Invlalid block." << tx.hash);
         bvc.m_verifivation_failed = true;
         goto leave;
       }
       // Validate that pricing record has not grown too old since it was first included in the pool
       if (!tx_pr_height_valid(blockchain_height, tx.pricing_record_height, tx_id)) {
-        LOG_PRINT_L2("error : oracle/xAsset transaction references a pricing record that is too old (height " << tx.pricing_record_height << ", block " << blockchain_height << ")");
+        LOG_PRINT_L2("error : transaction references a pricing record that is too old (height " << tx.pricing_record_height << ", block " << blockchain_height << ")");
         bvc.m_verifivation_failed = true;
         goto leave;
       }
@@ -4406,29 +4510,27 @@ leave:
         goto leave;
       }
 
-      // This prolly needs to be diff
-      std::vector<std::pair<std::string, std::string>> circ_supply = get_db().get_circulating_supply();
-
       if (tx_type == tt::MINT_STABLE) {
         conversion_this_tx_zeph += tx.amount_burnt; // Added to the reserve
         conversion_this_tx_stables += tx.amount_minted;
-      }
-      if (tx_type == tt::REDEEM_STABLE) {
+      } else if (tx_type == tt::REDEEM_STABLE) {
         conversion_this_tx_stables -= tx.amount_burnt;
         conversion_this_tx_zeph -= tx.amount_minted; // Deducted from the reserve
-      }
-      if (tx_type == tt::MINT_RESERVE) {
+      } else if (tx_type == tt::MINT_RESERVE) {
         conversion_this_tx_zeph += tx.amount_burnt;
         conversion_this_tx_reserves += tx.amount_minted;
-      }
-      if (tx_type == tt::REDEEM_RESERVE) {
+      } else if (tx_type == tt::REDEEM_RESERVE) {
         conversion_this_tx_reserves -= tx.amount_burnt;
         conversion_this_tx_zeph -= tx.amount_minted;
+      } else {
+        LOG_PRINT_L2("error: conversion transaction has invalid tx type " << tx.hash);
+        bvc.m_verifivation_failed = true;
+        goto leave;
       }
 
-      int64_t tally_zeph = total_conversion_zeph + conversion_this_tx_zeph;
-      int64_t tally_stables = total_conversion_stables + conversion_this_tx_stables;
-      int64_t tally_reserves = total_conversion_reserves + conversion_this_tx_reserves;
+      boost::multiprecision::int128_t tally_zeph = total_conversion_zeph + conversion_this_tx_zeph;
+      boost::multiprecision::int128_t tally_stables = total_conversion_stables + conversion_this_tx_stables;
+      boost::multiprecision::int128_t tally_reserves = total_conversion_reserves + conversion_this_tx_reserves;
 
       if (!reserve_ratio_satisfied(circ_supply, bl.pricing_record, tx_type, tally_zeph, tally_stables, tally_reserves)) {
         LOG_PRINT_L2(" error: block included transaction that would make reserve ratio invalid " << tx.hash);
@@ -4436,8 +4538,14 @@ leave:
         goto leave;
       }
 
+      if (!rct::validateMintedAmount(tx.rct_signatures, tx.amount_burnt, tx.amount_minted, pr_bl.pricing_record, source, dest, hf_version)) {
+        LOG_PRINT_L1(" validateMintedAmount failed: burnt = " << tx.amount_burnt << ", minted = " << tx.amount_minted);
+        bvc.m_verifivation_failed = true;
+        goto leave;
+      }
+
       // make sure proof-of-value still holds
-      if (!rct::verRctSemanticsSimple2(tx.rct_signatures, pr_bl.pricing_record, circ_supply, tx_type, source, dest, tx.amount_burnt, tx.vout, tx.vin, hf_version))
+      if (!rct::verRctSemanticsSimple(tx.rct_signatures, pr_bl.pricing_record, tx_type, source, dest, tx.amount_burnt, tx.vout, tx.vin, hf_version))
       {
         LOG_PRINT_L2(" transaction proof-of-value is now invalid for tx " << tx.hash);
         bvc.m_verifivation_failed = true;
@@ -4482,12 +4590,17 @@ leave:
   TIME_MEASURE_START(vmt);
   uint64_t base_reward = 0;
   uint64_t already_generated_coins = blockchain_height ? m_db->get_block_already_generated_coins(blockchain_height - 1) : 0;
-  if(!validate_miner_transaction(bl, cumulative_block_weight, fee_map, base_reward, already_generated_coins, bvc.m_partial_block_reward, m_hardfork->get_current_version()))
+  if(!validate_miner_transaction(bl, cumulative_block_weight, fee_map, base_reward, already_generated_coins, m_hardfork->get_current_version()))
   {
     MERROR_VER("Block with id: " << id << " has incorrect miner transaction");
     bvc.m_verifivation_failed = true;
     return_tx_to_pool(txs);
     goto leave;
+  }
+
+  uint64_t reserve_reward = 0;
+  if (hf_version >= HF_VERSION_DJED) {
+    reserve_reward = get_reserve_reward(base_reward);
   }
 
   TIME_MEASURE_FINISH(vmt);
@@ -4518,7 +4631,7 @@ leave:
     {
       uint64_t long_term_block_weight = get_next_long_term_block_weight(block_weight);
       cryptonote::blobdata bd = cryptonote::block_to_blob(bl);
-      new_height = m_db->add_block(std::make_pair(std::move(bl), std::move(bd)), block_weight, long_term_block_weight, cumulative_difficulty, already_generated_coins, txs);
+      new_height = m_db->add_block(std::make_pair(std::move(bl), std::move(bd)), block_weight, long_term_block_weight, cumulative_difficulty, already_generated_coins, reserve_reward, txs);
     }
     catch (const KEY_IMAGE_EXISTS& e)
     {

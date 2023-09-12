@@ -113,7 +113,6 @@ namespace cryptonote
      * @param tx_weight the transaction's weight
      */
     bool add_tx(transaction &tx, const crypto::hash &id, const cryptonote::blobdata &blob, size_t tx_weight, tx_verification_context& tvc, relay_method tx_relay, bool relayed, uint8_t version);
-    uint64_t get_zeph_fee_amount(const std::string& fee_asset, uint64_t fee_amount, const cryptonote::transaction_type tt, const oracle::pricing_record& pr, const uint16_t hf_version);
 
     /**
      * @brief add a transaction to the transaction pool

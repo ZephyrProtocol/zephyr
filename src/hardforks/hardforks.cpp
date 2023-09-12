@@ -34,7 +34,8 @@
 const hardfork_t mainnet_hard_forks[] = {
   // version 1 from the start of the blockchain
   { 1, 1, 0, 1685318400 },
-  { 2, 2000, 0, 1685509200 }
+  { 2, 2000, 0, 1685509200 },
+  { 3, 89300, 0, 1696150800 } // October 1st, 2023 9am UTC (approx)
 };
 const size_t num_mainnet_hard_forks = sizeof(mainnet_hard_forks) / sizeof(mainnet_hard_forks[0]);
 const uint64_t mainnet_hard_fork_version_1_till = 1999;
@@ -42,14 +43,16 @@ const uint64_t mainnet_hard_fork_version_1_till = 1999;
 const hardfork_t testnet_hard_forks[] = {
   // version 1 from the start of the blockchain
   { 1, 1, 0, 1685318400 },
-  { 2, 20, 0, 1685509200 }
+  { 2, 20, 0, 1685509200 },
+  { 3, 100, 0, 1688814599 }
 };
 const size_t num_testnet_hard_forks = sizeof(testnet_hard_forks) / sizeof(testnet_hard_forks[0]);
-const uint64_t testnet_hard_fork_version_1_till = 624633;
+const uint64_t testnet_hard_fork_version_1_till = 19;
 
 const hardfork_t stagenet_hard_forks[] = {
   // version 1 from the start of the blockchain
   { 1, 1, 0, 1685318400 },
-  { 2, 20, 0, 1685509200 }
+  { 2, 20, 0, 1685509200 },
+  { 3, 100, 0, 1688814599 }
 };
 const size_t num_stagenet_hard_forks = sizeof(stagenet_hard_forks) / sizeof(stagenet_hard_forks[0]);

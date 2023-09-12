@@ -342,6 +342,9 @@ namespace boost
     a & x.ecdhInfo;
     serializeOutPk(a, x.outPk, ver);
     a & x.txnFee;
+    if (ver >= 2u) {
+      a & x.maskSums;
+    }
   }
 
   template <class Archive>
@@ -375,6 +378,9 @@ namespace boost
     a & x.ecdhInfo;
     serializeOutPk(a, x.outPk, ver);
     a & x.txnFee;
+    if (ver >= 3u) {
+      a & x.maskSums;
+    }
     //--------------
     a & x.p.rangeSigs;
     if (x.p.rangeSigs.empty())
@@ -426,14 +432,20 @@ namespace boost
   template <class Archive>
   inline void serialize(Archive &a, oracle::pricing_record &x, const boost::serialization::version_type ver)
   {
-    a & x.zEPHUSD;
-    a & x.zEPHRSV;
+    a & x.spot;
+    a & x.moving_average;
+    a & x.stable;
+    a & x.stable_ma;
+    a & x.reserve;
+    a & x.reserve_ma;
     a & x.timestamp;
+    a & x.signature;
   }
 
 }
 }
 
 BOOST_CLASS_VERSION(rct::rctSigPrunable, 2)
-BOOST_CLASS_VERSION(rct::rctSig, 2)
+BOOST_CLASS_VERSION(rct::rctSigBase, 2)
+BOOST_CLASS_VERSION(rct::rctSig, 3)
 BOOST_CLASS_VERSION(rct::multisig_out, 1)

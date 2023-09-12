@@ -344,8 +344,11 @@ TEST(ringct, range_proofs)
         catch(...) { ok = true; }
         ASSERT_TRUE(ok);
 
+        const cryptonote::transaction_type tx_type = cryptonote::transaction_type::TRANSFER;
+        std::map<size_t, std::string> outamounts_features;
+
         //compute rct data with mixin 3
-        rctSig s = genRctSimple(rct::zero(), sc, pc, destinations, inamounts, amounts, amount_keys, 0, 3, rct_config, hw::get_device("default"));
+        rctSig s = genRctSimple(rct::zero(), sc, pc, destinations, tx_type, "ZEPH", oracle::pricing_record(), inamounts, amounts, outamounts_features, amount_keys, 0, 3, rct_config, hw::get_device("default"));
 
         //verify rct data
         ASSERT_TRUE(verRctSimple(s));
@@ -360,9 +363,8 @@ TEST(ringct, range_proofs)
         skpkGen(Sk, Pk);
         destinations[1] = Pk;
 
-
         //compute rct data with mixin 3
-        s = genRctSimple(rct::zero(), sc, pc, destinations, inamounts, amounts, amount_keys, 0, 3, rct_config, hw::get_device("default"));
+        s = genRctSimple(rct::zero(), sc, pc, destinations, tx_type, "ZEPH", oracle::pricing_record(), inamounts, amounts, outamounts_features, amount_keys, 0, 3, rct_config, hw::get_device("default"));
 
         //verify rct data
         ASSERT_FALSE(verRctSimple(s));
@@ -408,9 +410,11 @@ TEST(ringct, range_proofs_with_fee)
         destinations.push_back(Pk);
 
         const rct::RCTConfig rct_config { RangeProofBorromean, 0 };
+        const cryptonote::transaction_type tx_type = cryptonote::transaction_type::TRANSFER;
+        std::map<size_t, std::string> outamounts_features;
 
         //compute rct data with mixin 3
-        rctSig s = genRctSimple(rct::zero(), sc, pc, destinations, inamounts, amounts, amount_keys, 1, 3, rct_config, hw::get_device("default"));
+        rctSig s = genRctSimple(rct::zero(), sc, pc, destinations, tx_type, "ZEPH", oracle::pricing_record(), inamounts, amounts, outamounts_features, amount_keys, 1, 3, rct_config, hw::get_device("default"));
 
         //verify rct data
         ASSERT_TRUE(verRctSimple(s));
@@ -427,7 +431,7 @@ TEST(ringct, range_proofs_with_fee)
 
 
         //compute rct data with mixin 3
-        s = genRctSimple(rct::zero(), sc, pc, destinations, inamounts, amounts, amount_keys, 500, 3, rct_config, hw::get_device("default"));
+        s = genRctSimple(rct::zero(), sc, pc, destinations, tx_type, "ZEPH", oracle::pricing_record(), inamounts, amounts, outamounts_features, amount_keys, 500, 3, rct_config, hw::get_device("default"));
 
         //verify rct data
         ASSERT_FALSE(verRctSimple(s));
@@ -486,7 +490,9 @@ TEST(ringct, simple)
         xmr_amount txnfee = 1;
 
         const rct::RCTConfig rct_config { RangeProofBorromean, 0 };
-        rctSig s = genRctSimple(message, sc, pc, destinations,inamounts, outamounts, amount_keys, txnfee, 2, rct_config, hw::get_device("default"));
+        const cryptonote::transaction_type tx_type = cryptonote::transaction_type::TRANSFER;
+        std::map<size_t, std::string> outamounts_features;
+        rctSig s = genRctSimple(message, sc, pc, destinations, tx_type, "ZEPH", oracle::pricing_record(), inamounts, outamounts, outamounts_features, amount_keys, txnfee, 2, rct_config, hw::get_device("default"));
 
         //verify ring ct signature
         ASSERT_TRUE(verRctSimple(s));
@@ -548,7 +554,9 @@ static rct::rctSig make_sample_simple_rct_sig(int n_inputs, const uint64_t input
     }
 
     const rct::RCTConfig rct_config { RangeProofBorromean, 0 };
-    return genRctSimple(rct::zero(), sc, pc, destinations, inamounts, outamounts, amount_keys, fee, 3, rct_config, hw::get_device("default"));
+    const cryptonote::transaction_type tx_type = cryptonote::transaction_type::TRANSFER;
+    std::map<size_t, std::string> outamounts_features;
+    return genRctSimple(rct::zero(), sc, pc, destinations, tx_type, "ZEPH", oracle::pricing_record(), inamounts, outamounts, outamounts_features, amount_keys, fee, 3, rct_config, hw::get_device("default"));
 }
 
 static bool range_proof_test(bool expected_valid,
@@ -1266,5 +1274,8 @@ TEST(ringct, aggregated)
     sp[n] = &s[n];
   }
 
-  ASSERT_TRUE(verRctSemanticsSimple(sp));
+  for (size_t n = 0; n < N_PROOFS; ++n)
+  {
+    ASSERT_TRUE(rct::verRctSemanticsSimple(*sp[n]));
+  }
 }

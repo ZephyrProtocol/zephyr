@@ -75,7 +75,6 @@ bool wallet_tools::fill_tx_sources(tools::wallet2 * wallet, std::vector<cryptono
 {
   CHECK_AND_ASSERT_THROW_MES(step != 0, "Step is zero");
   sources.clear();
-
   auto & transfers = wallet_accessor_test::get_transfers(wallet);
   std::unordered_set<size_t> selected_idx;
   std::unordered_set<crypto::key_image> selected_kis;
@@ -280,5 +279,6 @@ bool construct_tx_rct(tools::wallet2 * sender_wallet, std::vector<cryptonote::tx
   std::vector<crypto::secret_key> additional_tx_keys;
   std::vector<tx_destination_entry> destinations_copy = destinations;
   rct::RCTConfig rct_config = {range_proof_type, bp_version};
-  return construct_tx_and_get_tx_key(sender_wallet->get_account().get_keys(), subaddresses, sources, destinations_copy, change_addr, extra, tx, unlock_time, tx_key, additional_tx_keys, rct, rct_config);
+  std::vector<std::pair<std::string, std::string>> circ_amounts;
+  return construct_tx_and_get_tx_key(sender_wallet->get_account().get_keys(), subaddresses, sources, destinations_copy, change_addr, extra, tx, "ZEPH", "ZEPH", 1, 2, oracle::pricing_record(), circ_amounts, unlock_time, tx_key, additional_tx_keys, rct, rct_config);
 }

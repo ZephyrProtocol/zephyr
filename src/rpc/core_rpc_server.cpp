@@ -763,7 +763,6 @@ namespace cryptonote
             cryptonote::rpc::tx_asset_type_output_indices tx_asset_type_output_indices;
             for (size_t j = 0; j < indices[i].size(); ++j)
             {
-              LOG_PRINT_L2("index: " << i << ", " << j);
               tx_indices.push_back(indices[i][j].first);
               tx_asset_type_output_indices.push_back(indices[i][j].second);
             }
@@ -1350,7 +1349,15 @@ namespace cryptonote
       return true;
     }
 
-    if (req.do_sanity_checks && !cryptonote::tx_sanity_check(tx_blob, m_core.get_blockchain_storage().get_num_mature_outputs(0)))
+    std::string input_asset;
+    if (req.do_sanity_checks && !cryptonote::tx_sanity_check_input_asset_type(tx_blob, input_asset)) {
+      res.status = "Failed";
+      res.reason = "Sanity check for input asset type failed";
+      res.sanity_check_failed = true;
+      return true;
+    }
+
+    if (req.do_sanity_checks && !cryptonote::tx_sanity_check(tx_blob, m_core.get_blockchain_storage().get_num_mature_outputs(input_asset)))
     {
       res.status = "Failed";
       res.reason = "Sanity check failed";
@@ -2986,6 +2993,32 @@ namespace cryptonote
     res.status = CORE_RPC_STATUS_OK;
     return true;
   }
+  //----------------------------------------------------------------------------------------------------
+  bool core_rpc_server::get_pricing_record(oracle::pricing_record& pr, const uint64_t height)
+  {
+    COMMAND_RPC_GET_BLOCK_HEADER_BY_HEIGHT::request req = AUTO_VAL_INIT(req);
+    COMMAND_RPC_GET_BLOCK_HEADER_BY_HEIGHT::response res = AUTO_VAL_INIT(res);
+    epee::json_rpc::error error_resp;
+    req.height = height;
+    bool r = on_get_block_header_by_height(req, res, error_resp, nullptr);
+    if (r && res.status == CORE_RPC_STATUS_OK)
+    {
+      // Got the block header - verify the pricing record
+      if (res.block_header.pricing_record.empty() || res.block_header.pricing_record.has_missing_rates()) {
+        MERROR("Invalid pricing record in block header. Please try again later.");
+        return false;
+      }
+
+      // Return the pricing record we retrieved
+      pr = res.block_header.pricing_record;
+      return true;
+    }
+    else
+    {
+      MERROR("Failed to request block header from daemon");
+      return false;
+    }
+  }
   //------------------------------------------------------------------------------------------------------------------------------
   bool core_rpc_server::on_get_circulating_supply(const COMMAND_RPC_GET_CIRCULATING_SUPPLY::request& req, COMMAND_RPC_GET_CIRCULATING_SUPPLY::response& res, epee::json_rpc::error& error_resp, const connection_context *ctx)
   {
@@ -2998,6 +3031,46 @@ namespace cryptonote
     }
     res.status = CORE_RPC_STATUS_OK;
     return true;    
+  }
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::on_get_reserve_info(const COMMAND_RPC_GET_RESERVE_INFO::request& req, COMMAND_RPC_GET_RESERVE_INFO::response& res, epee::json_rpc::error& error_res, const connection_context *ctx)
+  {
+    PERF_TIMER(on_get_reserve_info);
+    std::vector<std::pair<std::string, std::string>> circ_supply = m_core.get_blockchain_storage().get_db().get_circulating_supply();
+    uint64_t current_height = m_core.get_current_blockchain_height();
+
+    oracle::pricing_record pr;
+    if (!get_pricing_record(pr, current_height - 1)) {
+      res.status = "Failed to get pricing record";
+      return false;
+    }
+
+    boost::multiprecision::uint128_t zeph_reserve;
+    boost::multiprecision::uint128_t num_stables;
+    boost::multiprecision::uint128_t num_reserves;
+    boost::multiprecision::uint128_t assets;
+    boost::multiprecision::uint128_t assets_ma;
+    boost::multiprecision::uint128_t liabilities;
+    boost::multiprecision::uint128_t equity;
+    boost::multiprecision::uint128_t equity_ma;
+    double reserve_ratio;
+    double reserve_ratio_ma;
+    cryptonote::get_reserve_info(circ_supply, pr, zeph_reserve, num_stables, num_reserves, assets, assets_ma, liabilities, equity, equity_ma, reserve_ratio, reserve_ratio_ma);
+
+    res.zeph_reserve = zeph_reserve.str();
+    res.num_stables = num_stables.str();
+    res.num_reserves = num_reserves.str();
+    res.assets = assets.str();
+    res.assets_ma = assets_ma.str();
+    res.liabilities = liabilities.str();
+    res.equity = equity.str();
+    res.equity_ma = equity_ma.str();
+    res.reserve_ratio = std::to_string(reserve_ratio);
+    res.reserve_ratio_ma = std::to_string(reserve_ratio_ma);
+    res.height = current_height;
+    res.pr = pr;
+    res.status = CORE_RPC_STATUS_OK;
+    return true;
   }
   //------------------------------------------------------------------------------------------------------------------------------
   bool core_rpc_server::on_get_base_fee_estimate(const COMMAND_RPC_GET_BASE_FEE_ESTIMATE::request& req, COMMAND_RPC_GET_BASE_FEE_ESTIMATE::response& res, epee::json_rpc::error& error_resp, const connection_context *ctx)
@@ -3370,7 +3443,7 @@ namespace cryptonote
         if (!data)
         {
           error_resp.code = CORE_RPC_ERROR_CODE_INTERNAL_ERROR;
-          error_resp.message = "Failed to get output distribution 6";
+          error_resp.message = "Failed to get output distribution";
           return false;
         }
 
@@ -3379,9 +3452,8 @@ namespace cryptonote
     }
     catch (const std::exception &e)
     {
-      LOG_PRINT_L1("IT FAILED RIGHT HERE");
       error_resp.code = CORE_RPC_ERROR_CODE_INTERNAL_ERROR;
-      error_resp.message = "Failed to get output distribution 5";
+      error_resp.message = "Failed to get output distribution";
       return false;
     }
 
@@ -3426,7 +3498,7 @@ namespace cryptonote
         auto data = rpc::RpcHandler::get_output_distribution([this](uint64_t amount, std::string asset_type, uint64_t from, uint64_t to, uint64_t &start_height, std::vector<uint64_t> &distribution, uint64_t &base, uint64_t &num_spendable_global_outs) { return m_core.get_output_distribution(amount, asset_type, from, to, start_height, distribution, base, num_spendable_global_outs); }, amount, req.rct_asset_type, req.from_height, req_to_height, [this](uint64_t height) { return m_core.get_blockchain_storage().get_db().get_block_hash_from_height(height); }, req.cumulative, m_core.get_current_blockchain_height());
         if (!data)
         {
-          res.status = "Failed to get output distribution 4";
+          res.status = "Failed to get output distribution";
           return true;
         }
 
@@ -3435,7 +3507,7 @@ namespace cryptonote
     }
     catch (const std::exception &e)
     {
-      res.status = "Failed to get output distribution 3";
+      res.status = "Failed to get output distribution";
       return true;
     }
 

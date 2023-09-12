@@ -702,19 +702,13 @@ namespace nodetool
     std::set<std::string> full_addrs;
     if (m_nettype == cryptonote::TESTNET)
     {
-      // full_addrs.insert("176.9.0.187:28080");
-      // full_addrs.insert("88.99.173.38:28080");
-      // full_addrs.insert("51.79.173.165:28080");
-      // full_addrs.insert("192.99.8.110:28080");
-      // full_addrs.insert("37.187.74.171:28080");
+      full_addrs.insert("170.64.173.105:27766");
+      full_addrs.insert("146.190.52.10:27766");
     }
     else if (m_nettype == cryptonote::STAGENET)
     {
-      // full_addrs.insert("176.9.0.187:38080");
-      // full_addrs.insert("88.99.173.38:38080");
-      // full_addrs.insert("51.79.173.165:38080");
-      // full_addrs.insert("192.99.8.110:38080");
-      // full_addrs.insert("37.187.74.171:38080");
+      full_addrs.insert("142.93.255.216:37766");
+      full_addrs.insert("142.93.98.116:37766");
     }
     else if (m_nettype == cryptonote::FAKECHAIN)
     {

@@ -139,7 +139,7 @@ private:
     virtual void on_reorg(uint64_t height, uint64_t blocks_detached, size_t transfers_detached) {}
     virtual void on_money_received(uint64_t height, const crypto::hash &txid, const cryptonote::transaction& tx, uint64_t amount, const std::string& asset_type, uint64_t burnt, const cryptonote::subaddress_index& subaddr_index, bool is_change, uint64_t unlock_time) {}
     virtual void on_unconfirmed_money_received(uint64_t height, const crypto::hash &txid, const cryptonote::transaction& tx, uint64_t amount, const cryptonote::subaddress_index& subaddr_index) {}
-    virtual void on_money_spent(uint64_t height, const crypto::hash &txid, const cryptonote::transaction& in_tx, uint64_t amount, const cryptonote::transaction& spend_tx, const cryptonote::subaddress_index& subaddr_index) {}
+    virtual void on_money_spent(uint64_t height, const crypto::hash &txid, const cryptonote::transaction& in_tx, uint64_t amount, const std::string& asset_type, const cryptonote::transaction& spend_tx, const cryptonote::subaddress_index& subaddr_index) {}
     virtual void on_skip_transaction(uint64_t height, const crypto::hash &txid, const cryptonote::transaction& tx) {}
     virtual boost::optional<epee::wipeable_string> on_get_password(const char *reason) { return boost::none; }
     // Device callbacks
@@ -326,7 +326,6 @@ private:
       uint64_t m_internal_output_index;
       uint64_t m_global_output_index;
       uint64_t m_asset_type_output_index;
-      bool m_asset_type_output_index_known;
       bool m_spent;
       bool m_frozen;
       uint64_t m_spent_height;
@@ -362,7 +361,6 @@ private:
         FIELD(m_internal_output_index)
         FIELD(m_global_output_index)
         FIELD(m_asset_type_output_index)
-        FIELD(m_asset_type_output_index_known)
         FIELD(m_spent)
         FIELD(m_frozen)
         FIELD(m_spent_height)
@@ -1043,6 +1041,9 @@ private:
     bool get_pricing_record(oracle::pricing_record& pr, const uint64_t height);
     bool get_circulating_supply(std::vector<std::pair<std::string, std::string>> &amounts);
 
+     // locked & unlocked balance of given or current subaddress account
+    std::map<uint32_t, std::map<std::string, uint64_t>> balance(uint32_t subaddr_index_major, bool strict);
+    std::map<uint32_t, std::map<std::string, uint64_t>> unlocked_balance(uint32_t subaddr_index_major, bool strict, std::map<std::string, uint64_t> *blocks_to_unlock = NULL, std::map<std::string, uint64_t> *time_to_unlock = NULL);
     // locked & unlocked balance of given or current subaddress account
     uint64_t balance(const std::string& asset_type, uint32_t subaddr_index_major, bool strict) const;
     uint64_t unlocked_balance(const std::string& asset_type, uint32_t subaddr_index_major, bool strict, uint64_t *blocks_to_unlock = NULL, uint64_t *time_to_unlock = NULL);
@@ -1050,8 +1051,9 @@ private:
     std::map<uint32_t, uint64_t> balance_per_subaddress(const std::string& asset_type, uint32_t subaddr_index_major, bool strict) const;
     std::map<uint32_t, std::pair<uint64_t, std::pair<uint64_t, uint64_t>>> unlocked_balance_per_subaddress(const std::string& asset_type, uint32_t subaddr_index_major, bool strict);
     // all locked & unlocked balances of all subaddress accounts
-    uint64_t balance_all(const std::string& asset_type, bool strict) const;
-    uint64_t unlocked_balance_all(const std::string& asset_type, bool strict, uint64_t *blocks_to_unlock = NULL, uint64_t *time_to_unlock = NULL);
+    std::map<std::string, uint64_t> balance_all(bool strict) const;
+    std::map<std::string, uint64_t> unlocked_balance_all(bool strict, std::map<std::string, uint64_t>  *blocks_to_unlock = NULL, std::map<std::string, uint64_t>  *time_to_unlock = NULL);
+
     template<typename T>
     void transfer_selected(const std::vector<cryptonote::tx_destination_entry>& dsts, const std::vector<size_t>& selected_transfers, size_t fake_outputs_count,
       std::vector<std::vector<tools::wallet2::get_outs_entry>> &outs, std::unordered_set<crypto::public_key> &valid_public_keys_cache,
@@ -1095,8 +1097,21 @@ private:
     bool load_tx(const std::string &signed_filename, std::vector<tools::wallet2::pending_tx> &ptx, std::function<bool(const signed_tx_set&)> accept_func = NULL);
     bool parse_tx_from_str(const std::string &signed_tx_st, std::vector<tools::wallet2::pending_tx> &ptx, std::function<bool(const signed_tx_set &)> accept_func);
     
-    void get_reserve_info(const oracle::pricing_record& pricing_record, uint64_t& zeph_reserve, uint64_t& num_stables, uint64_t& num_reserves, uint64_t& assets, uint64_t& liabilities, uint64_t& equity, double& reserve_ratio);
-    double get_reserve_ratio(const oracle::pricing_record& pricing_record);
+    void get_reserve_info(
+      const oracle::pricing_record& pricing_record,
+      boost::multiprecision::uint128_t& zeph_reserve,
+      boost::multiprecision::uint128_t& num_stables,
+      boost::multiprecision::uint128_t& num_reserves,
+      boost::multiprecision::uint128_t& assets,
+      boost::multiprecision::uint128_t& assets_ma,
+      boost::multiprecision::uint128_t& liabilities,
+      boost::multiprecision::uint128_t& equity,
+      boost::multiprecision::uint128_t& equity_ma,
+      double& reserve_ratio,
+      double& reserve_ratio_ma
+    );
+    double get_spot_reserve_ratio(const oracle::pricing_record& pricing_record);
+    double get_ma_reserve_ratio(const oracle::pricing_record& pricing_record);
 
     std::vector<wallet2::pending_tx> create_transactions_2(
       std::vector<cryptonote::tx_destination_entry> dsts,
@@ -1108,9 +1123,34 @@ private:
       uint32_t subaddr_account,
       std::set<uint32_t> subaddr_indices // pass subaddr_indices by value on purpose
     );     
-    std::vector<wallet2::pending_tx> create_transactions_all(uint64_t below, const cryptonote::account_public_address &address, bool is_subaddress, const size_t outputs, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t>& extra, uint32_t subaddr_account, std::set<uint32_t> subaddr_indices);
+    std::vector<wallet2::pending_tx> create_transactions_all(
+      uint64_t below,
+      const std::string &source_asset,
+      const std::string &dest_asset,
+      const cryptonote::account_public_address &address,
+      bool is_subaddress,
+      const size_t outputs,
+      const size_t fake_outs_count,
+      const uint64_t unlock_time,
+      uint32_t priority,
+      const std::vector<uint8_t>& extra,
+      uint32_t subaddr_account,
+      std::set<uint32_t> subaddr_indices
+    );
     std::vector<wallet2::pending_tx> create_transactions_single(const crypto::key_image &ki, const cryptonote::account_public_address &address, bool is_subaddress, const size_t outputs, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t>& extra);
-    std::vector<wallet2::pending_tx> create_transactions_from(const cryptonote::account_public_address &address, bool is_subaddress, const size_t outputs, std::vector<size_t> unused_transfers_indices, std::vector<size_t> unused_dust_indices, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t>& extra);
+    std::vector<wallet2::pending_tx> create_transactions_from(
+      const cryptonote::account_public_address &address,
+      const std::string &source_asset,
+      const std::string &dest_asset,
+      bool is_subaddress,
+      const size_t outputs,
+      std::vector<size_t> unused_transfers_indices,
+      std::vector<size_t> unused_dust_indices,
+      const size_t fake_outs_count,
+      const uint64_t unlock_time,
+      uint32_t priority,
+      const std::vector<uint8_t>& extra
+    );
     bool sanity_check(const std::vector<wallet2::pending_tx> &ptx_vector, std::vector<cryptonote::tx_destination_entry> dsts) const;
     void cold_tx_aux_import(const std::vector<pending_tx>& ptx, const std::vector<std::string>& tx_device_aux);
     void cold_sign_tx(const std::vector<pending_tx>& ptx_vector, signed_tx_set &exported_txs, std::vector<cryptonote::address_parse_info> &dsts_info, std::vector<std::string> & tx_device_aux);
@@ -1166,10 +1206,7 @@ private:
       {
         a & m_blockchain;
       }
-      a & m_transfers["ZEPH"];
-      a & m_transfers["ZEPHUSD"];
-      a & m_transfers["ZEPHRSV"];
-
+      a & m_transfers;
       a & m_account_public_address;
       a & m_key_images.parent();
       if(ver < 6)
@@ -1267,11 +1304,7 @@ private:
       MAGIC_FIELD("zephyr wallet cache")
       VERSION_FIELD(1)
       FIELD(m_blockchain)
-
-      FIELD(m_transfers["ZEPH"])
-      FIELD(m_transfers["ZEPHUSD"])
-      FIELD(m_transfers["ZEPHRSV"])
-
+      FIELD(m_transfers)
       FIELD(m_account_public_address)
       FIELD(m_key_images)
       FIELD(m_unconfirmed_txs)
@@ -1429,8 +1462,8 @@ private:
     bool delete_address_book_row(std::size_t row_id);
         
     uint64_t get_num_rct_outputs();
-    size_t get_num_transfer_details(const std::string& asset_type);
-    const transfer_details &get_transfer_details(const std::string& asset_type, size_t idx);
+    size_t get_num_transfer_details();
+    const transfer_details &get_transfer_details(size_t idx);
 
     uint8_t get_current_hard_fork();
     void get_hard_fork_info(uint8_t version, uint64_t &earliest_height);
@@ -1456,7 +1489,7 @@ private:
     std::vector<size_t> select_available_mixable_outputs();
 
     size_t pop_best_value_from(const transfer_container &transfers, std::vector<size_t> &unused_dust_indices, const std::vector<size_t>& selected_transfers, bool smallest = false) const;
-    size_t pop_best_value(const std::string& asset_type, std::vector<size_t> &unused_dust_indices, const std::vector<size_t>& selected_transfers, bool smallest = false) const;
+    size_t pop_best_value(std::vector<size_t> &unused_dust_indices, const std::vector<size_t>& selected_transfers, bool smallest = false) const;
 
     void set_tx_note(const crypto::hash &txid, const std::string &note);
     std::string get_tx_note(const crypto::hash &txid) const;
@@ -1624,9 +1657,9 @@ private:
     bool unblackball_output(const std::pair<uint64_t, uint64_t> &output);
     bool is_output_blackballed(const std::pair<uint64_t, uint64_t> &output) const;
 
-    void freeze(const std::string& asset_type, size_t idx);
-    void thaw(const std::string& asset_type, size_t idx);
-    bool frozen(const std::string& asset_type, size_t idx) const;
+    void freeze(size_t idx);
+    void thaw(size_t idx);
+    bool frozen(size_t idx) const;
     void freeze(const crypto::key_image &ki);
     void thaw(const crypto::key_image &ki);
     bool frozen(const crypto::key_image &ki) const;
@@ -1653,15 +1686,15 @@ private:
 
     bool is_tx_spendtime_unlocked(uint64_t unlock_time, uint64_t block_height);
     void hash_m_transfer(const transfer_details & transfer, crypto::hash &hash) const;
-    uint64_t hash_m_transfers(const std::string& asset_type, boost::optional<uint64_t> transfer_height, crypto::hash &hash) const;
-    void finish_rescan_bc_keep_key_images(const std::string& asset_type, uint64_t transfer_height, const crypto::hash &hash);
+    uint64_t hash_m_transfers(boost::optional<uint64_t> transfer_height, crypto::hash &hash) const;
+    void finish_rescan_bc_keep_key_images(uint64_t transfer_height, const crypto::hash &hash);
     void enable_dns(bool enable) { m_use_dns = enable; }
     void set_offline(bool offline = true);
     bool is_offline() const { return m_offline; }
 
     static std::string get_default_daemon_address() { CRITICAL_REGION_LOCAL(default_daemon_address_lock); return default_daemon_address; }
 
-    transfer_container get_specific_transfers(const std::string& asset);
+    wallet2::transfers_iterator_container get_specific_transfers(const std::string& asset);
 
   private:
     /*!
@@ -1719,16 +1752,16 @@ private:
     std::vector<uint64_t> get_unspent_amounts_vector(bool strict);
     uint64_t get_dynamic_base_fee_estimate();
     float get_output_relatedness(const transfer_details &td0, const transfer_details &td1) const;
-    std::vector<size_t> pick_preferred_rct_inputs(uint64_t needed_money, uint32_t subaddr_account, const std::set<uint32_t> &subaddr_indices, const transfer_container &specific_transfers);
-    void set_spent(const std::string& asset_type, size_t idx, uint64_t height);
-    void set_unspent(const std::string& asset_type, size_t idx);
+    std::vector<size_t> pick_preferred_rct_inputs(uint64_t needed_money, uint32_t subaddr_account, const std::set<uint32_t> &subaddr_indices, const tools::wallet2::transfers_iterator_container &specific_transfers);
+    void set_spent(size_t idx, uint64_t height);
+    void set_unspent(size_t idx);
     bool is_spent(const transfer_details &td, bool strict = true) const;
-    bool is_spent(const std::string& asset_type, size_t idx, bool strict = true) const;
-    void get_outs(const transfer_container &specific_transfers, std::vector<std::vector<get_outs_entry>> &outs, const std::vector<size_t> &selected_transfers, size_t fake_outputs_count, bool rct, std::unordered_set<crypto::public_key> &valid_public_keys_cache);
-    void get_outs(const transfer_container &specific_transfers, std::vector<std::vector<get_outs_entry>> &outs, const std::vector<size_t> &selected_transfers, size_t fake_outputs_count, uint64_t &num_spendable_global_outs, uint64_t &num_outs, std::unordered_set<crypto::public_key> &valid_public_keys_cache);
+    bool is_spent(size_t idx, bool strict = true) const;
+    void get_outs(std::vector<std::vector<get_outs_entry>> &outs, const std::vector<size_t> &selected_transfers, size_t fake_outputs_count, bool rct, std::unordered_set<crypto::public_key> &valid_public_keys_cache);
+    void get_outs(std::vector<std::vector<get_outs_entry>> &outs, const std::vector<size_t> &selected_transfers, size_t fake_outputs_count, std::vector<uint64_t> &rct_offsets, uint64_t &num_spendable_global_outs, std::unordered_set<crypto::public_key> &valid_public_keys_cache);
     bool tx_add_fake_output(std::vector<std::vector<tools::wallet2::get_outs_entry>> &outs, uint64_t global_index, const crypto::public_key& tx_public_key, const rct::key& mask, uint64_t real_index, bool unlocked, std::unordered_set<crypto::public_key> &valid_public_keys_cache) const;
-    bool should_pick_a_second_output(bool use_rct, size_t n_transfers, const std::vector<size_t> &unused_transfers_indices, const std::vector<size_t> &unused_dust_indices, const transfer_container &specific_transfers) const;
-    std::vector<size_t> get_only_rct(const std::vector<size_t> &unused_dust_indices, const std::vector<size_t> &unused_transfers_indices, const transfer_container &specific_transfers) const;
+    bool should_pick_a_second_output(bool use_rct, size_t n_transfers, const std::vector<size_t> &unused_transfers_indices, const std::vector<size_t> &unused_dust_indices) const;
+    std::vector<size_t> get_only_rct(const std::vector<size_t> &unused_dust_indices, const std::vector<size_t> &unused_transfers_indices) const;
     void scan_output(const cryptonote::transaction &tx, bool miner_tx, const crypto::public_key &tx_pub_key, size_t i, tx_scan_info_t &tx_scan_info, int &num_vouts_received, std::unordered_map<cryptonote::subaddress_index, std::map<std::string, uint64_t>> &tx_money_got_in_outs, std::vector<size_t> &outs, bool pool);
     void trim_hashchain();
     crypto::key_image get_multisig_composite_key_image(size_t n) const;
@@ -1742,12 +1775,12 @@ private:
     bool get_ring(const crypto::chacha_key &key, const crypto::key_image &key_image, std::vector<uint64_t> &outs);
     crypto::chacha_key get_ringdb_key();
     void setup_keys(const epee::wipeable_string &password);
-    std::pair<std::string, size_t> get_transfer_details(const crypto::key_image &ki) const;
+    size_t get_transfer_details(const crypto::key_image &ki) const;
 
     void register_devices();
     hw::device& lookup_device(const std::string & device_descriptor);
 
-    bool get_rct_distribution(const bool use_global_outs, const std::string rct_asset_type, uint64_t &start_height, std::vector<uint64_t> &distribution, uint64_t &num_spendable_global_outs);
+    bool get_rct_distribution(const std::string rct_asset_type, uint64_t &start_height, std::vector<uint64_t> &distribution, uint64_t &num_spendable_global_outs);
 
     uint64_t get_segregation_fork_height() const;
 
@@ -1786,7 +1819,7 @@ private:
     cryptonote::checkpoints m_checkpoints;
     serializable_unordered_map<crypto::hash, std::vector<crypto::secret_key>> m_additional_tx_keys;
 
-    std::map<std::string, transfer_container> m_transfers;
+    transfer_container m_transfers;
   
     payment_container m_payments;
     serializable_unordered_map<crypto::key_image, size_t> m_key_images;

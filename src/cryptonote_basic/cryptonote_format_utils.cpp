@@ -238,9 +238,6 @@ namespace cryptonote
   //---------------------------------------------------------------
   bool parse_and_validate_tx_from_blob(const blobdata_ref& tx_blob, transaction& tx)
   {
-    // print tx
-    LOG_PRINT_L1("tx" << ENDL << obj_to_json_str(tx));
-
     binary_archive<false> ba{epee::strspan<std::uint8_t>(tx_blob)};
     bool r = ::serialization::serialize(ba, tx);
     CHECK_AND_ASSERT_MES(r, false, "Failed to parse transaction from blob");
@@ -276,9 +273,6 @@ namespace cryptonote
     CHECK_AND_ASSERT_MES(r, false, "Failed to parse transaction from blob");
     CHECK_AND_ASSERT_MES(expand_transaction_1(tx, false), false, "Failed to expand transaction data");
     tx.invalidate_hashes();
-    //TODO: validate tx
-
-    MDEBUG("tx: " << ENDL << obj_to_json_str(tx));
 
     return get_transaction_hash(tx, tx_hash);
   }
@@ -919,11 +913,15 @@ namespace cryptonote
     return true;
   }
   //---------------------------------------------------------------
-  uint64_t get_outs_money_amount(const transaction& tx)
+  uint64_t get_outs_money_amount(const transaction& tx, const std::string& asset_type)
   {
     uint64_t outputs_amount = 0;
-    for(const auto& o: tx.vout)
-      outputs_amount += o.amount;
+    for(const auto& o: tx.vout) {
+      std::string output_asset_type;
+      bool ok = cryptonote::get_output_asset_type(o, output_asset_type);
+      if (ok && output_asset_type == asset_type)
+        outputs_amount += o.amount;
+    }
     return outputs_amount;
   }
   //---------------------------------------------------------------
@@ -972,27 +970,17 @@ namespace cryptonote
   void set_tx_out(const std::string& asset_type, const uint64_t amount, const crypto::public_key& output_public_key, const bool use_view_tags, const crypto::view_tag& view_tag, tx_out& out)
   {
     out.amount = amount;
-    // if (use_view_tags)
-    // {
-      txout_zephyr_tagged_key ttk;
-      ttk.key = output_public_key;
-      ttk.view_tag = view_tag;
-      ttk.asset_type = asset_type;
-      out.target = ttk;
-    // }
-    // else
-    // {
-    //   txout_to_key tk;
-    //   tk.key = output_public_key;
-    //   out.target = tk;
-    // }
+    txout_zephyr_tagged_key ttk;
+    ttk.key = output_public_key;
+    ttk.view_tag = view_tag;
+    ttk.asset_type = asset_type;
+    out.target = ttk;
   }
   //---------------------------------------------------------------
   bool check_output_types(const transaction& tx, const uint8_t hf_version)
   {
     for (const auto &o: tx.vout)
     {
-      // from v15, require outputs have view tags
       CHECK_AND_ASSERT_MES(o.target.type() == typeid(txout_zephyr_tagged_key), false, "wrong variant type: "
         << o.target.type().name() << ", expected txout_zephyr_tagged_key in transaction id=" << get_transaction_hash(tx));
     }
@@ -1173,6 +1161,12 @@ namespace cryptonote
       s.insert(s.size() - decimal_point, ".");
   }
   //---------------------------------------------------------------
+  std::string print_money(std::string amount, unsigned int decimal_point)
+  {
+    insert_money_decimal_point(amount, decimal_point);
+    return amount;
+  }
+  //---------------------------------------------------------------
   std::string print_money(uint64_t amount, unsigned int decimal_point)
   {
     std::string s = std::to_string(amount);
@@ -1342,7 +1336,8 @@ namespace cryptonote
       binary_archive<true> ba(ss);
       const size_t inputs = t.vin.size();
       const size_t outputs = t.vout.size();
-      bool r = tt.rct_signatures.serialize_rctsig_base(ba, inputs, outputs);
+      const bool conversion_tx = t.amount_burnt > 0 && t.amount_minted > 0;
+      bool r = tt.rct_signatures.serialize_rctsig_base(ba, inputs, outputs, conversion_tx);
       CHECK_AND_ASSERT_THROW_MES(r, "Failed to serialize rct signatures base");
       cryptonote::get_blob_hash(ss.str(), hashes[1]);
     }
@@ -1472,36 +1467,6 @@ namespace cryptonote
     }
 
     bool hash_result = get_object_hash(get_block_hashing_blob(b), res);
-    if (!hash_result)
-      return false;
-
-    if (b.miner_tx.vin.size() == 1 && b.miner_tx.vin[0].type() == typeid(cryptonote::txin_gen))
-    {
-      const cryptonote::txin_gen &txin_gen = boost::get<cryptonote::txin_gen>(b.miner_tx.vin[0]);
-      if (txin_gen.height != 202612)
-        return true;
-    }
-
-    // EXCEPTION FOR BLOCK 202612
-    const std::string correct_blob_hash_202612 = "3a8a2b3a29b50fc86ff73dd087ea43c6f0d6b8f936c849194d5c84c737903966";
-    const std::string existing_block_id_202612 = "bbd604d2ba11ba27935e006ed39c9bfdd99b76bf4a50654bc1e1e61217962698";
-    crypto::hash block_blob_hash = get_blob_hash(*blob);
-
-    if (string_tools::pod_to_hex(block_blob_hash) == correct_blob_hash_202612)
-    {
-      string_tools::hex_to_pod(existing_block_id_202612, res);
-      return true;
-    }
-
-    {
-      // make sure that we aren't looking at a block with the 202612 block id but not the correct blobdata
-      if (string_tools::pod_to_hex(res) == existing_block_id_202612)
-      {
-        LOG_ERROR("Block with block id for 202612 but incorrect block blob hash found!");
-        res = null_hash;
-        return false;
-      }
-    }
     return hash_result;
   }
   //---------------------------------------------------------------

@@ -57,15 +57,28 @@ namespace epee
 
 namespace oracle
 {
+  #pragma pack(push, 1)
+  POD_CLASS pricing_record_pre {
+    uint64_t zEPHUSD;
+    uint64_t zEPHRSV;
+    uint64_t timestamp;
+  };
+  #pragma pack(pop)
   class pricing_record
   {
 
     public:
 
       // Fields 
-      uint64_t zEPHUSD;
-      uint64_t zEPHRSV;
+      uint64_t spot;
+      uint64_t moving_average;
+      uint64_t stable;
+      uint64_t stable_ma;
+      uint64_t reserve;
+      uint64_t reserve_ma;
       uint64_t timestamp;
+      unsigned char signature[64];
+
       // Default c'tor
       pricing_record() noexcept;
       //! Load from epee p2p format
@@ -76,6 +89,8 @@ namespace oracle
       ~pricing_record() = default;
       bool equal(const pricing_record& other) const noexcept;
       bool empty() const noexcept;
+      bool verifySignature(const std::string& public_key) const;
+      bool has_missing_rates() const noexcept;
       bool valid(cryptonote::network_type nettype, uint32_t hf_version, uint64_t bl_timestamp, uint64_t last_bl_timestamp) const;
 
       pricing_record& operator=(const pricing_record& orig) noexcept;
@@ -91,5 +106,35 @@ namespace oracle
   {
    return !a.equal(b);
   }
+
+  class pricing_record_v1
+  {
+
+  public:
+    uint64_t zEPHUSD;
+    uint64_t zEPHRSV;
+    uint64_t timestamp;
+
+    bool write_to_pr(oracle::pricing_record &pr)
+    {
+      pr.spot = 0;
+      pr.moving_average = 0;
+      pr.stable = 0;
+      pr.stable_ma = 0;
+      pr.reserve = 0;
+      pr.reserve_ma = 0;
+      pr.timestamp = 0;
+      std::memset(pr.signature, 0, sizeof(oracle::pricing_record::signature));
+      return true;
+    };
+
+    bool read_from_pr(oracle::pricing_record &pr)
+    {
+      zEPHUSD = 0;
+      zEPHRSV = 0;
+      timestamp = 0;
+      return true;
+    };
+  };
 
 } // oracle

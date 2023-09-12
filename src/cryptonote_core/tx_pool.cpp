@@ -136,11 +136,6 @@ namespace cryptonote
     // corresponding lists.
   }
   //---------------------------------------------------------------------------------
-  uint64_t tx_memory_pool::get_zeph_fee_amount(const std::string& fee_asset, uint64_t fee_amount, const cryptonote::transaction_type tt, const oracle::pricing_record& pr, const uint16_t hf_version)
-  {
-    return fee_amount;
-  }
-  //---------------------------------------------------------------------------------
   bool tx_memory_pool::add_tx(transaction &tx, /*const crypto::hash& tx_prefix_hash,*/ const crypto::hash &id, const cryptonote::blobdata &blob, size_t tx_weight, tx_verification_context& tvc, relay_method tx_relay, bool relayed, uint8_t version)
   {
     const bool kept_by_block = (tx_relay == relay_method::block);
@@ -172,6 +167,14 @@ namespace cryptonote
       tvc.m_verifivation_failed = true;
       tvc.m_invalid_input = true;
       return false;
+    }
+
+    if (version >= HF_VERSION_DJED) {
+      if (tx.version < 3) {
+        LOG_PRINT_L1("transaction version " << tx.version << " is invalid after HF v3");
+        tvc.m_verifivation_failed = true;
+        return false;
+      }
     }
 
     // fee per kilobyte, size rounded up.
@@ -211,7 +214,7 @@ namespace cryptonote
     // check whether this is a conversion tx.
     if (source != dest) {
 
-      if (tx.version < HF_VERSION_DJED) {
+      if (version < HF_VERSION_DJED) {
         LOG_ERROR("Conversion txs are only allowed after HF_VERSION_DJED");
         tvc.m_verifivation_failed = true;
         return false;
@@ -228,7 +231,7 @@ namespace cryptonote
           tvc.tx_pr_height_verified = true;
         }
       }
-      if(tvc.pr.empty()) {
+      if(tvc.pr.empty() || tvc.pr.has_missing_rates()) {
         // Get the pricing record that was used for conversion
         block bl;
         bool r = m_blockchain.get_block_by_hash(m_blockchain.get_block_id_by_height(tx.pricing_record_height), bl);
@@ -240,13 +243,13 @@ namespace cryptonote
         tvc.pr = bl.pricing_record;
       }
 
-      if (!tvc.pr.zEPHUSD || !tvc.pr.zEPHRSV) {
-        LOG_ERROR("error: empty exchange rate. Conversion not possible.");
+      if (tvc.pr.empty() || tvc.pr.has_missing_rates()) {
+        LOG_ERROR("error: missing exchange rates. Conversion not possible.");
         tvc.m_verifivation_failed = true;
         return false;
       }
     
-      // check whether we have empty amount burnt/mint. Actual validation happens in verRctSemanticsSimple2()
+      // check whether we have empty amount burnt/mint. Actual validation happens in verRctSemanticsSimple()
       if (!tx.amount_burnt || !tx.amount_minted) {
         LOG_ERROR("error: Invalid Tx found. 0 burnt/minted for a conversion tx.");
         tvc.m_verifivation_failed = true;
@@ -254,7 +257,7 @@ namespace cryptonote
       }
 
       // Check the amount burnt and minted
-      if (!rct::checkBurntAndMinted(tx.rct_signatures, tx.amount_burnt, tx.amount_minted, tvc.pr, source, dest, version)) {
+      if (!rct::validateMintedAmount(tx.rct_signatures, tx.amount_burnt, tx.amount_minted, tvc.pr, source, dest, version)) {
         LOG_PRINT_L1("amount burnt / minted is incorrect: burnt = " << tx.amount_burnt << ", minted = " << tx.amount_minted);
         tvc.m_verifivation_failed = true;
         return false;
@@ -274,9 +277,7 @@ namespace cryptonote
       }
     }
 
-
-    // END TODO
-    if (!kept_by_block && !m_blockchain.check_fee(tx_weight, fee))
+    if (!kept_by_block && !m_blockchain.check_fee(tx_weight, fee, source, tvc.pr))
     {
       tvc.m_verifivation_failed = true;
       tvc.m_fee_too_low = true;
@@ -367,9 +368,15 @@ namespace cryptonote
 
           m_blockchain.add_txpool_tx(id, blob, meta);
 
-          uint64_t total_fee = meta.fee;
- 
-          add_tx_to_transient_lists(id, total_fee / (double)(tx_weight ? tx_weight : 1), receive_time);
+          uint64_t fee_in_zeph = 0;
+          if (tvc.pr.empty() || tvc.pr.has_missing_rates()) {
+            if (!m_blockchain.get_latest_acceptable_pr(tvc.pr)) {
+              fee_in_zeph = meta.fee;
+            }
+          }
+
+          fee_in_zeph = fee_in_zeph ? fee_in_zeph : get_fee_in_zeph_equivalent(meta.fee_asset_type, meta.fee, tvc.pr);
+          add_tx_to_transient_lists(id, fee_in_zeph / (double)(tx_weight ? tx_weight : 1), receive_time);
           lock.commit();
         }
         catch (const std::exception &e)
@@ -441,8 +448,16 @@ namespace cryptonote
           m_blockchain.remove_txpool_tx(id);
           m_blockchain.add_txpool_tx(id, blob, meta);
 
-          uint64_t total_fee = meta.fee;
-          add_tx_to_transient_lists(id, total_fee / (double)(tx_weight ? tx_weight : 1), receive_time);
+          uint64_t fee_in_zeph = 0;
+          if (tvc.pr.empty() || tvc.pr.has_missing_rates()) {
+            if (!m_blockchain.get_latest_acceptable_pr(tvc.pr)) {
+              // Only relevant for reserve/stable transfers (not conversions)
+              fee_in_zeph = meta.fee;
+            }
+          }
+
+          fee_in_zeph = fee_in_zeph ? fee_in_zeph : get_fee_in_zeph_equivalent(meta.fee_asset_type, meta.fee, tvc.pr);
+          add_tx_to_transient_lists(id, fee_in_zeph / (double)(tx_weight ? tx_weight : 1), receive_time);
         }
         lock.commit();
       }
@@ -853,7 +868,7 @@ namespace cryptonote
         remove.push_back(std::make_pair(txid, meta.weight));
       }
       return true;
-    }, false, relay_category::all);
+    }, true, relay_category::all);
 
     if (!remove.empty())
     {
@@ -1722,13 +1737,22 @@ namespace cryptonote
 
     LockedTXN lock(m_blockchain.get_db());
 
-    std::vector<std::pair<std::string, std::string>> circ_supply = m_blockchain.get_db().get_circulating_supply();
+    bool have_valid_pr = true;
+    oracle::pricing_record latest_pr;
+    if (!m_blockchain.get_latest_acceptable_pr(latest_pr)) {
+      if (version >= HF_VERSION_DJED) {
+        MWARNING("Failed to find a pricing record in last 10 blocks.");
+        MWARNING("Will not include any conversion transactions in block template.");
+      }
+      have_valid_pr = false;
+    }
+    // Convert stable and reserve fees into equivalent zeph value to maximize coinbase
+    uint64_t total_collected_fee_in_zeph = 0;
 
-    // uint64_t max_mintable_stables = get_max_mintable_stables(circ_supply, latest_pr);
-    // uint64_t max_mintable_reserves = get_max_mintable_reserves(circ_supply, latest_pr);
-    int64_t total_conversion_zeph = 0;
-    int64_t total_conversion_stables = 0;
-    int64_t total_conversion_reserves = 0;
+    boost::multiprecision::int128_t total_conversion_zeph = 0;
+    boost::multiprecision::int128_t total_conversion_stables = 0;
+    boost::multiprecision::int128_t total_conversion_reserves = 0;
+    std::vector<std::pair<std::string, std::string>> circ_supply = m_blockchain.get_db().get_circulating_supply();
 
     auto sorted_it = m_txs_by_fee_and_receive_time.begin();
     for (; sorted_it != m_txs_by_fee_and_receive_time.end(); ++sorted_it)
@@ -1743,7 +1767,6 @@ namespace cryptonote
         continue;
       }
 
-      // MADNESS: RIGHT HERE CASUE OF STUCK PENDING 
       LOG_PRINT_L2("Considering " << sorted_it->second << ", weight " << meta.weight << ", current block weight " << total_weight << "/" << max_total_weight << ", current coinbase " << print_money(best_coinbase) << ", relay method " << (unsigned)meta.get_relay_method());
 
       if (!meta.matches(relay_category::legacy) && !(m_mine_stem_txes && meta.get_relay_method() == relay_method::stem))
@@ -1773,8 +1796,17 @@ namespace cryptonote
         continue;
       }
 
+      uint64_t fee_this_tx_in_zeph = 0;
+      if (have_valid_pr) {
+        fee_this_tx_in_zeph = meta.weight * sorted_it->first.first; // fee in zeph
+      } else {
+        fee_this_tx_in_zeph = meta.fee; // fallback to fee in asset type (stable/reserve transfers in absence of pricing record)
+      }
 
-      coinbase = block_reward + fee_map["ZEPH"] + meta.fee;
+      coinbase = block_reward + total_collected_fee_in_zeph + fee_this_tx_in_zeph;
+
+      LOG_PRINT_L2(" coinbase " << print_money(coinbase) << ", best " << print_money(best_coinbase) <<  ", block reward " << print_money(block_reward) << ", total collected fee " << print_money(total_collected_fee_in_zeph) << ", fee this tx " << print_money(fee_this_tx_in_zeph));
+
       if (coinbase < template_accept_threshold(best_coinbase))
       {
         LOG_PRINT_L2("  would decrease coinbase to " << print_money(coinbase));
@@ -1803,14 +1835,14 @@ namespace cryptonote
       if (memcmp(&original_meta, &meta, sizeof(meta)))
       {
         try
-	{
-	  m_blockchain.update_txpool_tx(sorted_it->second, meta);
-	}
+        {
+          m_blockchain.update_txpool_tx(sorted_it->second, meta);
+        }
         catch (const std::exception &e)
-	{
-	  MERROR("Failed to update tx meta: " << e.what());
-	  // continue, not fatal
-	}
+        {
+          MERROR("Failed to update tx meta: " << e.what());
+          // continue, not fatal
+        }
       }
       if (!ready)
       {
@@ -1821,15 +1853,6 @@ namespace cryptonote
       {
         LOG_PRINT_L2("  key images already seen");
         continue;
-      }
-
-      bool have_valid_pr = true;
-      oracle::pricing_record latest_pr;
-      if (!m_blockchain.get_latest_acceptable_pr(latest_pr)) {
-        if (version >= HF_VERSION_DJED) {
-          MWARNING("Failed to find a pricing record in last 10 block.");
-        }
-        have_valid_pr = false;
       }
 
       // get the asset types
@@ -1845,14 +1868,14 @@ namespace cryptonote
         continue;
       }
 
-      int64_t conversion_this_tx_zeph = 0;
-      int64_t conversion_this_tx_stables = 0;
-      int64_t conversion_this_tx_reserves = 0;
+      boost::multiprecision::int128_t conversion_this_tx_zeph = 0;
+      boost::multiprecision::int128_t conversion_this_tx_stables = 0;
+      boost::multiprecision::int128_t conversion_this_tx_reserves = 0;
       if (source != dest)
       {
         // Validate that pricing record has not grown too old since it was first included in the pool
         if (!tx_pr_height_valid(m_blockchain.get_current_blockchain_height(), tx.pricing_record_height, sorted_it->second)) {
-          LOG_PRINT_L2("error : oracle/xAsset transaction references a pricing record that is too old (height " << tx.pricing_record_height << ")");
+          LOG_PRINT_L2("error : transaction references a pricing record that is too old (height " << tx.pricing_record_height << ")");
           continue;
         }
         // get pricing record
@@ -1869,23 +1892,23 @@ namespace cryptonote
         if (tx_type == tt::MINT_STABLE) {
           conversion_this_tx_zeph += tx.amount_burnt; // Added to the reserve
           conversion_this_tx_stables += tx.amount_minted;
-        }
-        if (tx_type == tt::REDEEM_STABLE) {
+        } else if (tx_type == tt::REDEEM_STABLE) {
           conversion_this_tx_stables -= tx.amount_burnt;
           conversion_this_tx_zeph -= tx.amount_minted; // Deducted from the reserve
-        }
-        if (tx_type == tt::MINT_RESERVE) {
+        } else if (tx_type == tt::MINT_RESERVE) {
           conversion_this_tx_zeph += tx.amount_burnt;
           conversion_this_tx_reserves += tx.amount_minted;
-        }
-        if (tx_type == tt::REDEEM_RESERVE) {
+        } else if (tx_type == tt::REDEEM_RESERVE) {
           conversion_this_tx_reserves -= tx.amount_burnt;
           conversion_this_tx_zeph -= tx.amount_minted;
+        } else {
+          LOG_PRINT_L2(" conversion transaction has invalid tx type " << sorted_it->second);
+          continue;
         }
 
-        int64_t tally_zeph = total_conversion_zeph + conversion_this_tx_zeph;
-        int64_t tally_stables = total_conversion_stables + conversion_this_tx_stables;
-        int64_t tally_reserves = total_conversion_reserves + conversion_this_tx_reserves;
+        boost::multiprecision::int128_t tally_zeph = total_conversion_zeph + conversion_this_tx_zeph;
+        boost::multiprecision::int128_t tally_stables = total_conversion_stables + conversion_this_tx_stables;
+        boost::multiprecision::int128_t tally_reserves = total_conversion_reserves + conversion_this_tx_reserves;
 
         if (!reserve_ratio_satisfied(circ_supply, bl.pricing_record, tx_type, tally_zeph, tally_stables, tally_reserves)) {
           LOG_PRINT_L2(" transaction ignored: reserve ratio would be invalid " << sorted_it->second);
@@ -1893,7 +1916,7 @@ namespace cryptonote
         }
 
         // make sure proof-of-value still holds
-        if (!rct::verRctSemanticsSimple2(tx.rct_signatures, bl.pricing_record, circ_supply, tx_type, source, dest, tx.amount_burnt, tx.vout, tx.vin, version))
+        if (!rct::verRctSemanticsSimple(tx.rct_signatures, bl.pricing_record, tx_type, source, dest, tx.amount_burnt, tx.vout, tx.vin, version))
         {
           LOG_PRINT_L2(" transaction proof-of-value is now invalid for tx " << sorted_it->second);
           continue;
@@ -1904,6 +1927,7 @@ namespace cryptonote
       bl.tx_hashes.push_back(sorted_it->second);
       total_weight += meta.weight;
 
+      total_collected_fee_in_zeph += fee_this_tx_in_zeph;
       fee_map[meta.fee_asset_type] += meta.fee;
       total_conversion_zeph += conversion_this_tx_zeph;
       total_conversion_stables += conversion_this_tx_stables;

@@ -254,6 +254,7 @@ uint64_t BlockchainDB::add_block( const std::pair<block, blobdata>& blck
                                 , uint64_t long_term_block_weight
                                 , const difficulty_type& cumulative_difficulty
                                 , const uint64_t& coins_generated
+                                , const uint64_t& reserve_reward
                                 , const std::vector<std::pair<transaction, blobdata>>& txs
                                 )
 {
@@ -315,7 +316,7 @@ uint64_t BlockchainDB::add_block( const std::pair<block, blobdata>& blck
 
   // call out to subclass implementation to add the block & metadata
   time1 = epee::misc_utils::get_tick_count();
-  add_block(blk, block_weight, long_term_block_weight, cumulative_difficulty, coins_generated, num_rct_outs, num_rct_outs_by_asset_type, blk_hash);
+  add_block(blk, block_weight, long_term_block_weight, cumulative_difficulty, coins_generated, reserve_reward, num_rct_outs, num_rct_outs_by_asset_type, blk_hash);
   TIME_MEASURE_FINISH(time1);
   time_add_block1 += time1;
 
@@ -335,7 +336,22 @@ void BlockchainDB::pop_block(block& blk, std::vector<transaction>& txs)
 {
   blk = get_top_block();
 
-  remove_block();
+  // Remove reserve reward from reserve tally
+  uint64_t reserve_reward = 0;
+  uint64_t block_height = boost::get<txin_gen>(blk.miner_tx.vin.front()).height;
+  if (blk.major_version >= HF_VERSION_DJED)
+  {
+    uint64_t base_reward;
+    const uint64_t already_generated_coins = get_block_already_generated_coins(block_height - 1);
+    if (!get_block_reward(0, 1, already_generated_coins, base_reward, blk.major_version))
+    {
+      throw DB_ERROR("Failed to get block reward for pop_block");
+    }
+    reserve_reward = get_reserve_reward(base_reward);
+  }
+  MDEBUG("reserve reward removed from block: " << reserve_reward << " height: " << block_height);
+
+  remove_block(reserve_reward);
 
   for (const auto& h : boost::adaptors::reverse(blk.tx_hashes))
   {

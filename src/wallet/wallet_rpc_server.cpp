@@ -472,12 +472,20 @@ namespace tools
 
     try
     {
+      std::map<std::string, uint64_t> local_blocks_to_unlock, local_time_to_unlock;
       for (const auto& asset: assets) {
         wallet_rpc::COMMAND_RPC_GET_BALANCE::balance_info balance_info;
-        balance_info.balance = req.all_accounts ? m_wallet->balance_all(asset, req.strict) : m_wallet->balance(asset, req.account_index, req.strict);
+        balance_info.balance = req.all_accounts ? m_wallet->balance_all(req.strict)[asset] : m_wallet->balance(asset, req.account_index, req.strict);
         if (!balance_info.balance)
           continue;
-        balance_info.unlocked_balance = req.all_accounts ? m_wallet->unlocked_balance_all(asset, req.strict, &balance_info.blocks_to_unlock, &balance_info.time_to_unlock) : m_wallet->unlocked_balance(asset, req.account_index, req.strict, &balance_info.blocks_to_unlock, &balance_info.time_to_unlock);
+        balance_info.unlocked_balance = req.all_accounts ? m_wallet->unlocked_balance_all(req.strict, &local_blocks_to_unlock, &local_time_to_unlock)[asset] : m_wallet->unlocked_balance(asset, req.account_index, req.strict, &balance_info.blocks_to_unlock, &balance_info.time_to_unlock);
+
+        if (req.all_accounts) {
+          // Copy the values for the correct currency from the map to the response
+          balance_info.blocks_to_unlock = local_blocks_to_unlock[req.asset_type];
+          balance_info.time_to_unlock = local_time_to_unlock[req.asset_type];
+        }
+
         balance_info.multisig_import_needed = m_wallet->multisig() && m_wallet->has_multisig_partial_key_images();
         std::map<uint32_t, std::map<uint32_t, uint64_t>> balance_per_subaddress_per_account;
         std::map<uint32_t, std::map<uint32_t, std::pair<uint64_t, std::pair<uint64_t, uint64_t>>>> unlocked_balance_per_subaddress_per_account;
@@ -495,8 +503,7 @@ namespace tools
           unlocked_balance_per_subaddress_per_account[req.account_index] = m_wallet->unlocked_balance_per_subaddress(asset, req.account_index, req.strict);
         }
 
-        tools::wallet2::transfer_container transfers = m_wallet->get_specific_transfers(asset);
-        // m_wallet->get_transfers(transfers);
+        tools::wallet2::transfers_iterator_container transfers = m_wallet->get_specific_transfers(asset);
         for (const auto& p : balance_per_subaddress_per_account)
         {
           uint32_t account_index = p.first;
@@ -524,7 +531,7 @@ namespace tools
             info.blocks_to_unlock = unlocked_balance_per_subaddress[i].second.first;
             info.time_to_unlock = unlocked_balance_per_subaddress[i].second.second;
             info.label = m_wallet->get_subaddress_label(index);
-            info.num_unspent_outputs = std::count_if(transfers.begin(), transfers.end(), [&](const auto& td) { return !td.m_spent && td.m_subaddr_index == index; });
+            info.num_unspent_outputs = std::count_if(transfers.begin(), transfers.end(), [&](const auto& td) { return !td->m_spent && td->m_subaddr_index == index; });
             balance_info.per_subaddress.emplace_back(std::move(info));
           }
         }
@@ -1110,6 +1117,13 @@ namespace tools
 
     CHECK_MULTISIG_ENABLED();
 
+    if ((req.source_asset.empty() && !req.destination_asset.empty()) || (!req.source_asset.empty() && req.destination_asset.empty()))
+    {
+      er.code = WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR;
+      er.message = "Missing source or destination asset. Either specify both or neither.";
+      return false;
+    }
+
     // uniform the asset types
     std::string source_asset = req.source_asset.empty() ? "ZEPH" : boost::algorithm::to_upper_copy(req.source_asset);
     std::string destination_asset = req.destination_asset.empty() ? "ZEPH" : boost::algorithm::to_upper_copy(req.destination_asset);
@@ -1167,6 +1181,13 @@ namespace tools
     }
 
     CHECK_MULTISIG_ENABLED();
+
+    if ((req.source_asset.empty() && !req.destination_asset.empty()) || (!req.source_asset.empty() && req.destination_asset.empty()))
+    {
+      er.code = WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR;
+      er.message = "Missing source or destination asset. Either specify both or neither.";
+      return false;
+    }
 
      // uniform the asset types
     std::string source_asset = req.source_asset.empty() ? "ZEPH" : boost::algorithm::to_upper_copy(req.source_asset);
@@ -1613,7 +1634,8 @@ namespace tools
     destination.push_back(wallet_rpc::transfer_destination());
     destination.back().amount = 0;
     destination.back().address = req.address;
-    if (!validate_transfer("ZEPH", "ZEPH", destination, req.payment_id, dsts, extra, true, er))
+    std::string asset_type = req.asset_type.empty() ? "ZEPH" : req.asset_type;
+    if (!validate_transfer(asset_type, asset_type, destination, req.payment_id, dsts, extra, true, er))
     {
       return false;
     }
@@ -1640,7 +1662,7 @@ namespace tools
     {
       uint64_t mixin = m_wallet->adjust_mixin(req.ring_size ? req.ring_size - 1 : 0);
       uint32_t priority = m_wallet->adjust_priority(req.priority);
-      std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_all(req.below_amount, dsts[0].addr, dsts[0].is_subaddress, req.outputs, mixin, req.unlock_time, priority, extra, req.account_index, subaddr_indices);
+      std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_all(req.below_amount, asset_type, asset_type, dsts[0].addr, dsts[0].is_subaddress, req.outputs, mixin, req.unlock_time, priority, extra, req.account_index, subaddr_indices);
 
       return fill_response(ptx_vector, req.get_tx_keys, res.tx_key_list, res.amount_list, res.fee_list, res.weight_list, res.multisig_txset, res.unsigned_txset, req.do_not_relay,
           res.tx_hash_list, req.get_tx_hex, res.tx_blob_list, req.get_tx_metadata, res.tx_metadata_list, res.spent_key_images_list, er);
@@ -4539,6 +4561,45 @@ namespace tools
   {
     res.version = WALLET_RPC_VERSION;
     res.release = MONERO_VERSION_IS_RELEASE;
+    return true;
+  }
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool wallet_rpc_server::on_get_reserve_info(const wallet_rpc::COMMAND_RPC_GET_RESERVE_INFO::request& req, wallet_rpc::COMMAND_RPC_GET_RESERVE_INFO::response& res, epee::json_rpc::error& er, const connection_context *ctx)
+  {
+    if (!m_wallet) return not_open(er);
+
+    uint64_t current_height = m_wallet->get_blockchain_current_height();
+    oracle::pricing_record pr;
+    if (!m_wallet->get_pricing_record(pr, current_height - 1)) {
+      res.status = "Failed to get pricing record";
+      return false;
+    }
+
+    boost::multiprecision::uint128_t zeph_reserve;
+    boost::multiprecision::uint128_t num_stables;
+    boost::multiprecision::uint128_t num_reserves;
+    boost::multiprecision::uint128_t assets;
+    boost::multiprecision::uint128_t assets_ma;
+    boost::multiprecision::uint128_t liabilities;
+    boost::multiprecision::uint128_t equity;
+    boost::multiprecision::uint128_t equity_ma;
+    double reserve_ratio;
+    double reserve_ratio_ma;
+    m_wallet->get_reserve_info(pr, zeph_reserve, num_stables, num_reserves, assets, assets_ma, liabilities, equity, equity_ma, reserve_ratio, reserve_ratio_ma);
+
+    res.zeph_reserve = zeph_reserve.str();
+    res.num_stables = num_stables.str();
+    res.num_reserves = num_reserves.str();
+    res.assets = assets.str();
+    res.assets_ma = assets_ma.str();
+    res.liabilities = liabilities.str();
+    res.equity = equity.str();
+    res.equity_ma = equity_ma.str();
+    res.reserve_ratio = std::to_string(reserve_ratio);
+    res.reserve_ratio_ma = std::to_string(reserve_ratio_ma);
+    res.height = current_height;
+    res.pr = pr;
+    res.status = CORE_RPC_STATUS_OK;
     return true;
   }
   //------------------------------------------------------------------------------------------------------------------------------

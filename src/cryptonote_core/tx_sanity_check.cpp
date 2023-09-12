@@ -39,6 +39,35 @@
 namespace cryptonote
 {
 
+bool tx_sanity_check_input_asset_type(const cryptonote::blobdata &tx_blob, std::string& input_asset)
+{
+  cryptonote::transaction tx;
+
+  if (!cryptonote::parse_and_validate_tx_from_blob(tx_blob, tx))
+  {
+    MERROR("Failed to parse transaction");
+    return false;
+  }
+
+  std::set<std::string> input_asset_types;
+  for (const auto &txin : tx.vin)
+  {
+    if (txin.type() != typeid(cryptonote::txin_zephyr_key))
+      continue;
+    const cryptonote::txin_zephyr_key &in_to_key = boost::get<cryptonote::txin_zephyr_key>(txin);
+    input_asset_types.insert(in_to_key.asset_type);
+  }
+
+  if (input_asset_types.size() != 1)
+  {
+    MERROR("Transaction does not have exactly one input asset type");
+    return false;
+  }
+
+  input_asset = input_asset_types.begin()->c_str();
+  return true;
+}
+
 bool tx_sanity_check(const cryptonote::blobdata &tx_blob, uint64_t rct_outs_available)
 {
   cryptonote::transaction tx;
