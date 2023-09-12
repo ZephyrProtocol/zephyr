@@ -34,8 +34,8 @@
 const hardfork_t mainnet_hard_forks[] = {
   // version 1 from the start of the blockchain
   { 1, 1, 0, 1685318400 },
-  { 2, 2000, 0, 1685509200 }
-
+  { 2, 2000, 0, 1685509200 },
+  { 3, 89300, 0, 1696150800 } // October 1st, 2023 9am UTC (approx)
 };
 const size_t num_mainnet_hard_forks = sizeof(mainnet_hard_forks) / sizeof(mainnet_hard_forks[0]);
 const uint64_t mainnet_hard_fork_version_1_till = 1999;
