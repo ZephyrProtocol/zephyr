@@ -5940,7 +5940,7 @@ bool simple_wallet::show_balance_unlocked(bool detailed)
     else if (time_to_unlock > 0)
       unlock_time_message = (boost::format(" (%s to unlock)") % get_human_readable_timespan(time_to_unlock)).str();
     success_msg_writer() << tr("Balance: ") << print_money(balance) << ", "
-      << tr("unlocked balance: ") << print_money(unlocked_balance) << "  " << asset_display_name(asset) << " " << unlock_time_message << extra;
+      << tr("unlocked balance: ") << print_money(unlocked_balance) << " " << asset_display_name(asset) << " " << unlock_time_message << extra;
   }
   std::map<uint32_t, uint64_t> balance_per_subaddress = m_wallet->balance_per_subaddress("ZEPH", m_current_subaddress_account, false);
   std::map<uint32_t, std::pair<uint64_t, std::pair<uint64_t, uint64_t>>> unlocked_balance_per_subaddress = m_wallet->unlocked_balance_per_subaddress("ZEPH", m_current_subaddress_account, false);
@@ -9678,7 +9678,7 @@ void simple_wallet::print_accounts(const std::string& tag)
     success_msg_writer() << tr("Tag's description: ") << account_tags.first.find(tag)->second;
   }
 
-  success_msg_writer() << boost::format("  %15s %21s %21s %21s %21s") % tr("Account") % tr("Balance") % tr("Unlocked balance") % tr("Asset") % tr("Label");  
+  success_msg_writer() << boost::format("%20s %21s %21s %15s %21s") % tr("Account") % tr("Balance") % tr("Unlocked balance") % tr("Asset") % tr("Label");
   std::map<std::string, std::pair<uint64_t, uint64_t>> total_balances;
   
   for (const auto& asset: oracle::ASSET_TYPES) {
@@ -9694,7 +9694,7 @@ void simple_wallet::print_accounts(const std::string& tag)
       // if (balance == 0)
       //   continue;
 
-      success_msg_writer() << boost::format(tr(" %c%8u %6s %21s %21s %21s %21s"))
+      success_msg_writer() << boost::format(tr(" %c%8u %6s %21s %21s %15s %21s"))
         % (m_current_subaddress_account == account_index ? '*' : ' ')
         % account_index
         % m_wallet->get_subaddress_as_str({account_index, 0}).substr(0, 9)
@@ -9710,7 +9710,7 @@ void simple_wallet::print_accounts(const std::string& tag)
   }
   success_msg_writer() << tr("------------------------------------------------------------------------------------");
   for (const auto& it: total_balances)
-    success_msg_writer() << boost::format(tr("%15s   %21s %21s  %15s")) % "Total" % print_money(it.second.first) % print_money(it.second.second) % asset_display_name(it.first);
+    success_msg_writer() << boost::format(tr("%20s %21s %21s %15s")) % "Total" % print_money(it.second.first) % print_money(it.second.second) % asset_display_name(it.first);
 }
 //----------------------------------------------------------------------------------------------------
 bool simple_wallet::print_address(const std::vector<std::string> &args/* = std::vector<std::string>()*/)
