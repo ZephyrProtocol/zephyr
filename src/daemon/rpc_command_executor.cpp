@@ -2572,8 +2572,8 @@ bool t_rpc_command_executor::reserve_info()
     tools::success_msg_writer() << "Reserve Info at height " << res.height;
     tools::msg_writer() << "";
     tools::msg_writer() << boost::format("Reserve:            %d ƶeph") % cryptonote::print_money(res.zeph_reserve);
-    tools::msg_writer() << boost::format("ZephUSD circ:       %d ƶephusd") % cryptonote::print_money(res.num_stables);
-    tools::msg_writer() << boost::format("ZephRSV circ:       %d ƶephrsv") % cryptonote::print_money(res.num_reserves);
+    tools::msg_writer() << boost::format("ZSD circ:           %d ƶsd") % cryptonote::print_money(res.num_stables);
+    tools::msg_writer() << boost::format("ZRS circ:           %d ƶrs") % cryptonote::print_money(res.num_reserves);
 
     tools::msg_writer() << "";
     tools::msg_writer() << boost::format("Assets:             $%d") % cryptonote::print_money(res.assets);

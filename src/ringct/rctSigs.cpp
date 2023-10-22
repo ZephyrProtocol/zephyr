@@ -1859,7 +1859,7 @@ namespace rct {
         stable_128 /= COIN;
         boost::multiprecision::uint128_t minted_128 = amount_minted;
         if (stable_128 != minted_128) {
-          LOG_PRINT_L1("Minted/burnt verification failed (zeph -> zephusd)");
+          LOG_PRINT_L1("Minted/burnt verification failed (zeph -> zsd)");
           return false;
         }
       } else if (source == "ZEPHUSD" && destination == "ZEPH") {
@@ -1873,7 +1873,7 @@ namespace rct {
         zeph_128 /= COIN;
         boost::multiprecision::uint128_t minted_128 = amount_minted;
         if ((uint64_t)zeph_128 != minted_128) {
-          LOG_PRINT_L1("Minted/burnt verification failed (zephusd -> zeph)");
+          LOG_PRINT_L1("Minted/burnt verification failed (zsd -> zeph)");
           return false;
         }
       } else if (source == "ZEPH" && destination == "ZEPHRSV") {
@@ -1888,7 +1888,7 @@ namespace rct {
         reserve_amount_128 /= COIN;
         boost::multiprecision::uint128_t minted_128 = amount_minted;
         if (reserve_amount_128 != minted_128) {
-          LOG_PRINT_L1("Minted/burnt verification failed (zeph -> zephrsv)");
+          LOG_PRINT_L1("Minted/burnt verification failed (zeph -> zrs)");
           return false;
         }
         return true;
@@ -1903,7 +1903,7 @@ namespace rct {
         zeph_128 /= COIN;
         boost::multiprecision::uint128_t minted_128 = amount_minted;
         if ((uint64_t)zeph_128 != minted_128) {
-          LOG_PRINT_L1("Minted/burnt verification failed (zephrsv -> zeph)");
+          LOG_PRINT_L1("Minted/burnt verification failed (zrs -> zeph)");
           return false;
         }
         return true;

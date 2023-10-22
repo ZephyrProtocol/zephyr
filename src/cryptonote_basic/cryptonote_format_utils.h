@@ -146,6 +146,7 @@ namespace cryptonote
   uint64_t get_block_height(const block& b);
   std::vector<uint64_t> relative_output_offsets_to_absolute(const std::vector<uint64_t>& off);
   std::vector<uint64_t> absolute_output_offsets_to_relative(const std::vector<uint64_t>& off);
+  std::string asset_display_name(const std::string &asset_type);
   void set_default_decimal_point(unsigned int decimal_point = CRYPTONOTE_DISPLAY_DECIMAL_POINT);
   unsigned int get_default_decimal_point();
   std::string get_unit(unsigned int decimal_point = -1);

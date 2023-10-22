@@ -1107,6 +1107,15 @@ namespace cryptonote
     cn_fast_hash(blob.data(), blob.size(), res);
   }
   //---------------------------------------------------------------
+  std::string asset_display_name(const std::string &asset_type)
+  {
+    if (asset_type == "ZEPHUSD")
+      return "ZSD";
+    if (asset_type == "ZEPHRSV")
+      return "ZRS";
+    return "ZEPH";
+  }
+  //---------------------------------------------------------------
   void set_default_decimal_point(unsigned int decimal_point)
   {
     switch (decimal_point)

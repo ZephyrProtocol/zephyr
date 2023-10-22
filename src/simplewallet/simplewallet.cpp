@@ -295,12 +295,12 @@ namespace
   const char* USAGE_SCAN_TX("scan_tx <txid> [<txid> ...]");
 
   const char* USAGE_MINT_STABLE("mint_stable [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] (<URI> | <address> <ZEPH amount> [memo=<memo data>])");
-  const char* USAGE_REDEEM_STABLE("redeem_stable [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] (<URI> | <address> <ZEPHUSD amount> [memo=<memo data>])");
-  const char* USAGE_STABLE_TRANSFER("stable_transfer [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] (<URI> | <address> <ZEPHUSD amount> [memo=<memo data>])");
+  const char* USAGE_REDEEM_STABLE("redeem_stable [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] (<URI> | <address> <ZSD amount> [memo=<memo data>])");
+  const char* USAGE_STABLE_TRANSFER("stable_transfer [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] (<URI> | <address> <ZSD amount> [memo=<memo data>])");
 
   const char* USAGE_MINT_RESERVE("mint_reserve [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] (<URI> | <address> <ZEPH amount> [memo=<memo data>])");
-  const char* USAGE_REDEEM_RESERVE("redeem_reserve [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] (<URI> | <address> <ZEPHRSV amount> [memo=<memo data>])");
-  const char* USAGE_RESERVE_TRANSFER("reserve_transfer [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] (<URI> | <address> <ZEPHRSV amount> [memo=<memo data>])");
+  const char* USAGE_REDEEM_RESERVE("redeem_reserve [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] (<URI> | <address> <ZRS amount> [memo=<memo data>])");
+  const char* USAGE_RESERVE_TRANSFER("reserve_transfer [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] (<URI> | <address> <ZRS amount> [memo=<memo data>])");
 
   const char* USAGE_RESERVE_INFO("reserve_info");
   const char* USAGE_RESERVE_RATIO("reserve_ratio");
@@ -2292,8 +2292,8 @@ bool simple_wallet::reserve_info(const std::vector<std::string> &args)
   message_writer(console_color_white, false) << "";
   message_writer(console_color_default, false) << "Reserve Info";
   message_writer(console_color_white, false) << boost::format(tr("Reserve:            %d ƶeph")) % print_money(zeph_reserve);
-  message_writer(console_color_white, false) << boost::format(tr("ZephUSD circ:       %d ƶephusd")) % print_money(num_stables);
-  message_writer(console_color_white, false) << boost::format(tr("ZephRSV circ:       %d ƶephrsv")) % print_money(num_reserves);
+  message_writer(console_color_white, false) << boost::format(tr("ZSD circ:           %d ƶsd")) % print_money(num_stables);
+  message_writer(console_color_white, false) << boost::format(tr("ZRS circ:           %d ƶrs")) % print_money(num_reserves);
 
   message_writer(console_color_white, false) << "";
   message_writer(console_color_white, false) << boost::format(tr("Assets:             $%d")) % print_money(assets);
@@ -3072,23 +3072,23 @@ bool simple_wallet::help(const std::vector<std::string> &args/* = std::vector<st
     message_writer() << tr("\"address all\" - Show all addresses.");
     message_writer() << tr("\"address new\" - Create new subaddress.");
     message_writer() << tr("\"transfer <address> <amount>\" - Send ZEPH to an address.");
-    message_writer() << tr("\"stable_transfer <address> <amount>\" - Send ZEPHUSD to an address.");
-    message_writer() << tr("\"reserve_transfer <address> <amount>\" - Send ZEPHRSV to an address.");
+    message_writer() << tr("\"stable_transfer <address> <amount>\" - Send ZSD to an address.");
+    message_writer() << tr("\"reserve_transfer <address> <amount>\" - Send ZRS to an address.");
 
-    message_writer() << tr("\"mint_stable <address> <amount_zeph>\" - Mint ZEPHUSD from ZEPH to an address.");
-    message_writer() << tr("\"mint_stable_sweep_all <address>\" - Mint ZEPHRSV from entire ZEPH balance to another wallet.");
-    message_writer() << tr("\"mint_reserve <address> <amount_zeph>\" - Mint ZEPHRSV from ZEPH to an address.");
-    message_writer() << tr("\"mint_reserve_sweep_all <address>\" - Mint ZEPHRSV from entire ZEPH balance to another wallet.");
+    message_writer() << tr("\"mint_stable <address> <amount_zeph>\" - Mint ZSD from ZEPH to an address.");
+    message_writer() << tr("\"mint_stable_sweep_all <address>\" - Mint ZSD from entire ZEPH balance to another wallet.");
+    message_writer() << tr("\"mint_reserve <address> <amount_zeph>\" - Mint ZRS from ZEPH to an address.");
+    message_writer() << tr("\"mint_reserve_sweep_all <address>\" - Mint ZRS from entire ZEPH balance to another wallet.");
 
-    message_writer() << tr("\"redeem_stable <address> <amount_zephusd>\" - Redeem ZEPHUSD for ZEPH to an address.");
-    message_writer() << tr("\"redeem_stable_sweep_all <address>\" - Redeem entire ZEPHUSD balance for ZEPH to another wallet.");
-    message_writer() << tr("\"redeem_reserve <address> <amount_zephrsv>\" - Redeem ZEPHRSV for ZEPH to an address.");
-    message_writer() << tr("\"redeem_reserve_sweep_all <address>\" - Redeem entire ZEPHRSV balance for ZEPH to another wallet.");
+    message_writer() << tr("\"redeem_stable <address> <amount_zsd>\" - Redeem ZSD for ZEPH to an address.");
+    message_writer() << tr("\"redeem_stable_sweep_all <address>\" - Redeem entire ZSD balance for ZEPH to another wallet.");
+    message_writer() << tr("\"redeem_reserve <address> <amount_zrs>\" - Redeem ZRS for ZEPH to an address.");
+    message_writer() << tr("\"redeem_reserve_sweep_all <address>\" - Redeem entire ZRS balance for ZEPH to another wallet.");
 
     message_writer() << tr("\"show_transfers [in|out|pending|failed|pool]\" - Show transactions.");
     message_writer() << tr("\"sweep_all <address>\" - Send whole ZEPH balance to another wallet.");
-    message_writer() << tr("\"stable_sweep_all <address>\" - Send whole ZEPHUSD balance to another wallet.");
-    message_writer() << tr("\"reserve_sweep_all <address>\" - Send whole ZEPHRSV balance to another wallet.");
+    message_writer() << tr("\"stable_sweep_all <address>\" - Send whole ZSD balance to another wallet.");
+    message_writer() << tr("\"reserve_sweep_all <address>\" - Send whole ZRS balance to another wallet.");
 
     message_writer() << tr("\"seed\" - Show secret 25 words that can be used to recover this wallet.");
     message_writer() << tr("\"refresh\" - Synchronize wallet with the Zephyr network.");
@@ -3258,37 +3258,37 @@ simple_wallet::simple_wallet()
 
   m_cmd_binder.set_handler("stable_sweep_all", boost::bind(&simple_wallet::on_command, this, &simple_wallet::stable_sweep_all, _1),
                            tr(USAGE_STABLE_SWEEP_ALL),
-                           tr("Send all unlocked ZephUSD balance to an address. If the parameter \"index=<N1>[,<N2>,...]\" or \"index=all\" is specified, the wallet sweeps outputs received by those or all address indices, respectively. If omitted, the wallet randomly chooses an address index to be used. If the parameter \"outputs=<N>\" is specified and  N > 0, wallet splits the transaction into N even outputs."));
+                           tr("Send all unlocked ZSD balance to an address. If the parameter \"index=<N1>[,<N2>,...]\" or \"index=all\" is specified, the wallet sweeps outputs received by those or all address indices, respectively. If omitted, the wallet randomly chooses an address index to be used. If the parameter \"outputs=<N>\" is specified and  N > 0, wallet splits the transaction into N even outputs."));
   m_cmd_binder.set_handler("stable_sweep_below",
                            boost::bind(&simple_wallet::on_command, this, &simple_wallet::stable_sweep_below, _1),
                            tr(USAGE_STABLE_SWEEP_BELOW),
-                           tr("Send all unlocked ZephUSD outputs below the threshold to an address."));
+                           tr("Send all unlocked ZSD outputs below the threshold to an address."));
 
   m_cmd_binder.set_handler("reserve_sweep_all", boost::bind(&simple_wallet::on_command, this, &simple_wallet::reserve_sweep_all, _1),
                            tr(USAGE_RESERVE_SWEEP_ALL),
-                           tr("Send all unlocked ZephRSV balance to an address. If the parameter \"index=<N1>[,<N2>,...]\" or \"index=all\" is specified, the wallet sweeps outputs received by those or all address indices, respectively. If omitted, the wallet randomly chooses an address index to be used. If the parameter \"outputs=<N>\" is specified and  N > 0, wallet splits the transaction into N even outputs."));
+                           tr("Send all unlocked ZRS balance to an address. If the parameter \"index=<N1>[,<N2>,...]\" or \"index=all\" is specified, the wallet sweeps outputs received by those or all address indices, respectively. If omitted, the wallet randomly chooses an address index to be used. If the parameter \"outputs=<N>\" is specified and  N > 0, wallet splits the transaction into N even outputs."));
   m_cmd_binder.set_handler("reserve_sweep_below",
                            boost::bind(&simple_wallet::on_command, this, &simple_wallet::reserve_sweep_below, _1),
                            tr(USAGE_RESERVE_SWEEP_BELOW),
-                           tr("Send all unlocked ZephRSV outputs below the threshold to an address."));
+                           tr("Send all unlocked ZRS outputs below the threshold to an address."));
 
   m_cmd_binder.set_handler("mint_stable_sweep_all",
                            boost::bind(&simple_wallet::mint_stable_sweep_all, this, _1),
                            tr(USAGE_MINT_STABLE_SWEEP_ALL),
-                           tr("Convert all ZEPH balance into ZEPHUSD. If the parameter \"index=<N1>[,<N2>,...]\" or \"index=all\" is specified, the wallet sweeps outputs received by those or all address indices, respectively. If omitted, the wallet randomly chooses an address index to be used. If the parameter \"outputs=<N>\" is specified and  N > 0, wallet splits the transaction into N even outputs."));
+                           tr("Convert all ZEPH balance into ZSD. If the parameter \"index=<N1>[,<N2>,...]\" or \"index=all\" is specified, the wallet sweeps outputs received by those or all address indices, respectively. If omitted, the wallet randomly chooses an address index to be used. If the parameter \"outputs=<N>\" is specified and  N > 0, wallet splits the transaction into N even outputs."));
   m_cmd_binder.set_handler("mint_reserve_sweep_all",
                            boost::bind(&simple_wallet::mint_reserve_sweep_all, this, _1),
                            tr(USAGE_MINT_RESERVE_SWEEP_ALL),
-                           tr("Convert all ZEPH balance into ZEPHRSV. If the parameter \"index=<N1>[,<N2>,...]\" or \"index=all\" is specified, the wallet sweeps outputs received by those or all address indices, respectively. If omitted, the wallet randomly chooses an address index to be used. If the parameter \"outputs=<N>\" is specified and  N > 0, wallet splits the transaction into N even outputs."));
+                           tr("Convert all ZEPH balance into ZRS. If the parameter \"index=<N1>[,<N2>,...]\" or \"index=all\" is specified, the wallet sweeps outputs received by those or all address indices, respectively. If omitted, the wallet randomly chooses an address index to be used. If the parameter \"outputs=<N>\" is specified and  N > 0, wallet splits the transaction into N even outputs."));
 
   m_cmd_binder.set_handler("redeem_stable_sweep_all",
                            boost::bind(&simple_wallet::redeem_stable_sweep_all, this, _1),
                            tr(USAGE_REDEEM_STABLE_SWEEP_ALL),
-                           tr("Convert all ZEPHUSD balance into ZEPH. If the parameter \"index=<N1>[,<N2>,...]\" or \"index=all\" is specified, the wallet sweeps outputs received by those or all address indices, respectively. If omitted, the wallet randomly chooses an address index to be used. If the parameter \"outputs=<N>\" is specified and  N > 0, wallet splits the transaction into N even outputs."));
+                           tr("Convert all ZSD balance into ZEPH. If the parameter \"index=<N1>[,<N2>,...]\" or \"index=all\" is specified, the wallet sweeps outputs received by those or all address indices, respectively. If omitted, the wallet randomly chooses an address index to be used. If the parameter \"outputs=<N>\" is specified and  N > 0, wallet splits the transaction into N even outputs."));
   m_cmd_binder.set_handler("redeem_reserve_sweep_all",
                            boost::bind(&simple_wallet::redeem_reserve_sweep_all, this, _1),
                            tr(USAGE_REDEEM_RESERVE_SWEEP_ALL),
-                           tr("Convert all ZEPHRSV balance into ZEPH. If the parameter \"index=<N1>[,<N2>,...]\" or \"index=all\" is specified, the wallet sweeps outputs received by those or all address indices, respectively. If omitted, the wallet randomly chooses an address index to be used. If the parameter \"outputs=<N>\" is specified and  N > 0, wallet splits the transaction into N even outputs."));
+                           tr("Convert all ZRS balance into ZEPH. If the parameter \"index=<N1>[,<N2>,...]\" or \"index=all\" is specified, the wallet sweeps outputs received by those or all address indices, respectively. If omitted, the wallet randomly chooses an address index to be used. If the parameter \"outputs=<N>\" is specified and  N > 0, wallet splits the transaction into N even outputs."));
 
   m_cmd_binder.set_handler("donate",
                            boost::bind(&simple_wallet::on_command, this, &simple_wallet::donate, _1),
@@ -3740,28 +3740,28 @@ simple_wallet::simple_wallet()
 m_cmd_binder.set_handler("mint_stable",
                            boost::bind(&simple_wallet::mint_stable, this, _1),
                            tr(USAGE_MINT_STABLE),
-                           tr("Converts <amount> Zephyr (ZEPH) into Stable (ZEPHUSD), with optional <priority> [0-5]"));
+                           tr("Converts <amount> Zephyr (ZEPH) into Zephyr Stable Dollars (ZSD), with optional <priority> [0-5]"));
 m_cmd_binder.set_handler("redeem_stable",
                            boost::bind(&simple_wallet::redeem_stable, this, _1),
                            tr(USAGE_REDEEM_STABLE),
-                           tr("Redeem <amount> ZEPHUSD from current Stable balance to <address>. If the parameter \"index=<N1>[,<N2>,...]\" is specified, the wallet uses outputs received by addresses of those indices. If omitted, the wallet randomly chooses address indices to be used. In any case, it tries its best not to combine outputs across multiple addresses. <priority> is the priority of the transaction. The higher the priority, the higher the transaction fee. Valid values in priority order (from lowest to highest) are: unimportant, normal, elevated, priority. If omitted, the default value (see the command \"set priority\") is used. <ring_size> is the number of inputs to include for untraceability. Multiple payments can be made at once by adding URI_2 or <address_2> <amount_2> etcetera (before the payment ID, if it's included)"));
+                           tr("Redeem <amount> ZSD from current Zephyr Stable Dollar balance to <address>. If the parameter \"index=<N1>[,<N2>,...]\" is specified, the wallet uses outputs received by addresses of those indices. If omitted, the wallet randomly chooses address indices to be used. In any case, it tries its best not to combine outputs across multiple addresses. <priority> is the priority of the transaction. The higher the priority, the higher the transaction fee. Valid values in priority order (from lowest to highest) are: unimportant, normal, elevated, priority. If omitted, the default value (see the command \"set priority\") is used. <ring_size> is the number of inputs to include for untraceability. Multiple payments can be made at once by adding URI_2 or <address_2> <amount_2> etcetera (before the payment ID, if it's included)"));
 m_cmd_binder.set_handler("stable_transfer",
                            boost::bind(&simple_wallet::stable_transfer, this, _1),
                            tr(USAGE_STABLE_TRANSFER),
-                           tr("Transfer <amount> Stable (ZEPHUSD), with optional <priority> [0-5]"));
+                           tr("Transfer <amount> Zephyr Stable Dollars (ZSD), with optional <priority> [0-5]"));
 
 m_cmd_binder.set_handler("mint_reserve",
                            boost::bind(&simple_wallet::mint_reserve, this, _1),
                            tr(USAGE_MINT_RESERVE),
-                           tr("Converts <amount> Zephyr (ZEPH) into Reserve (ZEPHRSV), with optional <priority> [0-5]"));
+                           tr("Converts <amount> Zephyr (ZEPH) into Zephyr Reserve Shares (ZRS), with optional <priority> [0-5]"));
 m_cmd_binder.set_handler("redeem_reserve",
                            boost::bind(&simple_wallet::redeem_reserve, this, _1),
                            tr(USAGE_REDEEM_RESERVE),
-                           tr("Redeem <amount> ZEPHRSV from current Reserve balance to <address>. If the parameter \"index=<N1>[,<N2>,...]\" is specified, the wallet uses outputs received by addresses of those indices. If omitted, the wallet randomly chooses address indices to be used. In any case, it tries its best not to combine outputs across multiple addresses. <priority> is the priority of the transaction. The higher the priority, the higher the transaction fee. Valid values in priority order (from lowest to highest) are: unimportant, normal, elevated, priority. If omitted, the default value (see the command \"set priority\") is used. <ring_size> is the number of inputs to include for untraceability. Multiple payments can be made at once by adding URI_2 or <address_2> <amount_2> etcetera (before the payment ID, if it's included)"));
+                           tr("Redeem <amount> ZRS from current Zephyr Reserve Share balance to <address>. If the parameter \"index=<N1>[,<N2>,...]\" is specified, the wallet uses outputs received by addresses of those indices. If omitted, the wallet randomly chooses address indices to be used. In any case, it tries its best not to combine outputs across multiple addresses. <priority> is the priority of the transaction. The higher the priority, the higher the transaction fee. Valid values in priority order (from lowest to highest) are: unimportant, normal, elevated, priority. If omitted, the default value (see the command \"set priority\") is used. <ring_size> is the number of inputs to include for untraceability. Multiple payments can be made at once by adding URI_2 or <address_2> <amount_2> etcetera (before the payment ID, if it's included)"));
 m_cmd_binder.set_handler("reserve_transfer",
                            boost::bind(&simple_wallet::reserve_transfer, this, _1),
                            tr(USAGE_RESERVE_TRANSFER),
-                           tr("Transfer <amount> Reserve (ZEPHRSV), with optional <priority> [0-5]"));
+                           tr("Transfer <amount> Zephyr Reserve Shares (ZRS), with optional <priority> [0-5]"));
 
  m_cmd_binder.set_handler("reserve_info",
                            boost::bind(&simple_wallet::reserve_info, this, _1),
@@ -5638,7 +5638,7 @@ void simple_wallet::on_money_received(uint64_t height, const crypto::hash &txid,
     tr("Height ") << height << ", " <<
     tr("txid ") << txid << ", " <<
     print_money(amount - burnt) << burn.str() << " " <<
-    asset_type << ", " <<
+    asset_display_name(asset_type) << ", " <<
     tr("idx ") << subaddr_index;
 
   const uint64_t warn_height = m_wallet->nettype() == TESTNET ? 1000000 : m_wallet->nettype() == STAGENET ? 50000 : 1650000;
@@ -5693,7 +5693,7 @@ void simple_wallet::on_money_spent(uint64_t height, const crypto::hash &txid, co
     tr("Height ") << height << ", " <<
     tr("txid ") << txid << ", " <<
     tr("spent ") << print_money(amount) << " " <<
-    asset_type << ", " <<
+    asset_display_name(asset_type) << ", " <<
     tr("idx ") << subaddr_index;
   if (m_auto_refresh_refreshing)
     m_cmd_binder.print_prompt();
@@ -5940,7 +5940,7 @@ bool simple_wallet::show_balance_unlocked(bool detailed)
     else if (time_to_unlock > 0)
       unlock_time_message = (boost::format(" (%s to unlock)") % get_human_readable_timespan(time_to_unlock)).str();
     success_msg_writer() << tr("Balance: ") << print_money(balance) << ", "
-      << tr("unlocked balance: ") << print_money(unlocked_balance) << "  " << asset << " " << unlock_time_message << extra;
+      << tr("unlocked balance: ") << print_money(unlocked_balance) << "  " << asset_display_name(asset) << " " << unlock_time_message << extra;
   }
   std::map<uint32_t, uint64_t> balance_per_subaddress = m_wallet->balance_per_subaddress("ZEPH", m_current_subaddress_account, false);
   std::map<uint32_t, std::pair<uint64_t, std::pair<uint64_t, uint64_t>>> unlocked_balance_per_subaddress = m_wallet->unlocked_balance_per_subaddress("ZEPH", m_current_subaddress_account, false);
@@ -6822,21 +6822,21 @@ bool simple_wallet::transfer_main(
         }
 
         if (source_asset == dest_asset) {
-          prompt << boost::format(tr("Sending %s %s.\n")) % print_money(total_sent) % source_asset;
+          prompt << boost::format(tr("Sending %s %s.\n")) % print_money(total_sent) % asset_display_name(source_asset);
         } else {
           switch (tx_type)
           {
           case tt::MINT_STABLE:
-            prompt << boost::format(tr("Minting %s ZEPHUSD from %s ZEPH.\n")) % print_money(total_received) % print_money(total_sent);
+            prompt << boost::format(tr("Minting %s ZSD from %s ZEPH.\n")) % print_money(total_received) % print_money(total_sent);
             break;
           case tt::REDEEM_STABLE:
-            prompt << boost::format(tr("Redeeming %s ZEPH from %s ZEPHUSD.\n")) % print_money(total_received) % print_money(total_sent);
+            prompt << boost::format(tr("Redeeming %s ZEPH from %s ZSD.\n")) % print_money(total_received) % print_money(total_sent);
             break;
           case tt::MINT_RESERVE:
-            prompt << boost::format(tr("Minting %s ZEPHRSV from %s ZEPH.\n")) % print_money(total_received) % print_money(total_sent);
+            prompt << boost::format(tr("Minting %s ZRS from %s ZEPH.\n")) % print_money(total_received) % print_money(total_sent);
             break;
           case tt::REDEEM_RESERVE:
-            prompt << boost::format(tr("Redeeming %s ZEPH from %s ZEPHRSV.\n")) % print_money(total_received) % print_money(total_sent);
+            prompt << boost::format(tr("Redeeming %s ZEPH from %s ZRS.\n")) % print_money(total_received) % print_money(total_sent);
             break;
           default:
             break;
@@ -6852,7 +6852,7 @@ bool simple_wallet::transfer_main(
         else
         {
           prompt << boost::format(tr("The transaction fee is %s %s")) %
-            print_money(total_fee) % source_asset;
+            print_money(total_fee) % asset_display_name(source_asset);
         }
         if (dust_in_fee != 0) prompt << boost::format(tr(", of which %s is dust from change")) % print_money(dust_in_fee);
         if (dust_not_in_fee != 0)  prompt << tr(".") << ENDL << boost::format(tr("A total of %s from dust change will be sent to dust address")) 
@@ -7376,18 +7376,18 @@ bool simple_wallet::sweep_main(
     if (ptx_vector.size() > 1) {
       prompt << boost::format(tr("Sweeping %s %s in %llu transactions for a total fee of %s %s.  Is this okay?")) %
         print_money(total_sent) %
-        source_asset %
+        asset_display_name(source_asset) %
         ((unsigned long long)ptx_vector.size()) %
         print_money(total_fee) %
-        source_asset;
+        asset_display_name(source_asset);
     }
     else {
       if (source_asset == dest_asset) {
           prompt << boost::format(tr("Sweeping %s %s for a total fee of %s %s.  Is this okay?")) %
             print_money(total_sent) %
-            source_asset %
+            asset_display_name(source_asset) %
             print_money(total_fee) %
-            source_asset;
+            asset_display_name(source_asset);
         } else {
           using tt = cryptonote::transaction_type;
           tt tx_type;
@@ -7398,16 +7398,16 @@ bool simple_wallet::sweep_main(
           switch (tx_type)
           {
             case tt::MINT_STABLE:
-              prompt << boost::format(tr("Minting %s ZEPHUSD from %s ZEPH. Total fee is %s %s.\n  Is this okay")) % print_money(total_received) % print_money(total_sent) % print_money(total_fee) % source_asset;
+              prompt << boost::format(tr("Minting %s ZSD from %s ZEPH. Total fee is %s %s.\n  Is this okay")) % print_money(total_received) % print_money(total_sent) % print_money(total_fee) % asset_display_name(source_asset);
               break;
             case tt::REDEEM_STABLE:
-              prompt << boost::format(tr("Redeeming %s ZEPH from %s ZEPHUSD. Total fee is %s %s.\n  Is this okay?")) % print_money(total_received) % print_money(total_sent) % print_money(total_fee) % source_asset;
+              prompt << boost::format(tr("Redeeming %s ZEPH from %s ZSD. Total fee is %s %s.\n  Is this okay?")) % print_money(total_received) % print_money(total_sent) % print_money(total_fee) % asset_display_name(source_asset);
               break;
             case tt::MINT_RESERVE:
-              prompt << boost::format(tr("Minting %s ZEPHRSV from %s ZEPH. Total fee is %s %s.\n  Is this okay?")) % print_money(total_received) % print_money(total_sent) % print_money(total_fee) % source_asset;
+              prompt << boost::format(tr("Minting %s ZRS from %s ZEPH. Total fee is %s %s.\n  Is this okay?")) % print_money(total_received) % print_money(total_sent) % print_money(total_fee) % asset_display_name(source_asset);
               break;
             case tt::REDEEM_RESERVE:
-              prompt << boost::format(tr("Redeeming %s ZEPH from %s ZEPHRSV. Total fee is %s %s.\n  Is this okay?")) % print_money(total_received) % print_money(total_sent) % print_money(total_fee) % source_asset;
+              prompt << boost::format(tr("Redeeming %s ZEPH from %s ZRS. Total fee is %s %s.\n  Is this okay?")) % print_money(total_received) % print_money(total_sent) % print_money(total_fee) % asset_display_name(source_asset);
               break;
             default:
               fail_msg_writer() << tr("Unknown transaction type.");
@@ -9021,7 +9021,7 @@ bool simple_wallet::show_transfers(const std::vector<std::string> &args_)
       % transfer.unlocked
       % tools::get_human_readable_timestamp(transfer.timestamp)
       % print_money(transfer.amount)
-      % transfer.asset_type
+      % asset_display_name(transfer.asset_type)
       % string_tools::pod_to_hex(transfer.hash)
       % transfer.payment_id
       % print_money(transfer.fee)
@@ -9700,7 +9700,7 @@ void simple_wallet::print_accounts(const std::string& tag)
         % m_wallet->get_subaddress_as_str({account_index, 0}).substr(0, 9)
         % print_money(balance)
         % print_money(unlocked_balance)
-        % asset
+        % asset_display_name(asset)
         % m_wallet->get_subaddress_label({account_index, 0});
       total_balance += balance;
       total_unlocked_balance += unlocked_balance;
@@ -9710,7 +9710,7 @@ void simple_wallet::print_accounts(const std::string& tag)
   }
   success_msg_writer() << tr("------------------------------------------------------------------------------------");
   for (const auto& it: total_balances)
-    success_msg_writer() << boost::format(tr("%15s   %21s %21s  %15s")) % "Total" % print_money(it.second.first) % print_money(it.second.second) % it.first;
+    success_msg_writer() << boost::format(tr("%15s   %21s %21s  %15s")) % "Total" % print_money(it.second.first) % print_money(it.second.second) % asset_display_name(it.first);
 }
 //----------------------------------------------------------------------------------------------------
 bool simple_wallet::print_address(const std::vector<std::string> &args/* = std::vector<std::string>()*/)
