@@ -1873,18 +1873,6 @@ namespace cryptonote
       boost::multiprecision::int128_t conversion_this_tx_reserves = 0;
       if (source != dest)
       {
-        // Validate that pricing record has not grown too old since it was first included in the pool
-        if (!tx_pr_height_valid(m_blockchain.get_current_blockchain_height(), tx.pricing_record_height, sorted_it->second)) {
-          LOG_PRINT_L2("error : transaction references a pricing record that is too old (height " << tx.pricing_record_height << ")");
-          continue;
-        }
-        // get pricing record
-        block bl;
-        if (!m_blockchain.get_block_by_hash(m_blockchain.get_block_id_by_height(tx.pricing_record_height), bl)) {
-          LOG_PRINT_L2("error: failed to get block containing pricing record");
-          continue;
-        }
-
         if (!have_valid_pr) {
           continue;
         }
@@ -1910,13 +1898,26 @@ namespace cryptonote
         boost::multiprecision::int128_t tally_stables = total_conversion_stables + conversion_this_tx_stables;
         boost::multiprecision::int128_t tally_reserves = total_conversion_reserves + conversion_this_tx_reserves;
 
-        if (!reserve_ratio_satisfied(circ_supply, bl.pricing_record, tx_type, tally_zeph, tally_stables, tally_reserves)) {
+        if (!reserve_ratio_satisfied(circ_supply, latest_pr, tx_type, tally_zeph, tally_stables, tally_reserves)) {
           LOG_PRINT_L2(" transaction ignored: reserve ratio would be invalid " << sorted_it->second);
           continue;
         }
 
+        // Validate that tx pricing record has not grown too old since it was first included in the pool
+        if (!tx_pr_height_valid(m_blockchain.get_current_blockchain_height(), tx.pricing_record_height, sorted_it->second)) {
+          LOG_PRINT_L2("error : transaction references a pricing record that is too old (height " << tx.pricing_record_height << ")");
+          continue;
+        }
+
+        // get pricing record for this tx
+        block tx_pr_block;
+        if (!m_blockchain.get_block_by_hash(m_blockchain.get_block_id_by_height(tx.pricing_record_height), tx_pr_block)) {
+          LOG_PRINT_L2("error: failed to get block containing pricing record");
+          continue;
+        }
+
         // make sure proof-of-value still holds
-        if (!rct::verRctSemanticsSimple(tx.rct_signatures, bl.pricing_record, tx_type, source, dest, tx.amount_burnt, tx.vout, tx.vin, version))
+        if (!rct::verRctSemanticsSimple(tx.rct_signatures, tx_pr_block.pricing_record, tx_type, source, dest, tx.amount_burnt, tx.vout, tx.vin, version))
         {
           LOG_PRINT_L2(" transaction proof-of-value is now invalid for tx " << sorted_it->second);
           continue;
