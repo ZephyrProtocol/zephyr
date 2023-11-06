@@ -79,7 +79,7 @@ namespace cryptonote
 
   struct txout_zephyr_tagged_key
   {
-    txout_zephyr_tagged_key() { }
+    txout_zephyr_tagged_key(): key(), view_tag() { }
     txout_zephyr_tagged_key(const crypto::public_key &_key, const std::string &_asset_type, const crypto::view_tag &_view_tag) : key(_key), asset_type(_asset_type), view_tag(_view_tag) { }
     crypto::public_key key;
     std::string asset_type;
