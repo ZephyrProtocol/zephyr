@@ -128,6 +128,7 @@ target_link_libraries(unit_tests
     net
     serialization
     oracle
+    seraphis_crypto
     wallet
     p2p
     version
