@@ -1738,8 +1738,7 @@ namespace cryptonote
     LockedTXN lock(m_blockchain.get_db());
 
     bool have_valid_pr = true;
-    oracle::pricing_record latest_pr;
-    if (!m_blockchain.get_latest_acceptable_pr(latest_pr)) {
+    if (bl.pricing_record.empty() || bl.pricing_record.has_missing_rates()) {
       if (version >= HF_VERSION_DJED) {
         MWARNING("Failed to find a pricing record in last 10 blocks.");
         MWARNING("Will not include any conversion transactions in block template.");
@@ -1898,7 +1897,7 @@ namespace cryptonote
         boost::multiprecision::int128_t tally_stables = total_conversion_stables + conversion_this_tx_stables;
         boost::multiprecision::int128_t tally_reserves = total_conversion_reserves + conversion_this_tx_reserves;
 
-        if (!reserve_ratio_satisfied(circ_supply, latest_pr, tx_type, tally_zeph, tally_stables, tally_reserves)) {
+        if (!reserve_ratio_satisfied(circ_supply, bl.pricing_record, tx_type, tally_zeph, tally_stables, tally_reserves)) {
           LOG_PRINT_L2(" transaction ignored: reserve ratio would be invalid " << sorted_it->second);
           continue;
         }
