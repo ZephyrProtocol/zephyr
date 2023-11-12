@@ -4164,8 +4164,11 @@ bool Blockchain::handle_block_to_main_chain(const block& bl, const crypto::hash&
   {
     MERROR_VER("Block with id: " << id << std::endl << "has wrong prev_id: " << bl.prev_id << std::endl << "expected: " << top_hash);
     bvc.m_verifivation_failed = true;
-leave:
+leave: {
+    if (bvc.m_verifivation_failed)
+      invalidate_block_template_cache();
     return false;
+}
   }
 
   // warn users if they're running an old version
