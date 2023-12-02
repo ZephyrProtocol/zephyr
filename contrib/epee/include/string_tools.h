@@ -53,9 +53,28 @@ namespace string_tools
     return to_hex::string(to_byte_span(to_span(src)));
   }
   //----------------------------------------------------------------------------
-  inline bool parse_hexstr_to_binbuff(const boost::string_ref s, std::string& res)
-  {
-    return from_hex::to_string(res, s);
+  inline uint8_t hex_char_to_byte(char c) {
+      if (c >= '0' && c <= '9') return c - '0';
+      if (c >= 'a' && c <= 'f') return 10 + c - 'a';
+      if (c >= 'A' && c <= 'F') return 10 + c - 'A';
+      throw std::invalid_argument("Invalid hex character");
+  }
+
+  inline bool parse_hexstr_to_binbuff(const boost::string_ref s, std::string& res) {
+      try {
+          res.clear();
+          if (s.size() % 2 != 0) {
+              return false;
+          }
+
+          for (size_t i = 0; i < s.size(); i += 2) {
+              uint8_t byte = hex_char_to_byte(s[i]) << 4 | hex_char_to_byte(s[i + 1]);
+              res.push_back(static_cast<char>(byte));
+          }
+          return true;
+      } catch (const std::invalid_argument&) {
+          return false;
+      }
   }
   
   std::string get_ip_string_from_int32(uint32_t ip);
