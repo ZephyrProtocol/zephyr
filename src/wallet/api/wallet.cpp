@@ -457,18 +457,13 @@ bool WalletImpl::create(const std::string &path, const std::string &password, co
         return false;
     }
     // TODO: validate language
-    std::cout << "About to set lang: " << language << std::endl;
     m_wallet->set_seed_language(language);
     crypto::secret_key recovery_val, secret_key;
     try {
-        std::cout << "About to generate " << std::endl;
-        std::cout << m_wallet << std::endl;
-
         recovery_val = m_wallet->generate(path, password, secret_key, false, false);
         m_password = password;
         clearStatus();
     } catch (const std::exception &e) {
-        std::cout << e.what() << std::endl;
         LOG_ERROR("Error creating wallet: " << e.what());
         setStatusCritical(e.what());
         return false;

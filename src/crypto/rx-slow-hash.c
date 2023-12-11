@@ -412,43 +412,32 @@ void rx_slow_hash(const char *seedhash, const void *data, size_t length, char *r
   // Fast path (seedhash == main_seedhash)
   // Multiple threads can run in parallel in fast or light mode, 1-2 ms or 10-15 ms per hash per thread
   if (is_main(seedhash)) {
-    printf("Is main and try to lock\n");
     // If CTHR_RWLOCK_TRYLOCK_READ fails it means dataset is being initialized now, so use the light mode
     if (main_dataset && CTHR_RWLOCK_TRYLOCK_READ(main_dataset_lock)) {
-      printf("Being init use light mode\n");
       // Double check that main_seedhash didn't change
-      printf("Is main check again\n");
       if (is_main(seedhash)) {
-        printf("Full VM init\n");
         rx_init_full_vm(flags, &main_vm_full);
         if (main_vm_full) {
-          printf("Calculate hash\n");
           randomx_calculate_hash(main_vm_full, data, length, result_hash);
           success = 1;
         }
       }
-      printf("Unlock read\n");
       CTHR_RWLOCK_UNLOCK_READ(main_dataset_lock);
     } else {
-      printf("Main cache lock\n");
       CTHR_RWLOCK_LOCK_READ(main_cache_lock);
       // Double check that main_seedhash didn't change
       if (is_main(seedhash)) {
-        printf("Init light mode\n");
         rx_init_light_vm(flags, &main_vm_light, main_cache);
         randomx_calculate_hash(main_vm_light, data, length, result_hash);
         success = 1;
       }
-      printf("Unlock cache read\n");
       CTHR_RWLOCK_UNLOCK_READ(main_cache_lock);
     }
   }
 
-  printf("Testing success\n");
   if (success) {
     return;
   }
-  printf("Wasnt successful\n");
 
   char buf[HASH_SIZE * 2 + 1];
 
@@ -459,6 +448,7 @@ void rx_slow_hash(const char *seedhash, const void *data, size_t length, char *r
     if (!secondary_cache) {
       hash2hex(seedhash, buf);
       minfo(RX_LOGCAT, "RandomX new secondary seed hash is %s", buf);
+
       rx_alloc_cache(flags, &secondary_cache);
       randomx_init_cache(secondary_cache, seedhash, HASH_SIZE);
       minfo(RX_LOGCAT, "RandomX secondary cache updated");
@@ -474,15 +464,12 @@ void rx_slow_hash(const char *seedhash, const void *data, size_t length, char *r
     randomx_calculate_hash(secondary_vm_light, data, length, result_hash);
     success = 1;
   }
-  printf("Unlock secondary cache\n");
   CTHR_RWLOCK_UNLOCK_READ(secondary_cache_lock);
 
-  printf("Testing success round 2\n");
   if (success) {
     return;
   }
 
-  printf("SUPER SLOW SHIT ABOUT TO HAPPEN\n");
   // Slowest path (seedhash != main_seedhash, seedhash != secondary_seedhash)
   // Only one thread runs at a time and updates secondary_seedhash if needed, up to 200-500 ms per hash
   CTHR_RWLOCK_LOCK_WRITE(secondary_cache_lock);

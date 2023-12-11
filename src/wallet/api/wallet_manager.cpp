@@ -57,11 +57,8 @@ WalletManagerImpl::WalletManagerImpl()
 Wallet *WalletManagerImpl::createWallet(const std::string &path, const std::string &password,
                                     const std::string &language, NetworkType nettype, uint64_t kdf_rounds)
 {
-    std::cout << "About to init WalletImpl" << std::endl;
     WalletImpl * wallet = new WalletImpl(nettype, kdf_rounds);
-    std::cout << "WalletImpl Initalized" << std::endl;
     wallet->create(path, password, language);
-    std::cout << "Finally got it to not freeze LFG" << std::endl;
     return wallet;
 }
 

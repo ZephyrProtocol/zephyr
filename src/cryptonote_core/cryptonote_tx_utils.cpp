@@ -1549,23 +1549,17 @@ namespace cryptonote
     bl = {};
 
     blobdata tx_bl;
-    std::cout << "Hm about to start parse" << std::endl;
     bool r = string_tools::parse_hexstr_to_binbuff(genesis_tx, tx_bl);
-    std::cout << "First Assert " << r << std::endl;
     CHECK_AND_ASSERT_MES(r, false, "GENESIS: failed to parse coinbase tx from hard coded blob");
     r = parse_and_validate_tx_from_blob(tx_bl, bl.miner_tx);
-    std::cout << "Second Assert: " << r << std::endl;
     CHECK_AND_ASSERT_MES(r, false, "GENESIS 2: failed to parse coinbase tx from hard coded blob");
     bl.major_version = CURRENT_BLOCK_MAJOR_VERSION;
     bl.minor_version = CURRENT_BLOCK_MINOR_VERSION;
     bl.timestamp = 0;
     bl.nonce = nonce;
-    std::cout << "Find nonce for given block" << std::endl;
     miner::find_nonce_for_given_block([](const cryptonote::block &b, uint64_t height, const crypto::hash *seed_hash, unsigned int threads, crypto::hash &hash){
-      std::cout << "get block longhash" << std::endl;
       return cryptonote::get_block_longhash(NULL, b, hash, height, seed_hash, threads);
     }, bl, 1, 0, NULL);
-    std::cout << "Invalidate Hashes" << std::endl;
     bl.invalidate_hashes();
     return true;
   }
@@ -1573,7 +1567,6 @@ namespace cryptonote
   void get_altblock_longhash(const block& b, crypto::hash& res, const crypto::hash& seed_hash)
   {
     blobdata bd = get_block_hashing_blob(b);
-    //rx_slow_hash(seed_hash.data, bd.data(), bd.size(), res.data);
   }
 
   bool get_block_longhash(const Blockchain *pbc, const blobdata& bd, crypto::hash& res, const uint64_t height, const int major_version, const crypto::hash *seed_hash, const int miners)
@@ -1581,16 +1574,12 @@ namespace cryptonote
     crypto::hash hash;
     if (pbc != NULL)
     {
-      std::cout << "about to seedheight" << std::endl;
       const uint64_t seed_height = rx_seedheight(height);
       hash = seed_hash ? *seed_hash : pbc->get_pending_block_id_by_height(seed_height);
     } else
     {
-      std::cout << "about to memset" << std::endl;
       memset(&hash, 0, sizeof(hash));  // only happens when generating genesis block
     }
-    std::cout << "rx slow hash baby" << std::endl;
-    //rx_slow_hash(hash.data, bd.data(), bd.size(), res.data);
 
     return true;
   }
