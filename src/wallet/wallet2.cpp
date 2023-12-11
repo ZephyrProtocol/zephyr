@@ -4907,9 +4907,14 @@ void wallet2::decrypt_keys(const epee::wipeable_string &password)
 void wallet2::setup_new_blockchain()
 {
   cryptonote::block b;
+  std::cout << "Fetching genesis block" << std::endl;
   generate_genesis(b);
+  std::cout << "Pushing back block hash" << std::endl;
+  std::cout << get_block_hash(b) << std::endl;
   m_blockchain.push_back(get_block_hash(b));
+  std::cout << "Get out money amount" << std::endl;
   m_last_block_reward = cryptonote::get_outs_money_amount(b.miner_tx);
+  std::cout << "Set that primrary subaddress account" << std::endl;
   add_subaddress_account(tr("Primary account"));
 }
 
@@ -5065,15 +5070,24 @@ void wallet2::generate(const std::string& wallet_, const epee::wipeable_string& 
   m_multisig = true;
   m_multisig_threshold = threshold;
   m_multisig_signers = multisig_signers;
+
   // wallet is assumed already finalized
   m_multisig_rounds_passed = multisig::multisig_setup_rounds_required(m_multisig_signers.size(), m_multisig_threshold);
   setup_keys(password);
 
-  create_keys_file(wallet_, false, password, m_nettype != MAINNET || create_address_file);
-  setup_new_blockchain();
+  std::cout << "Setup keys" << std::endl;
 
-  if (!wallet_.empty())
+  create_keys_file(wallet_, false, password, m_nettype != MAINNET || create_address_file);
+
+  std::cout << "Create key file" << std::endl;
+
+  setup_new_blockchain();
+  std::cout << "Setup new blockchain" << std::endl; 
+
+  if (!wallet_.empty()) {
+    std::cout << "Stored the data" << std::endl;
     store();
+  }
 }
 
 /*!
@@ -5089,7 +5103,9 @@ void wallet2::generate(const std::string& wallet_, const epee::wipeable_string& 
 crypto::secret_key wallet2::generate(const std::string& wallet_, const epee::wipeable_string& password,
   const crypto::secret_key& recovery_param, bool recover, bool two_random, bool create_address_file)
 {
+  std::cout << "Clear" << std::endl;
   clear();
+  std::cout << "Prepare file names" << std::endl;
   prepare_file_names(wallet_);
 
   if (!wallet_.empty())
@@ -5099,20 +5115,26 @@ crypto::secret_key wallet2::generate(const std::string& wallet_, const epee::wip
     THROW_WALLET_EXCEPTION_IF(boost::filesystem::exists(m_keys_file,   ignored_ec), error::file_exists, m_keys_file);
   }
 
+  std::cout << "Account generate" << std::endl;
   crypto::secret_key retval = m_account.generate(recovery_param, recover, two_random);
 
   init_type(hw::device::device_type::SOFTWARE);
+  std::cout << "Setup password" << std::endl;
   setup_keys(password);
 
   // calculate a starting refresh height
   if(m_refresh_from_block_height == 0 && !recover){
+    std::cout << "About to calculate a starting refresh height" << std::endl;
     m_refresh_from_block_height = estimate_blockchain_height();
   }
 
+  std::cout << "Create wallet key files" << std::endl;
   create_keys_file(wallet_, false, password, m_nettype != MAINNET || create_address_file);
 
+  std::cout << "Set that blockchain up" << std::endl;
   setup_new_blockchain();
 
+  std::cout << "Store keys" << std::endl;
   if (!wallet_.empty())
     store();
 
@@ -5173,6 +5195,7 @@ void wallet2::generate(const std::string& wallet_, const epee::wipeable_string& 
   const cryptonote::account_public_address &account_public_address,
   const crypto::secret_key& viewkey, bool create_address_file)
 {
+  std::cout << "Watch only wallet path fired" << std::endl;
   clear();
   prepare_file_names(wallet_);
 
@@ -5210,6 +5233,7 @@ void wallet2::generate(const std::string& wallet_, const epee::wipeable_string& 
   const cryptonote::account_public_address &account_public_address,
   const crypto::secret_key& spendkey, const crypto::secret_key& viewkey, bool create_address_file)
 {
+  std::cout << "Creates a wallet from a public address and a spend/view secret key pair." << std::endl;
   clear();
   prepare_file_names(wallet_);
 

@@ -220,7 +220,6 @@ namespace config
     } }; // Bender's nightmare
 
   std::string const GENESIS_TX = "023c01ff00018080c89d9deb96f80602e67dae0090a351d556353dab49e751b1d40fca6e5ee2ee76550f8318c6d849ab045a45504802210175eeac3f23353a4e1edc167399bcff6061fe7e75f29fe230fd3a33def075e88000000000";
-  
   uint32_t const GENESIS_NONCE = 10000;
 
   // Hash domain separators

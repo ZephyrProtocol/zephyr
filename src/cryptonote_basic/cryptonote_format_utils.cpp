@@ -238,12 +238,19 @@ namespace cryptonote
   //---------------------------------------------------------------
   bool parse_and_validate_tx_from_blob(const blobdata_ref& tx_blob, transaction& tx)
   {
+    std::cout << "Parse and validate" << std::endl;
     binary_archive<false> ba{epee::strspan<std::uint8_t>(tx_blob)};
+    std::cout << "baaaa" << std::endl;
     bool r = ::serialization::serialize(ba, tx);
+    std::cout << "Serialize: " << r << std::endl;
     CHECK_AND_ASSERT_MES(r, false, "Failed to parse transaction from blob");
+    std::cout << "Failed to parse passed" << std::endl;
     CHECK_AND_ASSERT_MES(expand_transaction_1(tx, false), false, "Failed to expand transaction data");
+    std::cout << "Failed to expand passed" << std::endl;
     tx.invalidate_hashes();
+    std::cout << "Invalidate passed" << std::endl;
     tx.set_blob_size(tx_blob.size());
+    std::cout << "Set blob size passed" << std::endl;
     return true;
   }
   //---------------------------------------------------------------

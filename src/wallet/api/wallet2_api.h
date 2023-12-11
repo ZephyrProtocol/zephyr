@@ -607,18 +607,18 @@ struct Wallet
     virtual void setTrustedDaemon(bool arg) = 0;
     virtual bool trustedDaemon() const = 0;
     virtual bool setProxy(const std::string &address) = 0;
-    virtual uint64_t balance(uint32_t accountIndex = 0) const = 0;
+    virtual uint64_t balance(const std::string &source_asset, uint32_t accountIndex = 0) const = 0;
     uint64_t balanceAll() const {
         uint64_t result = 0;
         for (uint32_t i = 0; i < numSubaddressAccounts(); ++i)
-            result += balance(i);
+            result += balance("ZEPH", i);
         return result;
     }
-    virtual uint64_t unlockedBalance(uint32_t accountIndex = 0) const = 0;
+    virtual uint64_t unlockedBalance(const std::string &source_asset, uint32_t accountIndex = 0) const = 0;
     uint64_t unlockedBalanceAll() const {
         uint64_t result = 0;
         for (uint32_t i = 0; i < numSubaddressAccounts(); ++i)
-            result += unlockedBalance(i);
+            result += unlockedBalance("ZEPH", i);
         return result;
     }
 
@@ -829,6 +829,8 @@ struct Wallet
 
     /*!
      * \brief createTransactionMultDest creates transaction with multiple destinations. if dst_addr is an integrated address, payment_id is ignored
+     * \param source_asset              source asset type
+     * \param dest_asset                destination asset type
      * \param dst_addr                  vector of destination address as string
      * \param payment_id                optional payment_id, can be empty string
      * \param amount                    vector of amounts
@@ -840,14 +842,20 @@ struct Wallet
      *                                  after object returned
      */
 
-    virtual PendingTransaction * createTransactionMultDest(const std::vector<std::string> &dst_addr, const std::string &payment_id,
-                                                   optional<std::vector<uint64_t>> amount, uint32_t mixin_count,
-                                                   PendingTransaction::Priority = PendingTransaction::Priority_Low,
-                                                   uint32_t subaddr_account = 0,
-                                                   std::set<uint32_t> subaddr_indices = {}) = 0;
+    virtual PendingTransaction * createTransactionMultDest(const std::string &source_asset,
+                                                           const std::string &dest_asset,
+                                                           const std::vector<std::string> &dst_addr,
+                                                           const std::string &payment_id,
+                                                           optional<std::vector<uint64_t>> amount,
+                                                           uint32_t mixin_count,
+                                                           PendingTransaction::Priority = PendingTransaction::Priority_Low,
+                                                           uint32_t subaddr_account = 0,
+                                                           std::set<uint32_t> subaddr_indices = {}) = 0;
 
     /*!
      * \brief createTransaction creates transaction. if dst_addr is an integrated address, payment_id is ignored
+     * \param source_asset      source asset type
+     * \param dest_asset        destination asset type
      * \param dst_addr          destination address as string
      * \param payment_id        optional payment_id, can be empty string
      * \param amount            amount
@@ -859,8 +867,12 @@ struct Wallet
      *                          after object returned
      */
 
-    virtual PendingTransaction * createTransaction(const std::string &dst_addr, const std::string &payment_id,
-                                                   optional<uint64_t> amount, uint32_t mixin_count,
+    virtual PendingTransaction * createTransaction(const std::string &source_asset,
+                                                   const std::string &dest_asset,
+                                                   const std::string &dst_addr,
+                                                   const std::string &payment_id,
+                                                   optional<uint64_t> amount,
+                                                   uint32_t mixin_count,
                                                    PendingTransaction::Priority = PendingTransaction::Priority_Low,
                                                    uint32_t subaddr_account = 0,
                                                    std::set<uint32_t> subaddr_indices = {}) = 0;
