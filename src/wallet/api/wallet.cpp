@@ -1525,7 +1525,7 @@ PendingTransaction *WalletImpl::createTransactionMultDest(const std::string& sou
                                                                             adjusted_priority,
                                                                             extra, subaddr_account, subaddr_indices);
             } else {
-                transaction->m_pending_tx = m_wallet->create_transactions_all(0, source_asset, source_asset, info.address, info.is_subaddress, 1, fake_outs_count, 0 /* unlock_time */,
+                transaction->m_pending_tx = m_wallet->create_transactions_all(0, source_asset, dest_asset, info.address, info.is_subaddress, 1, fake_outs_count, 0 /* unlock_time */,
                                                                               adjusted_priority,
                                                                               extra, subaddr_account, subaddr_indices);
             }
