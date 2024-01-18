@@ -8800,6 +8800,26 @@ void wallet2::get_outs(std::vector<std::vector<tools::wallet2::get_outs_entry>> 
     COMMAND_RPC_GET_OUTPUTS_BIN::request req = AUTO_VAL_INIT(req);
     COMMAND_RPC_GET_OUTPUTS_BIN::response daemon_resp = AUTO_VAL_INIT(daemon_resp);
 
+    // The secret picking order contains outputs in the order that we selected them.
+    //
+    // We will later sort the output request entries in a pre-determined order so that the daemon
+    // that we're requesting information from doesn't learn any information about the true spend
+    // for each ring. However, internally, we want to prefer to construct our rings using the
+    // outputs that we picked first versus outputs picked later.
+    //
+    // The reason why is because each consecutive output pick within a ring becomes increasing less
+    // statistically independent from other picks, since we pick outputs from a finite set
+    // *without replacement*, due to the protocol not allowing duplicate ring members. This effect
+    // is exacerbated by the fact that we pick 1.5x + 75 as many outputs as we need per RPC
+    // request to account for unusable outputs. This effect is small, but non-neglibile and gets
+    // worse with larger ring sizes.
+    std::vector<get_outputs_out> secret_picking_order;
+
+    // Convenience/safety lambda to make sure that both output lists req.outputs and secret_picking_order are updated together
+    // Each ring section of req.outputs gets sorted later after selecting all outputs for that ring
+    const auto add_output_to_lists = [&req, &secret_picking_order](const get_outputs_out &goo)
+      { req.outputs.push_back(goo); secret_picking_order.push_back(goo); };
+
     std::unique_ptr<gamma_picker> gamma;
     gamma.reset(new gamma_picker(rct_offsets));
 
@@ -8949,7 +8969,7 @@ void wallet2::get_outs(std::vector<std::vector<tools::wallet2::get_outs_entry>> 
               MINFO("Using it");
               ++num_found;
               bool is_global_out = true; // rings are stored referencing global output ID
-              req.outputs.push_back({amount, out, is_global_out});
+              add_output_to_lists({amount, out, is_global_out});
               seen_indices.emplace(out);
               if (out == td.m_global_output_index)
               {
@@ -8971,12 +8991,13 @@ void wallet2::get_outs(std::vector<std::vector<tools::wallet2::get_outs_entry>> 
       {
         uint64_t i = 0;
         for (; i < num_outs - num_found; i++)
-          req.outputs.push_back({amount, i});
+          add_output_to_lists({amount, i});
+
         // duplicate to make up shortfall: this will be caught after the RPC call,
         // so we can also output the amounts for which we can't reach the required
         // mixin after checking the actual unlockedness
         for (; i < requested_outputs_count - num_found; ++i)
-          req.outputs.push_back({amount, num_outs - 1});
+          add_output_to_lists({amount, num_outs - 1});
       }
       else
       {
@@ -8985,7 +9006,7 @@ void wallet2::get_outs(std::vector<std::vector<tools::wallet2::get_outs_entry>> 
         {
           num_found = 1;
           seen_indices.emplace(td.m_asset_type_output_index);
-          req.outputs.push_back({amount, td.m_asset_type_output_index});
+          add_output_to_lists({amount, td.m_asset_type_output_index});
           LOG_PRINT_L1("Selecting real output: " << td.m_asset_type_output_index << " for " << print_money(amount));
         }
 
@@ -9095,7 +9116,7 @@ void wallet2::get_outs(std::vector<std::vector<tools::wallet2::get_outs_entry>> 
           seen_indices.emplace(i);
 
           picks[type].insert(i);
-          req.outputs.push_back({amount, i});
+          add_output_to_lists({amount, i});
           ++num_found;
           MDEBUG("picked " << i << ", " << num_found << " now picked");
         }
@@ -9109,7 +9130,7 @@ void wallet2::get_outs(std::vector<std::vector<tools::wallet2::get_outs_entry>> 
         // we'll error out later
         while (num_found < requested_outputs_count)
         {
-          req.outputs.push_back({amount, 0});
+          add_output_to_lists({amount, 0});
           ++num_found;
         }
       }
@@ -9119,6 +9140,10 @@ void wallet2::get_outs(std::vector<std::vector<tools::wallet2::get_outs_entry>> 
           [](const get_outputs_out &a, const get_outputs_out &b) { return a.index < b.index; });
     }
 
+    THROW_WALLET_EXCEPTION_IF(req.outputs.size() != secret_picking_order.size(), error::wallet_internal_error,
+        "bug: we did not update req.outputs/secret_picking_order in tandem");
+
+    // List all requested outputs to debug log
     if (ELPP->vRegistry()->allowed(el::Level::Debug, MONERO_DEFAULT_LOG_CATEGORY))
     {
       std::map<uint64_t, std::set<uint64_t>> outs;
@@ -9237,18 +9262,22 @@ void wallet2::get_outs(std::vector<std::vector<tools::wallet2::get_outs_entry>> 
         }
       }
 
-      // then pick others in random order till we reach the required number
-      // since we use an equiprobable pick here, we don't upset the triangular distribution
-      std::vector<size_t> order;
-      order.resize(requested_outputs_count);
-      for (size_t n = 0; n < order.size(); ++n)
-        order[n] = n;
-      std::shuffle(order.begin(), order.end(), crypto::random_device{});
-
+      // While we are still lacking outputs in this result ring, in our secret pick order...
       LOG_PRINT_L2("Looking for " << (fake_outputs_count+1) << " outputs of size " << print_money(td.is_rct() ? 0 : td.amount()));
-      for (size_t o = 0; o < requested_outputs_count && outs.back().size() < fake_outputs_count + 1; ++o)
+      for (size_t ring_pick_idx = base; ring_pick_idx < base + requested_outputs_count && outs.back().size() < fake_outputs_count + 1; ++ring_pick_idx)
       {
-        size_t i = base + order[o];
+        const get_outputs_out attempted_output = secret_picking_order[ring_pick_idx];
+
+        // Find the index i of our pick in the request/response arrays
+        size_t i;
+        for (i = base; i < base + requested_outputs_count; ++i)
+          if (req.outputs[i].index == attempted_output.index)
+            break;
+        THROW_WALLET_EXCEPTION_IF(i == base + requested_outputs_count, error::wallet_internal_error,
+          "Could not find index of picked output in requested outputs");
+
+        // Try adding this output's information to result ring if output isn't invalid
+        LOG_PRINT_L2("Index " << i << "/" << requested_outputs_count << ": idx " << req.outputs[i].index << " (real " << td.m_global_output_index << "), unlocked " << daemon_resp.outs[i].unlocked << ", key " << daemon_resp.outs[i].key);
         tx_add_fake_output(outs, daemon_resp.outs[i].output_id, daemon_resp.outs[i].key, daemon_resp.outs[i].mask, td.m_global_output_index, daemon_resp.outs[i].unlocked, valid_public_keys_cache);
       }
       if (outs.back().size() < fake_outputs_count + 1)
