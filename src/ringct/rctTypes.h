@@ -326,6 +326,10 @@ namespace rct {
         xmr_amount txnFee; // contains b
         keyV maskSums; // contains 2 elements. 1. is the sum of masks of inputs. 2. is the sum of masks of change outputs.
 
+        rctSigBase() :
+          type(RCTTypeNull), message{}, mixRing{}, pseudoOuts{}, ecdhInfo{}, outPk{}, txnFee(0)
+        {}
+
         template<bool W, template <bool> class Archive>
         bool serialize_rctsig_base(Archive<W> &ar, size_t inputs, size_t outputs, const bool conversion_tx)
         {
