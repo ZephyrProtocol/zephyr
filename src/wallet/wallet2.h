@@ -603,6 +603,7 @@ private:
     typedef std::vector<transfer_details> transfer_container;
     typedef std::vector<std::vector<wallet2::transfer_details>::iterator> transfers_iterator_container;
     typedef std::unordered_multimap<crypto::hash, payment_details> payment_container;
+    typedef std::set<uint32_t> unique_index_container;
 
     struct multisig_sig
     {
@@ -1155,7 +1156,8 @@ private:
       uint32_t priority,
       const std::vector<uint8_t>& extra,
       uint32_t subaddr_account,
-      std::set<uint32_t> subaddr_indices // pass subaddr_indices by value on purpose
+      std::set<uint32_t> subaddr_indices, // pass subaddr_indices by value on purpose
+      const unique_index_container& subtract_fee_from_outputs = {}
     );     
     std::vector<wallet2::pending_tx> create_transactions_all(
       uint64_t below,
@@ -1185,7 +1187,7 @@ private:
       uint32_t priority,
       const std::vector<uint8_t>& extra
     );
-    bool sanity_check(const std::vector<wallet2::pending_tx> &ptx_vector, std::vector<cryptonote::tx_destination_entry> dsts) const;
+    bool sanity_check(const std::vector<wallet2::pending_tx> &ptx_vector, const std::vector<cryptonote::tx_destination_entry>& dsts, const unique_index_container& subtract_fee_from_outputs = {}) const;
     void cold_tx_aux_import(const std::vector<pending_tx>& ptx, const std::vector<std::string>& tx_device_aux);
     void cold_sign_tx(const std::vector<pending_tx>& ptx_vector, signed_tx_set &exported_txs, std::vector<cryptonote::address_parse_info> &dsts_info, std::vector<std::string> & tx_device_aux);
     uint64_t cold_key_image_sync(uint64_t &spent, uint64_t &unspent);
