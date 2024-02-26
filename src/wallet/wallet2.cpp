@@ -1972,8 +1972,8 @@ bool wallet2::frozen(const multisig_tx_set& txs) const
     {
       // Check that the key images are consistent between tx vin and construction data
       const crypto::key_image multisig_ki = rct::rct2ki(cd.sources[src_idx].multisig_kLRki.ki);
-      CHECK_AND_ASSERT_THROW_MES(ptx.tx.vin[src_idx].type() == typeid(cryptonote::txin_to_key), "multisig tx cannot be miner");
-      const crypto::key_image vin_ki = boost::get<cryptonote::txin_to_key>(ptx.tx.vin[src_idx]).k_image;
+      CHECK_AND_ASSERT_THROW_MES(ptx.tx.vin[src_idx].type() == typeid(cryptonote::txin_zephyr_key), "multisig tx cannot be miner");
+      const crypto::key_image vin_ki = boost::get<cryptonote::txin_zephyr_key>(ptx.tx.vin[src_idx]).k_image;
       CHECK_AND_ASSERT_THROW_MES(multisig_ki == vin_ki, "Mismatched key image b/t vin and construction data");
 
       // Add key image to set
