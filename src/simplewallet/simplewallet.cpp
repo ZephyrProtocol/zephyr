@@ -296,11 +296,11 @@ namespace
 
   const char* USAGE_MINT_STABLE("mint_stable [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] (<URI> | <address> <ZEPH amount> [memo=<memo data>])");
   const char* USAGE_REDEEM_STABLE("redeem_stable [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] (<URI> | <address> <ZSD amount> [memo=<memo data>])");
-  const char* USAGE_STABLE_TRANSFER("stable_transfer [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] (<URI> | <address> <ZSD amount> [memo=<memo data>])");
+  const char* USAGE_STABLE_TRANSFER("stable_transfer [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] (<URI> | <address> <ZSD amount> [subtractfeefrom=<D0>[,<D1>,all,...]] [memo=<memo data>])");
 
   const char* USAGE_MINT_RESERVE("mint_reserve [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] (<URI> | <address> <ZEPH amount> [memo=<memo data>])");
   const char* USAGE_REDEEM_RESERVE("redeem_reserve [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] (<URI> | <address> <ZRS amount> [memo=<memo data>])");
-  const char* USAGE_RESERVE_TRANSFER("reserve_transfer [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] (<URI> | <address> <ZRS amount> [memo=<memo data>])");
+  const char* USAGE_RESERVE_TRANSFER("reserve_transfer [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] (<URI> | <address> <ZRS amount> [subtractfeefrom=<D0>[,<D1>,all,...]] [memo=<memo data>])");
 
   const char* USAGE_RESERVE_INFO("reserve_info");
   const char* USAGE_RESERVE_RATIO("reserve_ratio");
@@ -3275,7 +3275,7 @@ simple_wallet::simple_wallet()
                            tr("Show the blockchain height."));
   m_cmd_binder.set_handler("transfer", boost::bind(&simple_wallet::on_command, this, &simple_wallet::transfer, _1),
                            tr(USAGE_TRANSFER),
-                           tr("Transfer <amount> to <address>. If the parameter \"index=<N1>[,<N2>,...]\" is specified, the wallet uses outputs received by addresses of those indices. If omitted, the wallet randomly chooses address indices to be used. In any case, it tries its best not to combine outputs across multiple addresses. <priority> is the priority of the transaction. The higher the priority, the higher the transaction fee. Valid values in priority order (from lowest to highest) are: unimportant, normal, elevated, priority. If omitted, the default value (see the command \"set priority\") is used. <ring_size> is the number of inputs to include for untraceability. Multiple payments can be made at once by adding URI_2 or <address_2> <amount_2> etcetera (before the payment ID, if it's included). The \"subtractfeefrom=\" list allows you to choose which destinations to fund the tx fee from instead of the change output. The fee will be split across the chosen destinations proportionally equally. For example, to make 3 transfers where the fee is taken from the first and third destinations, one could do: \"transfer <addr1> 3 <addr2> 0.5 <addr3> 1 subtractfeefrom=0,2\". Let's say the tx fee is 0.1. The balance would drop by exactly 4.5 XMR including fees, and addr1 & addr3 would receive 2.925 & 0.975 XMR, respectively. Use \"subtractfeefrom=all\" to spread the fee across all destinations."));
+                           tr("Transfer <amount> to <address>. If the parameter \"index=<N1>[,<N2>,...]\" is specified, the wallet uses outputs received by addresses of those indices. If omitted, the wallet randomly chooses address indices to be used. In any case, it tries its best not to combine outputs across multiple addresses. <priority> is the priority of the transaction. The higher the priority, the higher the transaction fee. Valid values in priority order (from lowest to highest) are: unimportant, normal, elevated, priority. If omitted, the default value (see the command \"set priority\") is used. <ring_size> is the number of inputs to include for untraceability. Multiple payments can be made at once by adding URI_2 or <address_2> <amount_2> etcetera (before the payment ID, if it's included). The \"subtractfeefrom=\" list allows you to choose which destinations to fund the tx fee from instead of the change output. The fee will be split across the chosen destinations proportionally equally. For example, to make 3 transfers where the fee is taken from the first and third destinations, one could do: \"transfer <addr1> 3 <addr2> 0.5 <addr3> 1 subtractfeefrom=0,2\". Let's say the tx fee is 0.1. The balance would drop by exactly 4.5 ZEPH including fees, and addr1 & addr3 would receive 2.925 & 0.975 ZEPH, respectively. Use \"subtractfeefrom=all\" to spread the fee across all destinations."));
   m_cmd_binder.set_handler("locked_transfer",
                            boost::bind(&simple_wallet::on_command, this, &simple_wallet::locked_transfer,_1),
                            tr(USAGE_LOCKED_TRANSFER),
@@ -3798,7 +3798,7 @@ m_cmd_binder.set_handler("redeem_stable",
 m_cmd_binder.set_handler("stable_transfer",
                            boost::bind(&simple_wallet::stable_transfer, this, _1),
                            tr(USAGE_STABLE_TRANSFER),
-                           tr("Transfer <amount> Zephyr Stable Dollars (ZSD), with optional <priority> [0-5]"));
+                           tr("Transfer <amount> Zephyr Stable Dollars (ZSD), with optional <priority> [0-5]. The \"subtractfeefrom=\" list allows you to choose which destinations to fund the tx fee from instead of the change output. The fee will be split across the chosen destinations proportionally equally. For example, to make 3 transfers where the fee is taken from the first and third destinations, one could do: \"transfer <addr1> 3 <addr2> 0.5 <addr3> 1 subtractfeefrom=0,2\". Let's say the tx fee is 0.1. The balance would drop by exactly 4.5 ZSD including fees, and addr1 & addr3 would receive 2.925 & 0.975 ZSD, respectively. Use \"subtractfeefrom=all\" to spread the fee across all destinations."));
 
 m_cmd_binder.set_handler("mint_reserve",
                            boost::bind(&simple_wallet::mint_reserve, this, _1),
@@ -3811,7 +3811,7 @@ m_cmd_binder.set_handler("redeem_reserve",
 m_cmd_binder.set_handler("reserve_transfer",
                            boost::bind(&simple_wallet::reserve_transfer, this, _1),
                            tr(USAGE_RESERVE_TRANSFER),
-                           tr("Transfer <amount> Zephyr Reserve Shares (ZRS), with optional <priority> [0-5]"));
+                           tr("Transfer <amount> Zephyr Reserve Shares (ZRS), with optional <priority> [0-5]. The \"subtractfeefrom=\" list allows you to choose which destinations to fund the tx fee from instead of the change output. The fee will be split across the chosen destinations proportionally equally. For example, to make 3 transfers where the fee is taken from the first and third destinations, one could do: \"transfer <addr1> 3 <addr2> 0.5 <addr3> 1 subtractfeefrom=0,2\". Let's say the tx fee is 0.1. The balance would drop by exactly 4.5 ZRS including fees, and addr1 & addr3 would receive 2.925 & 0.975 ZRS, respectively. Use \"subtractfeefrom=all\" to spread the fee across all destinations."));
 
  m_cmd_binder.set_handler("reserve_info",
                            boost::bind(&simple_wallet::reserve_info, this, _1),
@@ -6655,6 +6655,11 @@ bool simple_wallet::transfer_main(
   tt tx_type;
   if(!get_tx_type(source_asset, dest_asset, tx_type)) {
     fail_msg_writer() << tr("failed to get tx asset types.");
+    return false;
+  }
+
+  if ((subtract_fee_from_all || subtract_fee_from_outputs.size()) && tx_type != tt::TRANSFER && tx_type != tt::STABLE_TRANSFER && tx_type != tt::RESERVE_TRANSFER) {
+    fail_msg_writer() << tr("subtractfeefrom option is only available for transfers.");
     return false;
   }
 
