@@ -1071,11 +1071,13 @@ namespace cryptonote
         std::string id;
         uint64_t weight;
         uint64_t fee;
+        uint8_t tx_type;
 
         BEGIN_KV_SERIALIZE_MAP()
           KV_SERIALIZE(id)
           KV_SERIALIZE(weight)
           KV_SERIALIZE(fee)
+          KV_SERIALIZE(tx_type)
         END_KV_SERIALIZE_MAP()
       };
 

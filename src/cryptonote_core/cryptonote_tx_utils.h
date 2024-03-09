@@ -149,6 +149,7 @@ namespace cryptonote
     crypto::hash id;
     uint64_t weight;
     uint64_t fee;
+    uint8_t tx_type;
   };
 
   //---------------------------------------------------------------
