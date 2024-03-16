@@ -376,6 +376,7 @@ namespace cryptonote
     
     // Handle miner_txs differently - full validation is performed in validate_miner_transaction()
     if (is_miner_tx) {
+      // TODO: DEMEMETREE hmm Do I need to change this? probably not but need to discuss
       destination = "ZEPH";
     } else {
     
