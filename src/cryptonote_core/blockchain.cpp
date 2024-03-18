@@ -1395,7 +1395,7 @@ bool Blockchain::validate_miner_transaction(
         std::string tx_asset_type;
         bool ok = cryptonote::get_output_asset_type(o, tx_asset_type);
         if (!ok) {
-          MERROR("Failed to get output asset type from miner TX vout[" << idx << "]");
+          MERROR("Failed to get output asset type from miner TX vout");
           return false;
         }
 
