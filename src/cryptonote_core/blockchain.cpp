@@ -1369,21 +1369,9 @@ bool Blockchain::validate_miner_transaction(
 
   std::set<std::string> unique_assets;
   for (const auto& asset : fee_map) {
-    if (asset.first != "ZEPH") {
-      unique_assets.insert(asset.first);
-    }
+    unique_assets.insert(asset.first);
   }
 
-  // check output size
-  const size_t output_size = b.miner_tx.vout.size();
-  const size_t expected_output_size = 2 + unique_assets.size();
-  if (already_generated_coins != 0 && output_size != expected_output_size) {
-    MERROR("Miner tx has invalid output size!");
-    return false;
-  }
-
-
-  //validate reward
   std::map<std::string, uint64_t> money_in_use_map;
   for (auto& o: b.miner_tx.vout) {
     if (o.target.type() == typeid(txout_zephyr_tagged_key)) {
@@ -1395,87 +1383,60 @@ bool Blockchain::validate_miner_transaction(
   }
 
   uint64_t median_weight = m_current_block_cumul_weight_median;
-  
-
   if (!get_block_reward(median_weight, cumulative_block_weight, already_generated_coins, base_reward, version))
   {
     MERROR_VER("block weight " << cumulative_block_weight << " is bigger than allowed for this blockchain");
     return false;
   }
+  
+  if (already_generated_coins != 0) {
+    uint64_t governance_balance = 0;
+    for(auto& o: b.miner_tx.vout) {
+        std::string tx_asset_type;
+        bool ok = cryptonote::get_output_asset_type(o, tx_asset_type);
+        if (!ok) {
+          MERROR("Failed to get output asset type from miner TX vout");
+          return false;
+        }
 
-  if (already_generated_coins != 0)
-  {
-    // validate first & second outputs are ZEPH (miner tx and governance reward)
-    std::string first_output_asset_type, second_output_asset_type;
-    bool ok = cryptonote::get_output_asset_type(b.miner_tx.vout[0], first_output_asset_type);
-    ok     |= cryptonote::get_output_asset_type(b.miner_tx.vout[1], second_output_asset_type);
-    if ((first_output_asset_type != "ZEPH") || (second_output_asset_type != "ZEPH")) {
-      MERROR_VER("First and second outputs of a miner tx must be ZEPH");
-      return false;
+        if(tx_asset_type == "ZEPH"
+          && validate_governance_reward_key(m_db->height(),
+                                            cryptonote::get_governance_address(m_nettype),
+                                            1,
+                                            boost::get<txout_zephyr_tagged_key>(o.target).key,
+                                            m_nettype)) {
+          governance_balance += o.amount;
+        }
+
+        // make sure each asset type in miner tx actually exist in at least one of the fee maps
+        if (unique_assets.find(tx_asset_type) == unique_assets.end()) {
+          MDEBUG("Malicious miner tx found. The block doesnt have a fee paid in " << tx_asset_type << ", but at least one of the miner tx outputs was " << tx_asset_type << ".");
+          return false;
+        }
     }
 
     uint64_t governance_reward = get_governance_reward(base_reward);
-    if (b.miner_tx.vout[1].amount != governance_reward)
-    {
-      MERROR("Governance reward amount incorrect.  Should be: " << print_money(governance_reward) << ", is: " << print_money(b.miner_tx.vout[1].amount));
+    if (governance_balance != governance_reward) {
+      MERROR("Governance reward amount incorrect.  Should be: " << print_money(governance_reward) << ", is: " << print_money(governance_balance));
       return false;
     }
+  }
 
-    std::string governance_wallet_address_str = cryptonote::get_governance_address(m_nettype);
-    if (!validate_governance_reward_key(m_db->height(), governance_wallet_address_str, 1, boost::get<txout_zephyr_tagged_key>(b.miner_tx.vout[1].target).key, m_nettype))
-    {
-      MERROR("Governance reward public key incorrect (vout[1]).");
+  uint64_t reserve_reward = (version >= HF_VERSION_DJED) ? get_reserve_reward(base_reward) : 0;
+  for (const auto& [asset_type, expected_amount] : fee_map) {
+    uint64_t total_expected = 0;
+
+    bool should_check = true;
+    if(asset_type == "ZEPH") {
+      total_expected = base_reward - reserve_reward + expected_amount;
+    } else {
+      should_check = (version >= HF_VERSION_DJED);
+      total_expected = expected_amount;
+    }
+
+    if(should_check && money_in_use_map[asset_type] != total_expected) {
+      MERROR_VER("coinbase transaction amount mismatch for " << asset_type << ". Expected: " << print_money(total_expected) << ", found: " << print_money(money_in_use_map[asset_type]));
       return false;
-    }
-
-    if (unique_assets.size() > 0) {
-      for (uint64_t idx = 2; idx < output_size; idx++) {
-        ok = cryptonote::get_output_asset_type(b.miner_tx.vout[idx], first_output_asset_type);
-        if (!ok) {
-          MERROR("Failed to get output asset type from miner TX vout[" << idx << "]");
-          return false;
-        }
-
-        if (first_output_asset_type == "ZEPH") {
-          MERROR("ZEPH not allowed in additional asset types for miner TX : tx.vout[" << idx << "]");
-          return false;
-        }
-
-        if (b.miner_tx.vout[idx].amount != fee_map[first_output_asset_type]) {
-          MERROR("Miner reward amount for " << first_output_asset_type << " is incorrect. Should be: " << print_money(fee_map[first_output_asset_type]) << ", is: " << print_money(b.miner_tx.vout[idx].amount));
-          return false;
-        }
-      }
-    }
-  }
-
-  uint64_t reserve_reward = 0;
-  if (version >= HF_VERSION_DJED) {
-    reserve_reward = get_reserve_reward(base_reward);
-  }
-
-  if(money_in_use_map["ZEPH"] != base_reward - reserve_reward + fee_map["ZEPH"])
-  {
-    MERROR_VER("coinbase transaction amount mismatch (" << print_money(money_in_use_map["ZEPH"]) << "). Block reward is " << print_money(base_reward - reserve_reward + fee_map["ZEPH"]) << "(" << print_money(base_reward - reserve_reward) << "+" << print_money(fee_map["ZEPH"]) << ")");
-    return false;
-  }
-
-  if (version >= HF_VERSION_DJED) {
-    for (auto &money_in_use_map_entry: money_in_use_map) {
-      const std::string& asset = money_in_use_map_entry.first;
-      if (asset == "ZEPH") continue;
-
-      // make sure each asset type in miner tx actually exist in at least one of the fee maps
-      if (unique_assets.find(asset) == unique_assets.end()) {
-        MDEBUG("Malicious miner tx found. The block doesnt have a fee paid in " << asset << ", but at least one of the miner tx outputs was " << asset << ".");
-        return false;
-      }
-
-      // make sure the output amount isnt more than what it should be.
-      if (money_in_use_map_entry.second > fee_map[asset]) {
-        MDEBUG("miner transaction is spending too much money in " << asset << ": spent: " << money_in_use_map_entry.second << ", fees " << fee_map[asset]);
-        return false;
-      }
     }
   }
 

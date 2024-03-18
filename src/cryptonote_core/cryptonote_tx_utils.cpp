@@ -376,6 +376,7 @@ namespace cryptonote
     
     // Handle miner_txs differently - full validation is performed in validate_miner_transaction()
     if (is_miner_tx) {
+      // TODO: DEMEMETREE hmm Do I need to change this? probably not but need to discuss
       destination = "ZEPH";
     } else {
     
@@ -1567,7 +1568,6 @@ namespace cryptonote
   void get_altblock_longhash(const block& b, crypto::hash& res, const crypto::hash& seed_hash)
   {
     blobdata bd = get_block_hashing_blob(b);
-    rx_slow_hash(seed_hash.data, bd.data(), bd.size(), res.data);
   }
 
   bool get_block_longhash(const Blockchain *pbc, const blobdata& bd, crypto::hash& res, const uint64_t height, const int major_version, const crypto::hash *seed_hash, const int miners)
@@ -1581,7 +1581,6 @@ namespace cryptonote
     {
       memset(&hash, 0, sizeof(hash));  // only happens when generating genesis block
     }
-    rx_slow_hash(hash.data, bd.data(), bd.size(), res.data);
 
     return true;
   }
