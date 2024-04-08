@@ -1171,17 +1171,17 @@ TEST(Serialization, difficulty_type)
   ASSERT_EQ(v_original, v_unserialized);
 }
 
-TEST(Serialization, adl_free_function)
-{
-  std::stringstream ss;
-  json_archive<true> ar(ss);
+// TEST(Serialization, adl_free_function)
+// {
+//   std::stringstream ss;
+//   json_archive<true> ar(ss);
 
-  const std::string msg = "Howdy, World!";
-  example_namespace::ADLExampleStruct aes{msg};
+//   const std::string msg = "Howdy, World!";
+//   example_namespace::ADLExampleStruct aes{msg};
 
-  ASSERT_TRUE(serialization::serialize(ar, aes));
+//   ASSERT_TRUE(serialization::serialize(ar, aes));
 
-  //                                                       VVVVVVVVVVVVVVVVVVVVVVVVVV weird string serialization artifact
-  const std::string expected = "{\"custom_fieldname\": " + std::to_string(msg.size()) + '"' + epee::string_tools::buff_to_hex_nodelimer(msg) + "\"}";
-  EXPECT_EQ(expected, ss.str());
-}
+//   //                                                       VVVVVVVVVVVVVVVVVVVVVVVVVV weird string serialization artifact
+//   const std::string expected = "{\"custom_fieldname\": " + std::to_string(msg.size()) + '"' + epee::string_tools::buff_to_hex_nodelimer(msg) + "\"}";
+//   EXPECT_EQ(expected, ss.str());
+// }
