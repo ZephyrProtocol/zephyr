@@ -948,14 +948,14 @@ void WalletImpl::setSubaddressLookahead(uint32_t major, uint32_t minor)
     m_wallet->set_subaddress_lookahead(major, minor);
 }
 
-uint64_t WalletImpl::balance(uint32_t accountIndex) const
+uint64_t WalletImpl::balance(const std::string &source_asset, uint32_t accountIndex) const
 {
-    return m_wallet->balance("ZEPH", accountIndex, false);
+    return m_wallet->balance(source_asset, accountIndex, false);
 }
 
-uint64_t WalletImpl::unlockedBalance(uint32_t accountIndex) const
+uint64_t WalletImpl::unlockedBalance(const std::string &source_asset, uint32_t accountIndex) const
 {
-    return m_wallet->unlocked_balance("ZEPH", accountIndex, false);
+    return m_wallet->unlocked_balance(source_asset, accountIndex, false);
 }
 
 uint64_t WalletImpl::blockChainHeight() const
@@ -1443,9 +1443,15 @@ PendingTransaction* WalletImpl::restoreMultisigTransaction(const string& signDat
 //    - unconfirmed_transfer_details;
 //    - confirmed_transfer_details)
 
-PendingTransaction *WalletImpl::createTransactionMultDest(const std::vector<string> &dst_addr, const string &payment_id, optional<std::vector<uint64_t>> amount, uint32_t mixin_count, PendingTransaction::Priority priority, uint32_t subaddr_account, std::set<uint32_t> subaddr_indices)
-
-{
+PendingTransaction *WalletImpl::createTransactionMultDest(const std::string& source_asset,
+                                                          const std::string &dest_asset,
+                                                          const std::vector<string> &dst_addr, 
+                                                          const string &payment_id,
+                                                          optional<std::vector<uint64_t>> amount,
+                                                          uint32_t mixin_count,
+                                                          PendingTransaction::Priority priority,
+                                                          uint32_t subaddr_account,
+                                                          std::set<uint32_t> subaddr_indices) {
     clearStatus();
     // Pause refresh thread while creating transaction
     pauseRefresh();
@@ -1501,6 +1507,7 @@ PendingTransaction *WalletImpl::createTransactionMultDest(const std::vector<stri
                 de.amount = (*amount)[i];
                 de.is_subaddress = info.is_subaddress;
                 de.is_integrated = info.has_payment_id;
+                de.dest_asset_type = dest_asset;
                 dsts.push_back(de);
             } else {
                 if (subaddr_indices.empty()) {
@@ -1521,11 +1528,11 @@ PendingTransaction *WalletImpl::createTransactionMultDest(const std::vector<stri
             fake_outs_count = m_wallet->adjust_mixin(mixin_count);
 
             if (amount) {
-                transaction->m_pending_tx = m_wallet->create_transactions_2(dsts, "ZEPH", fake_outs_count, 0 /* unlock_time */,
+                transaction->m_pending_tx = m_wallet->create_transactions_2(dsts, source_asset, fake_outs_count, 0 /* unlock_time */,
                                                                             adjusted_priority,
                                                                             extra, subaddr_account, subaddr_indices);
             } else {
-                transaction->m_pending_tx = m_wallet->create_transactions_all(0, "ZEPH", "ZEPH", info.address, info.is_subaddress, 1, fake_outs_count, 0 /* unlock_time */,
+                transaction->m_pending_tx = m_wallet->create_transactions_all(0, source_asset, dest_asset, info.address, info.is_subaddress, 1, fake_outs_count, 0 /* unlock_time */,
                                                                               adjusted_priority,
                                                                               extra, subaddr_account, subaddr_indices);
             }
@@ -1607,11 +1614,23 @@ PendingTransaction *WalletImpl::createTransactionMultDest(const std::vector<stri
     return transaction;
 }
 
-PendingTransaction *WalletImpl::createTransaction(const string &dst_addr, const string &payment_id, optional<uint64_t> amount, uint32_t mixin_count,
-                                                  PendingTransaction::Priority priority, uint32_t subaddr_account, std::set<uint32_t> subaddr_indices)
-
-{
-    return createTransactionMultDest(std::vector<string> {dst_addr}, payment_id, amount ? (std::vector<uint64_t> {*amount}) : (optional<std::vector<uint64_t>>()), mixin_count, priority, subaddr_account, subaddr_indices);
+PendingTransaction *WalletImpl::createTransaction(const std::string &source_asset,
+                                                  const std::string &dest_asset,
+                                                  const string &dst_addr,
+                                                  const string &payment_id,
+                                                  optional<uint64_t> amount,
+                                                  uint32_t mixin_count,
+                                                  PendingTransaction::Priority priority,
+                                                  uint32_t subaddr_account,
+                                                  std::set<uint32_t> subaddr_indices) {
+    return createTransactionMultDest(source_asset,
+                                    dest_asset,
+                                    std::vector<string> {dst_addr},
+                                    payment_id, amount ? (std::vector<uint64_t> {*amount}) : (optional<std::vector<uint64_t>>()),
+                                    mixin_count,
+                                    priority,
+                                    subaddr_account,
+                                    subaddr_indices);
 }
 
 PendingTransaction *WalletImpl::createSweepUnmixableTransaction()

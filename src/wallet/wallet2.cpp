@@ -5421,8 +5421,9 @@ void wallet2::generate(const std::string& wallet_, const epee::wipeable_string& 
   create_keys_file(wallet_, false, password, m_nettype != MAINNET || create_address_file);
   setup_new_blockchain();
 
-  if (!wallet_.empty())
+  if (!wallet_.empty()) {
     store();
+  }
 }
 
 /*!

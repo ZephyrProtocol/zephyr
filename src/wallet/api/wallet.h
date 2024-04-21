@@ -111,8 +111,8 @@ public:
     void setTrustedDaemon(bool arg) override;
     bool trustedDaemon() const override;
     bool setProxy(const std::string &address) override;
-    uint64_t balance(uint32_t accountIndex = 0) const override;
-    uint64_t unlockedBalance(uint32_t accountIndex = 0) const override;
+    uint64_t balance(const std::string &source_asset, uint32_t accountIndex = 0) const override;
+    uint64_t unlockedBalance(const std::string &source_asset, uint32_t accountIndex = 0) const override;
     uint64_t blockChainHeight() const override;
     uint64_t approximateBlockChainHeight() const override;
     uint64_t estimateBlockChainHeight() const override;
@@ -153,12 +153,14 @@ public:
     bool hasMultisigPartialKeyImages() const override;
     PendingTransaction*  restoreMultisigTransaction(const std::string& signData) override;
 
-    PendingTransaction * createTransactionMultDest(const std::vector<std::string> &dst_addr, const std::string &payment_id,
+    PendingTransaction * createTransactionMultDest(const std::string& source_asset, const std::string &dest_asset,
+                                        const std::vector<std::string> &dst_addr, const std::string &payment_id,
                                         optional<std::vector<uint64_t>> amount, uint32_t mixin_count,
                                         PendingTransaction::Priority priority = PendingTransaction::Priority_Low,
                                         uint32_t subaddr_account = 0,
                                         std::set<uint32_t> subaddr_indices = {}) override;
-    PendingTransaction * createTransaction(const std::string &dst_addr, const std::string &payment_id,
+    PendingTransaction * createTransaction(const std::string& source_asset, const std::string &dest_asset,
+                                        const std::string &dst_addr, const std::string &payment_id,
                                         optional<uint64_t> amount, uint32_t mixin_count,
                                         PendingTransaction::Priority priority = PendingTransaction::Priority_Low,
                                         uint32_t subaddr_account = 0,

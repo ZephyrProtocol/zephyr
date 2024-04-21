@@ -2050,7 +2050,7 @@ namespace cryptonote
 
     for (const auto& entry : tx_backlog)
     {
-      res.tx_backlog.emplace_back(COMMAND_RPC_GETMINERDATA::response::tx_backlog_entry{string_tools::pod_to_hex(entry.id), entry.weight, entry.fee});
+      res.tx_backlog.emplace_back(COMMAND_RPC_GETMINERDATA::response::tx_backlog_entry{string_tools::pod_to_hex(entry.id), entry.weight, entry.fee, entry.tx_type});
     }
 
     res.prev_id = string_tools::pod_to_hex(prev_id);

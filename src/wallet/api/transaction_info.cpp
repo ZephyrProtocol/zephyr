@@ -134,6 +134,12 @@ string TransactionInfoImpl::paymentId() const
     return m_paymentid;
 }
 
+string TransactionInfoImpl::asset_type() const
+{
+    return m_asset_type;
+}
+
+
 const std::vector<TransactionInfo::Transfer> &TransactionInfoImpl::transfers() const
 {
     return m_transfers;

@@ -1185,7 +1185,13 @@ namespace cryptonote
 
     // First get everything from the mempool, filter it later
     m_blockchain.for_all_txpool_txes([&tmp, &total_weight](const crypto::hash &txid, const txpool_tx_meta_t &meta, const cryptonote::blobdata_ref*){
-      tmp.emplace_back(tx_block_template_backlog_entry{txid, meta.weight, meta.fee});
+      uint8_t tx_type = 0;
+      if(strcmp(meta.fee_asset_type, "ZEPHUSD") == 0) {
+        tx_type = 1;
+      } else if(strcmp(meta.fee_asset_type, "ZEPHRSV") == 0) {
+        tx_type = 2;
+      }
+      tmp.emplace_back(tx_block_template_backlog_entry{txid, meta.weight, meta.fee, tx_type});
       total_weight += meta.weight;
       return true;
     }, false, include_sensitive ? relay_category::all : relay_category::broadcasted);
@@ -1221,7 +1227,6 @@ namespace cryptonote
           if (have_key_images(k_images, tx))
             continue;
           append_key_images(k_images, tx);
-
           backlog.push_back(e);
           w += e.weight;
           if (w > max_backlog_weight)
