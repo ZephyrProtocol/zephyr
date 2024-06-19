@@ -357,6 +357,7 @@ public:
   bool block_rtxn_start(MDB_txn **mtxn, mdb_txn_cursors **mcur) const;
 
   virtual void pop_block(block& blk, std::vector<transaction>& txs);
+  virtual void pop_reserve_reward(block& blk, const uint64_t& block_weight);
 
   virtual bool can_thread_bulk_indices() const { return true; }
 
@@ -397,7 +398,8 @@ private:
                 , const crypto::hash& block_hash
               );
 
-  virtual void remove_block(const uint64_t& reserve_reward);
+  virtual void remove_block();
+  virtual void remove_reserve_reward(const uint64_t& reserve_reward);
 
   virtual uint64_t add_transaction_data(const crypto::hash& blk_hash, const std::pair<transaction, blobdata_ref>& tx, const crypto::hash& tx_hash, const crypto::hash& tx_prunable_hash, const bool miner_tx);
 

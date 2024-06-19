@@ -59,7 +59,7 @@ public:
                         ) override {
     blocks.push_back(blk);
   }
-  virtual void remove_block(const uint64_t& reserve_reward) override { blocks.pop_back(); }
+  virtual void remove_block() override { blocks.pop_back(); }
   virtual block get_block_from_height(const uint64_t& height) const override {
     return blocks.at(height);
   }
@@ -353,7 +353,7 @@ TEST(reorganize, Changed)
   static const uint8_t block_versions_new[] =    { 1, 1, 4, 4, 7, 7, 4, 7, 7, 7, 9, 9, 9, 9, 9, 1 };
   static const uint8_t expected_versions_new[] = { 1, 1, 1, 1, 1, 1, 4, 4, 4, 4, 4, 7, 7, 7, 9, 9 };
   for (uint64_t h = 3; h < 16; ++h) {
-    db.remove_block(0);
+    db.remove_block();
   }
   ASSERT_EQ(db.height(), 3);
   hf.reorganize_from_block_height(2);
@@ -362,7 +362,7 @@ TEST(reorganize, Changed)
     bool ret = hf.add(db.get_block_from_height(h), h);
     ASSERT_EQ (ret, h < 15);
   }
-  db.remove_block(0); // last block added to the blockchain, but not hf
+  db.remove_block(); // last block added to the blockchain, but not hf
   ASSERT_EQ(db.height(), 15);
   for (int hh = 0; hh < 15; ++hh) {
     ASSERT_EQ(hf.get(hh), expected_versions_new[hh]);
@@ -556,13 +556,13 @@ TEST(reorganize, changed)
     ASSERT_EQ(hf.get_current_version(), 3);
 
     // pop a few blocks and check current version goes back down
-    db.remove_block(0);
+    db.remove_block();
     hf.reorganize_from_block_height(8);
     ASSERT_EQ(hf.get_current_version(), 3);
-    db.remove_block(0);
+    db.remove_block();
     hf.reorganize_from_block_height(7);
     ASSERT_EQ(hf.get_current_version(), 2);
-    db.remove_block(0);
+    db.remove_block();
     ASSERT_EQ(hf.get_current_version(), 2);
 
     // add blocks again, but remaining at 2

@@ -336,22 +336,7 @@ void BlockchainDB::pop_block(block& blk, std::vector<transaction>& txs)
 {
   blk = get_top_block();
 
-  // Remove reserve reward from reserve tally
-  uint64_t reserve_reward = 0;
-  uint64_t block_height = boost::get<txin_gen>(blk.miner_tx.vin.front()).height;
-  if (blk.major_version >= HF_VERSION_DJED)
-  {
-    uint64_t base_reward;
-    const uint64_t already_generated_coins = get_block_already_generated_coins(block_height - 1);
-    if (!get_block_reward(0, 1, already_generated_coins, base_reward, blk.major_version))
-    {
-      throw DB_ERROR("Failed to get block reward for pop_block");
-    }
-    reserve_reward = get_reserve_reward(base_reward);
-  }
-  MDEBUG("reserve reward removed from block: " << reserve_reward << " height: " << block_height);
-
-  remove_block(reserve_reward);
+  remove_block();
 
   for (const auto& h : boost::adaptors::reverse(blk.tx_hashes))
   {
@@ -362,6 +347,25 @@ void BlockchainDB::pop_block(block& blk, std::vector<transaction>& txs)
     remove_transaction(h);
   }
   remove_transaction(get_transaction_hash(blk.miner_tx));
+}
+
+void BlockchainDB::pop_reserve_reward(block& blk, const uint64_t& block_weight)
+{
+  if (blk.major_version >= HF_VERSION_DJED)
+  {
+    uint64_t block_height = boost::get<txin_gen>(blk.miner_tx.vin.front()).height;
+    uint64_t base_reward;
+    const uint64_t already_generated_coins = get_block_already_generated_coins(block_height - 1);
+    const uint64_t median_block_weight = get_max_block_size() / 2;
+
+    if (!get_block_reward(median_block_weight, block_weight, already_generated_coins, base_reward, blk.major_version))
+    {
+      throw DB_ERROR("Failed to get block reward for pop_reserve_reward");
+    }
+
+    uint64_t reserve_reward = get_reserve_reward(base_reward);
+    remove_reserve_reward(reserve_reward);
+  }
 }
 
 bool BlockchainDB::is_open() const

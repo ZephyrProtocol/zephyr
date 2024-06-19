@@ -938,11 +938,15 @@ void BlockchainLMDB::add_block(const block& blk, size_t block_weight, uint64_t l
   boost::multiprecision::int128_t source_tally = read_circulating_supply_data(m_cur_circ_supply_tally, source_idx);
 
   boost::multiprecision::int128_t final_source_tally;
-  final_source_tally = source_tally + reserve_reward; // Add reserve reward ZEPH to reserve
+  if (m_height == 274662) {
+    final_source_tally = 1355092382175150195;
+  } else {
+    final_source_tally = source_tally + reserve_reward; // Add reserve reward ZEPH to reserve
+  }
   write_circulating_supply_data(m_cur_circ_supply_tally, source_idx, final_source_tally);
 }
 
-void BlockchainLMDB::remove_block(const uint64_t& reserve_reward)
+void BlockchainLMDB::remove_block()
 {
   int result;
 
@@ -957,7 +961,6 @@ void BlockchainLMDB::remove_block(const uint64_t& reserve_reward)
   CURSOR(block_info)
   CURSOR(block_heights)
   CURSOR(blocks)
-  CURSOR(circ_supply_tally)
   MDB_val_copy<uint64_t> k(m_height - 1);
   MDB_val h = k;
   if ((result = mdb_cursor_get(m_cur_block_info, (MDB_val *)&zerokval, &h, MDB_GET_BOTH)))
@@ -978,16 +981,33 @@ void BlockchainLMDB::remove_block(const uint64_t& reserve_reward)
 
   if ((result = mdb_cursor_del(m_cur_block_info, 0)))
       throw1(DB_ERROR(lmdb_error("Failed to add removal of block info to db transaction: ", result).c_str()));
+}
 
+void BlockchainLMDB::remove_reserve_reward(const uint64_t& reserve_reward)
+{
+  LOG_PRINT_L3("BlockchainLMDB::" << __func__);
+  check_open();
+  uint64_t m_height = height();
+
+  if (m_height == 0)
+    throw0(BLOCK_DNE ("Attempting to remove block from an empty blockchain"));
+
+  mdb_txn_cursors *m_cursors = &m_wcursors;
+  CURSOR(circ_supply_tally)
 
   uint64_t source_currency_type = std::find(oracle::ASSET_TYPES.begin(), oracle::ASSET_TYPES.end(), "ZEPH") - oracle::ASSET_TYPES.begin();
   MDB_val_copy<uint64_t> source_idx(source_currency_type);
   boost::multiprecision::int128_t source_tally = read_circulating_supply_data(m_cur_circ_supply_tally, source_idx);
   boost::multiprecision::int128_t final_source_tally;
-  final_source_tally = source_tally - reserve_reward; // Undo adding reserve reward ZEPH to reserve
-  if (final_source_tally < 0) {
-    LOG_ERROR(__func__ << " : reserve underflow detected for ZEPH: correcting supply tally by " << final_source_tally);
-    final_source_tally = 0;
+
+  if (m_height == 274662) {
+    final_source_tally = 1355089749101175250;
+  } else {
+    final_source_tally = source_tally - reserve_reward; // Undo adding reserve reward ZEPH to reserve
+    if (final_source_tally < 0) {
+      LOG_ERROR(__func__ << " : reserve underflow detected for ZEPH: correcting supply tally by " << final_source_tally);
+      final_source_tally = 0;
+    }
   }
   write_circulating_supply_data(m_cur_circ_supply_tally, source_idx, final_source_tally);
 }
@@ -2998,21 +3018,10 @@ void BlockchainLMDB::add_max_block_size(uint64_t sz)
 
   MDB_val_str(k, "max_block_size");
   MDB_val v;
-  int result = mdb_cursor_get(m_cur_properties, &k, &v, MDB_SET);
-  if (result && result != MDB_NOTFOUND)
-    throw0(DB_ERROR(lmdb_error("Failed to retrieve max block size: ", result).c_str()));
-  uint64_t max_block_size = 0;
-  if (result == 0)
-  {
-    if (v.mv_size != sizeof(uint64_t))
-      throw0(DB_ERROR("Failed to retrieve or create max block size: unexpected value size"));
-    memcpy(&max_block_size, v.mv_data, sizeof(max_block_size));
-  }
-  if (sz > max_block_size)
-    max_block_size = sz;
+  uint64_t max_block_size = sz;
   v.mv_data = (void*)&max_block_size;
   v.mv_size = sizeof(max_block_size);
-  result = mdb_cursor_put(m_cur_properties, &k, &v, 0);
+  int result = mdb_cursor_put(m_cur_properties, &k, &v, 0);
   if (result)
     throw0(DB_ERROR(lmdb_error("Failed to set max_block_size: ", result).c_str()));
 }
@@ -4565,6 +4574,21 @@ void BlockchainLMDB::pop_block(block& blk, std::vector<transaction>& txs)
   catch (...)
   {
     block_wtxn_abort();
+    throw;
+  }
+}
+
+void BlockchainLMDB::pop_reserve_reward(block& blk, const uint64_t& block_weight)
+{
+  LOG_PRINT_L3("BlockchainLMDB::" << __func__);
+  check_open();
+
+  try
+  {
+    BlockchainDB::pop_reserve_reward(blk, block_weight);
+  }
+  catch (...)
+  {
     throw;
   }
 }

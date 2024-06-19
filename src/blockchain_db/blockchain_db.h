@@ -423,10 +423,19 @@ private:
    * If any of this cannot be done, the subclass should throw the corresponding
    * subclass of DB_EXCEPTION
    *
+   */
+  virtual void remove_block() = 0;
+
+  /**
+   * @brief remove the reserve reward from circ supply
+   *
+   * If any of this cannot be done, the subclass should throw the corresponding
+   * subclass of DB_EXCEPTION
+   *
    * @param reserve_reward the amount of zeph to be removed from the reserve
    *
    */
-  virtual void remove_block(const uint64_t& reserve_reward) = 0;
+  virtual void remove_reserve_reward(const uint64_t& reserve_reward) = 0;
 
   /**
    * @brief store the transaction and its metadata
@@ -1199,6 +1208,18 @@ public:
    * @param txs return-by-reference the transactions from the popped block
    */
   virtual void pop_block(block& blk, std::vector<transaction>& txs);
+
+  /**
+   * @brief remove the reserve reward of the passed block
+   *
+   * The subclass should remove the reserve reward from the circulating supply.
+   * Should be called when a block is popped.
+   *
+   * @param blk the most recently popped block
+   * @param block_weight the most recently popped block weight
+   *
+   */
+  virtual void pop_reserve_reward(block& blk, const uint64_t& block_weight);
 
 
   /**

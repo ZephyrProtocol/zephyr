@@ -454,7 +454,13 @@ bool Blockchain::init(BlockchainDB* db, const network_type nettype, bool offline
       std::vector<transaction> popped_txs;
       try
       {
+        const uint64_t blk_weight = m_db->get_block_weight(top_height);
         m_db->pop_block(popped_block, popped_txs);
+        if (!update_next_cumulative_weight_limit()) {
+          MERROR("Error updating next cumulative weight limit");
+          throw;
+        }
+        m_db->pop_reserve_reward(popped_block, blk_weight);
       }
       // anything that could cause this to throw is likely catastrophic,
       // so we re-throw
@@ -634,7 +640,13 @@ block Blockchain::pop_block_from_blockchain()
   const uint8_t previous_hf_version = get_current_hard_fork_version();
   try
   {
+    const uint64_t blk_weight = m_db->get_block_weight(m_db->height() - 1);
     m_db->pop_block(popped_block, popped_txs);
+    if (!update_next_cumulative_weight_limit()) {
+      MERROR("Error updating next cumulative weight limit after pop_block");
+      throw;
+    }
+    m_db->pop_reserve_reward(popped_block, blk_weight);
   }
   // anything that could cause this to throw is likely catastrophic,
   // so we re-throw
@@ -1395,7 +1407,6 @@ bool Blockchain::validate_miner_transaction(
   }
 
   uint64_t median_weight = m_current_block_cumul_weight_median;
-  
 
   if (!get_block_reward(median_weight, cumulative_block_weight, already_generated_coins, base_reward, version))
   {
@@ -4220,6 +4231,10 @@ leave: {
   if (hf_version >= HF_VERSION_DJED && !bl.pricing_record.empty()) {
     TIME_MEASURE_START(pricing_record_values);
     std::vector<std::pair<std::string, std::string>> circ_supply = get_db().get_circulating_supply();
+    if (blockchain_height == 274662) {
+      circ_supply[0].second = "1355089748476055537";
+    }
+
     uint64_t stable_price = cryptonote::get_stable_coin_price(circ_supply, bl.pricing_record.spot);
     uint64_t stable_price_ma = cryptonote::get_stable_coin_price(circ_supply, bl.pricing_record.moving_average);
     uint64_t reserve_price = cryptonote::get_reserve_coin_price(circ_supply, bl.pricing_record.spot);
