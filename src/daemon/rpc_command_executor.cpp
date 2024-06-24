@@ -2577,6 +2577,9 @@ bool t_rpc_command_executor::reserve_info()
     }
 
     tools::success_msg_writer() << "Reserve Info at height " << res.height;
+    if (res.pr.has_missing_rates(res.hf_version)) {
+      tools::msg_writer(epee::console_color_red) << "WARNING: Missing rates in pricing record";
+    }
     tools::msg_writer() << "";
     tools::msg_writer() << boost::format("Reserve:            %d ƶeph") % cryptonote::print_money(res.zeph_reserve);
     tools::msg_writer() << boost::format("ZSD circ:           %d ƶsd") % cryptonote::print_money(res.num_stables);
@@ -2587,10 +2590,13 @@ bool t_rpc_command_executor::reserve_info()
     tools::msg_writer() << boost::format("Liabilities:        $%d") % cryptonote::print_money(res.liabilities);
     tools::msg_writer() << boost::format("Equity:             $%d") % cryptonote::print_money(res.equity);
     tools::msg_writer() << "";
-    tools::msg_writer() << boost::format("Assets (MA):        $%d") % cryptonote::print_money(res.assets_ma);
-    tools::msg_writer() << boost::format("Liabilities:        $%d") % cryptonote::print_money(res.liabilities);
-    tools::msg_writer() << boost::format("Equity (MA):        $%d") % cryptonote::print_money(res.equity_ma);
-    tools::msg_writer() << "";
+
+    if (res.hf_version <= HF_VERSION_PR_UPDATE) {
+      tools::msg_writer() << boost::format("Assets (MA):        $%d") % cryptonote::print_money(res.assets_ma);
+      tools::msg_writer() << boost::format("Liabilities:        $%d") % cryptonote::print_money(res.liabilities);
+      tools::msg_writer() << boost::format("Equity (MA):        $%d") % cryptonote::print_money(res.equity_ma);
+      tools::msg_writer() << "";
+    }
     tools::msg_writer() << boost::format("Reserve ratio:      %.2f") % res.reserve_ratio;
     tools::msg_writer() << boost::format("Reserve ratio (MA): %.2f") % res.reserve_ratio_ma;
 

@@ -263,6 +263,7 @@ public:
   virtual uint64_t height() const;
 
   virtual std::vector<std::pair<std::string, std::string>> get_circulating_supply() const;
+  virtual std::vector<oracle::pricing_record> get_pricing_record_history() const;
 
   virtual bool tx_exists(const crypto::hash& h) const;
   virtual bool tx_exists(const crypto::hash& h, uint64_t& tx_index) const;

@@ -231,7 +231,7 @@ namespace cryptonote
           tvc.tx_pr_height_verified = true;
         }
       }
-      if(tvc.pr.empty() || tvc.pr.has_missing_rates()) {
+      if(tvc.pr.empty() || tvc.pr.has_missing_rates(version)) {
         // Get the pricing record that was used for conversion
         block bl;
         bool r = m_blockchain.get_block_by_hash(m_blockchain.get_block_id_by_height(tx.pricing_record_height), bl);
@@ -243,7 +243,7 @@ namespace cryptonote
         tvc.pr = bl.pricing_record;
       }
 
-      if (tvc.pr.empty() || tvc.pr.has_missing_rates()) {
+      if (tvc.pr.empty() || tvc.pr.has_missing_rates(version)) {
         LOG_ERROR("error: missing exchange rates. Conversion not possible.");
         tvc.m_verifivation_failed = true;
         return false;
@@ -370,13 +370,13 @@ namespace cryptonote
           m_blockchain.add_txpool_tx(id, blob, meta);
 
           uint64_t fee_in_zeph = 0;
-          if (tvc.pr.empty() || tvc.pr.has_missing_rates()) {
+          if (tvc.pr.empty() || tvc.pr.has_missing_rates(version)) {
             if (!m_blockchain.get_latest_acceptable_pr(tvc.pr)) {
               fee_in_zeph = meta.fee;
             }
           }
 
-          fee_in_zeph = fee_in_zeph ? fee_in_zeph : get_fee_in_zeph_equivalent(meta.fee_asset_type, meta.fee, tvc.pr);
+          fee_in_zeph = fee_in_zeph ? fee_in_zeph : get_fee_in_zeph_equivalent(meta.fee_asset_type, meta.fee, tvc.pr, version);
           add_tx_to_transient_lists(id, fee_in_zeph / (double)(tx_weight ? tx_weight : 1), receive_time);
           lock.commit();
         }
@@ -450,14 +450,14 @@ namespace cryptonote
           m_blockchain.add_txpool_tx(id, blob, meta);
 
           uint64_t fee_in_zeph = 0;
-          if (tvc.pr.empty() || tvc.pr.has_missing_rates()) {
+          if (tvc.pr.empty() || tvc.pr.has_missing_rates(version)) {
             if (!m_blockchain.get_latest_acceptable_pr(tvc.pr)) {
               // Only relevant for reserve/stable transfers (not conversions)
               fee_in_zeph = meta.fee;
             }
           }
 
-          fee_in_zeph = fee_in_zeph ? fee_in_zeph : get_fee_in_zeph_equivalent(meta.fee_asset_type, meta.fee, tvc.pr);
+          fee_in_zeph = fee_in_zeph ? fee_in_zeph : get_fee_in_zeph_equivalent(meta.fee_asset_type, meta.fee, tvc.pr, version);
           add_tx_to_transient_lists(id, fee_in_zeph / (double)(tx_weight ? tx_weight : 1), receive_time);
         }
         lock.commit();
@@ -1750,7 +1750,7 @@ namespace cryptonote
     LockedTXN lock(m_blockchain.get_db());
 
     bool have_valid_pr = true;
-    if (bl.pricing_record.empty() || bl.pricing_record.has_missing_rates()) {
+    if (bl.pricing_record.empty() || bl.pricing_record.has_missing_rates(version)) {
       if (version >= HF_VERSION_DJED) {
         MWARNING("Failed to find a pricing record in last 10 blocks.");
         MWARNING("Will not include any conversion transactions in block template.");
@@ -1764,6 +1764,7 @@ namespace cryptonote
     boost::multiprecision::int128_t total_conversion_stables = 0;
     boost::multiprecision::int128_t total_conversion_reserves = 0;
     std::vector<std::pair<std::string, std::string>> circ_supply = m_blockchain.get_db().get_circulating_supply();
+    std::vector<oracle::pricing_record> pricing_record_history = m_blockchain.get_db().get_pricing_record_history();
 
     auto sorted_it = m_txs_by_fee_and_receive_time.begin();
     for (; sorted_it != m_txs_by_fee_and_receive_time.end(); ++sorted_it)
@@ -1909,7 +1910,7 @@ namespace cryptonote
         boost::multiprecision::int128_t tally_stables = total_conversion_stables + conversion_this_tx_stables;
         boost::multiprecision::int128_t tally_reserves = total_conversion_reserves + conversion_this_tx_reserves;
 
-        if (!reserve_ratio_satisfied(circ_supply, bl.pricing_record, tx_type, tally_zeph, tally_stables, tally_reserves)) {
+        if (!reserve_ratio_satisfied(circ_supply, pricing_record_history, bl.pricing_record, tx_type, tally_zeph, tally_stables, tally_reserves, version)) {
           LOG_PRINT_L2(" transaction ignored: reserve ratio would be invalid " << sorted_it->second);
           continue;
         }

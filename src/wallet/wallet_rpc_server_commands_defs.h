@@ -2595,6 +2595,7 @@ namespace wallet_rpc
     {
       std::string status;
       uint64_t height;
+      uint8_t hf_version;
       oracle::pricing_record pr;
       std::string zeph_reserve;
       std::string num_stables;
@@ -2610,6 +2611,7 @@ namespace wallet_rpc
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(status)
         KV_SERIALIZE(height)
+        KV_SERIALIZE(hf_version)
         KV_SERIALIZE(pr)
         KV_SERIALIZE(zeph_reserve)
         KV_SERIALIZE(num_stables)

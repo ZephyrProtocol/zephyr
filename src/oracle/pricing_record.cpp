@@ -46,6 +46,8 @@ namespace oracle
       uint64_t stable_ma;
       uint64_t reserve;
       uint64_t reserve_ma;
+      uint64_t reserve_ratio;
+      uint64_t reserve_ratio_ma;
       uint64_t timestamp;
       std::string signature;
 
@@ -56,6 +58,8 @@ namespace oracle
         KV_SERIALIZE(stable_ma)
         KV_SERIALIZE(reserve)
         KV_SERIALIZE(reserve_ma)
+        KV_SERIALIZE(reserve_ratio)
+        KV_SERIALIZE(reserve_ratio_ma)
         KV_SERIALIZE(timestamp)
         KV_SERIALIZE(signature)
       END_KV_SERIALIZE_MAP()
@@ -69,6 +73,8 @@ namespace oracle
     , stable_ma(0)
     , reserve(0)
     , reserve_ma(0)
+    , reserve_ratio(0)
+    , reserve_ratio_ma(0)
     , timestamp(0)
   {
     std::memset(signature, 0, sizeof(signature));
@@ -86,6 +92,8 @@ namespace oracle
       stable_ma = in.stable_ma;
       reserve = in.reserve;
       reserve_ma = in.reserve_ma;
+      reserve_ratio = in.reserve_ratio;
+      reserve_ratio_ma = in.reserve_ratio_ma;
       timestamp = in.timestamp;
       for (unsigned int i = 0; i < in.signature.length(); i += 2) {
         std::string byteString = in.signature.substr(i, 2);
@@ -106,7 +114,7 @@ namespace oracle
       ss << std::hex << std::setw(2) << std::setfill('0') << (0xff & signature[i]);
       sig_hex += ss.str();
     }
-    const pr_serialized out{spot,moving_average,stable,stable_ma,reserve,reserve_ma,timestamp,sig_hex};
+    const pr_serialized out{spot,moving_average,stable,stable_ma,reserve,reserve_ma,reserve_ratio,reserve_ratio_ma,timestamp,sig_hex};
     return out.store(dest, hparent);
   }
 
@@ -117,6 +125,8 @@ namespace oracle
     , stable_ma(orig.stable_ma)
     , reserve(orig.reserve)
     , reserve_ma(orig.reserve_ma)
+    , reserve_ratio(orig.reserve_ratio)
+    , reserve_ratio_ma(orig.reserve_ratio_ma)
     , timestamp(orig.timestamp)
   {
     std::memcpy(signature, orig.signature, sizeof(signature));
@@ -130,6 +140,8 @@ namespace oracle
     stable_ma = orig.stable_ma;
     reserve = orig.reserve;
     reserve_ma = orig.reserve_ma;
+    reserve_ratio = orig.reserve_ratio;
+    reserve_ratio_ma = orig.reserve_ratio_ma;
     timestamp = orig.timestamp;
     ::memcpy(signature, orig.signature, sizeof(signature));
     return *this;
@@ -143,6 +155,8 @@ namespace oracle
       (stable_ma == other.stable_ma) &&
       (reserve == other.reserve) &&
       (reserve_ma == other.reserve_ma) &&
+      (reserve_ratio == other.reserve_ratio) &&
+      (reserve_ratio_ma == other.reserve_ratio_ma) &&
 	    (timestamp == other.timestamp) &&
       !::memcmp(signature, other.signature, sizeof(signature)));
   }
@@ -153,7 +167,7 @@ namespace oracle
     return (*this).equal(empty_pr);
   }
 
-  bool pricing_record::verifySignature(const std::string& public_key) const
+  bool pricing_record::verifySignature(const std::string& public_key, const uint8_t hf_version) const
   {
     CHECK_AND_ASSERT_THROW_MES(!public_key.empty(), "Pricing record verification failed. NULL public key. PK Size: " << public_key.size()); // TODO: is this necessary or the one below already covers this case, meannin it will produce empty pubkey?
 
@@ -178,7 +192,9 @@ namespace oracle
     // Build the JSON string, so that we can verify the signature
     std::ostringstream oss;
     oss << "{\"spot\":" << spot;
-    oss << ",\"moving_average\":" << moving_average;
+    if (hf_version <= HF_VERSION_PR_UPDATE) {
+      oss << ",\"moving_average\":" << moving_average;
+    }
     oss << ",\"timestamp\":" << timestamp;
     oss << "}";
     std::string message = oss.str();
@@ -210,9 +226,24 @@ namespace oracle
     return false;
   }
 
-  bool pricing_record::has_missing_rates() const noexcept
+  bool pricing_record::has_missing_rates(const uint8_t hf_version) const noexcept
   {
-    return (spot == 0) || (moving_average == 0) || (stable == 0) || (stable_ma == 0) || (reserve == 0) || (reserve_ma == 0);
+    bool missing_rates = (spot == 0) || (moving_average == 0) || (stable == 0) || (stable_ma == 0) || (reserve == 0) || (reserve_ma == 0);
+    if (hf_version <= HF_VERSION_DJED) {
+      return missing_rates;
+    } else if (hf_version <= HF_VERSION_PR_UPDATE) {
+      return missing_rates || (reserve_ratio == 0);
+    }
+    return missing_rates || (reserve_ratio == 0) || (reserve_ratio_ma == 0);
+  }
+
+  bool pricing_record::has_essential_rates(const uint8_t hf_version) const noexcept
+  {
+    bool essential_rates = (spot != 0) && (stable != 0) && (reserve != 0);
+    if (hf_version <= HF_VERSION_DJED) {
+      return essential_rates;
+    }
+    return essential_rates && (reserve_ratio != 0);
   }
 
   // overload for pr validation for block
@@ -226,12 +257,14 @@ namespace oracle
     if (this->empty())
         return true;
 
-    if (this->has_missing_rates()) {
-      LOG_ERROR("Pricing record has missing rates.");
-      return false;
+    if (this->has_missing_rates(hf_version)) {
+      if (hf_version < HF_VERSION_PR_UPDATE || !this->has_essential_rates(hf_version)) {
+        LOG_ERROR("Pricing record has missing rates.");
+        return false;
+      }
     }
 
-    if (!verifySignature(get_config(nettype).ORACLE_PUBLIC_KEY)) {
+    if (!verifySignature(get_config(nettype).ORACLE_PUBLIC_KEY, hf_version)) {
       LOG_ERROR("Invalid pricing record signature.");
       return false;
     }

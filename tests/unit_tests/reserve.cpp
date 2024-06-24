@@ -82,7 +82,8 @@ TEST(reserve_ratio_satisfied, mint_stable_above_400_percent_success)
     boost::multiprecision::int128_t tally_stables = cryptonote::zeph_to_zephusd((uint64_t)tally_zeph, pr);
     boost::multiprecision::int128_t tally_reserves = 0;
 
-    EXPECT_TRUE(cryptonote::reserve_ratio_satisfied(circ_amounts, pr, tt::MINT_STABLE, tally_zeph, tally_stables, tally_reserves));
+    std::vector<oracle::pricing_record> pricing_record_history;
+    EXPECT_TRUE(cryptonote::reserve_ratio_satisfied(circ_amounts, pricing_record_history, pr, tt::MINT_STABLE, tally_zeph, tally_stables, tally_reserves, 3));
 }
 
 TEST(reserve_ratio_satisfied, mint_stable_below_400_percent_fails)
@@ -97,7 +98,8 @@ TEST(reserve_ratio_satisfied, mint_stable_below_400_percent_fails)
     boost::multiprecision::int128_t tally_stables = cryptonote::zeph_to_zephusd((uint64_t)tally_zeph, pr);
     boost::multiprecision::int128_t tally_reserves = 0;
 
-    EXPECT_FALSE(cryptonote::reserve_ratio_satisfied(circ_amounts, pr, tt::MINT_STABLE, tally_zeph, tally_stables, tally_reserves));
+    std::vector<oracle::pricing_record> pricing_record_history;
+    EXPECT_FALSE(cryptonote::reserve_ratio_satisfied(circ_amounts, pricing_record_history, pr, tt::MINT_STABLE, tally_zeph, tally_stables, tally_reserves, 3));
 }
 
 /*
@@ -114,7 +116,8 @@ TEST(reserve_ratio_satisfied, redeem_stable_above_400_percent_success)
     boost::multiprecision::int128_t tally_zeph = -(cryptonote::zephusd_to_zeph((uint64_t)tx_amount, pr));
     boost::multiprecision::int128_t tally_reserves = 0;
 
-    EXPECT_TRUE(cryptonote::reserve_ratio_satisfied(circ_amounts, pr, tt::REDEEM_STABLE, tally_zeph, tally_stables, tally_reserves));
+    std::vector<oracle::pricing_record> pricing_record_history;
+    EXPECT_TRUE(cryptonote::reserve_ratio_satisfied(circ_amounts, pricing_record_history, pr, tt::REDEEM_STABLE, tally_zeph, tally_stables, tally_reserves, 3));
 }
 
 TEST(reserve_ratio_satisfied, redeem_stable_below_400_percent_success)
@@ -130,7 +133,8 @@ TEST(reserve_ratio_satisfied, redeem_stable_below_400_percent_success)
     boost::multiprecision::int128_t tally_zeph = -(cryptonote::zephusd_to_zeph((uint64_t)tx_amount, pr));
     boost::multiprecision::int128_t tally_reserves = 0;
 
-    EXPECT_TRUE(cryptonote::reserve_ratio_satisfied(circ_amounts, pr, tt::REDEEM_STABLE, tally_zeph, tally_stables, tally_reserves));
+    std::vector<oracle::pricing_record> pricing_record_history;
+    EXPECT_TRUE(cryptonote::reserve_ratio_satisfied(circ_amounts, pricing_record_history, pr, tt::REDEEM_STABLE, tally_zeph, tally_stables, tally_reserves, 3));
 }
 
 TEST(reserve_ratio_satisfied, redeem_stable_fails_if_reserve_below_zero)
@@ -146,7 +150,8 @@ TEST(reserve_ratio_satisfied, redeem_stable_fails_if_reserve_below_zero)
     boost::multiprecision::int128_t tally_zeph = -(cryptonote::zephusd_to_zeph(tx_amount, pr));
     boost::multiprecision::int128_t tally_reserves = 0;
 
-    EXPECT_FALSE(cryptonote::reserve_ratio_satisfied(circ_amounts, pr, tt::REDEEM_STABLE, tally_zeph, tally_stables, tally_reserves));
+    std::vector<oracle::pricing_record> pricing_record_history;
+    EXPECT_FALSE(cryptonote::reserve_ratio_satisfied(circ_amounts, pricing_record_history, pr, tt::REDEEM_STABLE, tally_zeph, tally_stables, tally_reserves, 3));
 }
 
 /*
@@ -162,7 +167,8 @@ TEST(reserve_ratio_satisfied, mint_reserve_below_800_percent_success)
     boost::multiprecision::int128_t tally_stables = 0;
     boost::multiprecision::int128_t tally_reserves = cryptonote::zeph_to_zephrsv((uint64_t)tally_zeph, pr);
 
-    EXPECT_TRUE(cryptonote::reserve_ratio_satisfied(circ_amounts, pr, tt::MINT_RESERVE, tally_zeph, tally_stables, tally_reserves));
+    std::vector<oracle::pricing_record> pricing_record_history;
+    EXPECT_TRUE(cryptonote::reserve_ratio_satisfied(circ_amounts, pricing_record_history, pr, tt::MINT_RESERVE, tally_zeph, tally_stables, tally_reserves, 3));
 }
 
 TEST(reserve_ratio_satisfied, mint_reserve_above_800_percent_fails)
@@ -175,7 +181,8 @@ TEST(reserve_ratio_satisfied, mint_reserve_above_800_percent_fails)
     boost::multiprecision::int128_t tally_stables = 0;
     boost::multiprecision::int128_t tally_reserves = cryptonote::zeph_to_zephrsv((uint64_t)tally_zeph, pr);
 
-    EXPECT_FALSE(cryptonote::reserve_ratio_satisfied(circ_amounts, pr, tt::MINT_RESERVE, tally_zeph, tally_stables, tally_reserves));
+    std::vector<oracle::pricing_record> pricing_record_history;
+    EXPECT_FALSE(cryptonote::reserve_ratio_satisfied(circ_amounts, pricing_record_history, pr, tt::MINT_RESERVE, tally_zeph, tally_stables, tally_reserves, 3));
 }
 
 /*
@@ -193,7 +200,8 @@ TEST(reserve_ratio_satisfied, redeem_reserve_above_400_percent_success)
     boost::multiprecision::int128_t tally_stables = 0;
     boost::multiprecision::int128_t tally_reserves = -(cryptonote::zeph_to_zephrsv((uint64_t)tx_amount, pr));
 
-    EXPECT_TRUE(cryptonote::reserve_ratio_satisfied(circ_amounts, pr, tt::REDEEM_RESERVE, tally_zeph, tally_stables, tally_reserves));
+    std::vector<oracle::pricing_record> pricing_record_history;
+    EXPECT_TRUE(cryptonote::reserve_ratio_satisfied(circ_amounts, pricing_record_history, pr, tt::REDEEM_RESERVE, tally_zeph, tally_stables, tally_reserves, 3));
 }
 
 TEST(reserve_ratio_satisfied, redeem_reserve_below_400_percent_fails)
@@ -207,5 +215,6 @@ TEST(reserve_ratio_satisfied, redeem_reserve_below_400_percent_fails)
     boost::multiprecision::int128_t tally_stables = 0;
     boost::multiprecision::int128_t tally_reserves = cryptonote::zeph_to_zephrsv((uint64_t)tx_amount, pr);
 
-    EXPECT_FALSE(cryptonote::reserve_ratio_satisfied(circ_amounts, pr, tt::REDEEM_RESERVE, tally_zeph, tally_stables, tally_reserves));
+    std::vector<oracle::pricing_record> pricing_record_history;
+    EXPECT_FALSE(cryptonote::reserve_ratio_satisfied(circ_amounts, pricing_record_history, pr, tt::REDEEM_RESERVE, tally_zeph, tally_stables, tally_reserves, 3));
 }

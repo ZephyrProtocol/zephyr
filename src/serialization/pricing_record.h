@@ -41,7 +41,34 @@
 template <template <bool> class Archive>
 bool do_serialize(Archive<false> &ar, oracle::pricing_record &pr, uint8_t version)
 {
-  if (version < HF_VERSION_DJED)
+
+  if (version >= HF_VERSION_PR_UPDATE)
+  {
+    // very basic sanity check
+    if (ar.remaining_bytes() < sizeof(oracle::pricing_record)) {
+      return false;
+    }
+
+    ar.serialize_blob(&pr, sizeof(oracle::pricing_record), "");
+    if (!ar.good())
+      return false;
+  }
+  else if (version >= HF_VERSION_DJED)
+  {
+    // very basic sanity check
+    if (ar.remaining_bytes() < sizeof(oracle::pricing_record_v2)) {
+      return false;
+    }
+
+    oracle::pricing_record_v2 pr_v2;
+    ar.serialize_blob(&pr_v2, sizeof(oracle::pricing_record_v2), "");
+    if (!ar.good())
+      return false;
+
+    if (!pr_v2.write_to_pr(pr))
+      return false;
+  }
+  else
   {
     // very basic sanity check
     if (ar.remaining_bytes() < sizeof(oracle::pricing_record_v1)) {
@@ -56,17 +83,6 @@ bool do_serialize(Archive<false> &ar, oracle::pricing_record &pr, uint8_t versio
     if (!pr_v1.write_to_pr(pr))
       return false;
   }
-  else
-  {
-    // very basic sanity check
-    if (ar.remaining_bytes() < sizeof(oracle::pricing_record)) {
-      return false;
-    }
-
-    ar.serialize_blob(&pr, sizeof(oracle::pricing_record), "");
-    if (!ar.good())
-      return false;
-  }
 
   return true;
 }
@@ -77,16 +93,23 @@ bool do_serialize(Archive<true> &ar, oracle::pricing_record &pr, uint8_t version
 {
   ar.begin_string();
 
-  if (version < HF_VERSION_DJED)
+  if (version >= HF_VERSION_PR_UPDATE)
+  {
+    ar.serialize_blob(&pr, sizeof(oracle::pricing_record), "");
+  }
+  else if (version >= HF_VERSION_DJED)
+  {
+    oracle::pricing_record_v2 pr_v2;
+    if (!pr_v2.read_from_pr(pr))
+      return false;
+    ar.serialize_blob(&pr_v2, sizeof(oracle::pricing_record_v2), "");
+  }
+  else
   {
     oracle::pricing_record_v1 pr_v1;
     if (!pr_v1.read_from_pr(pr))
       return false;
     ar.serialize_blob(&pr_v1, sizeof(oracle::pricing_record_v1), "");
-  }
-  else
-  {
-    ar.serialize_blob(&pr, sizeof(oracle::pricing_record), "");
   }
 
   if (!ar.good())
@@ -123,5 +146,34 @@ bool do_serialize(Archive<true> &ar, oracle::pricing_record_v1 &pr, uint8_t vers
   return true;
 }
 
+// read
+template <template <bool> class Archive>
+bool do_serialize(Archive<false> &ar, oracle::pricing_record_v2 &pr, uint8_t version)
+{
+  // very basic sanity check
+  if (ar.remaining_bytes() < sizeof(oracle::pricing_record_v2)) {
+    return false;
+  }
+
+  ar.serialize_blob(&pr, sizeof(oracle::pricing_record_v2), "");
+  if (!ar.good())
+    return false;
+
+  return true;
+}
+
+// write
+template <template <bool> class Archive>
+bool do_serialize(Archive<true> &ar, oracle::pricing_record_v2 &pr, uint8_t version)
+{
+  ar.begin_string();
+  ar.serialize_blob(&pr, sizeof(oracle::pricing_record_v2), "");
+  if (!ar.good())
+    return false;
+  ar.end_string();
+  return true;
+}
+
 BLOB_SERIALIZER(oracle::pricing_record);
 BLOB_SERIALIZER(oracle::pricing_record_v1);
+BLOB_SERIALIZER(oracle::pricing_record_v2);

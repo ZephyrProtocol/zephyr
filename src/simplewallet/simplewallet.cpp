@@ -303,7 +303,6 @@ namespace
   const char* USAGE_RESERVE_TRANSFER("reserve_transfer [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] (<URI> | <address> <ZRS amount> [subtractfeefrom=<D0>[,<D1>,all,...]] [memo=<memo data>])");
 
   const char* USAGE_RESERVE_INFO("reserve_info");
-  const char* USAGE_RESERVE_RATIO("reserve_ratio");
 
   std::string input_line(const std::string& prompt, bool yesno = false)
   {
@@ -2310,10 +2309,11 @@ bool simple_wallet::reserve_transfer(const std::vector<std::string> &args_)
 bool simple_wallet::reserve_info(const std::vector<std::string> &args)
 {
   uint64_t current_height = m_wallet->get_blockchain_current_height();
+  const uint8_t hf_version = m_wallet->get_current_hard_fork();
 
   // Get the pricing record for the current height
   oracle::pricing_record pr;
-  if (!m_wallet->get_pricing_record(pr, current_height - 1)) {
+  if (!m_wallet->get_pricing_record(pr, current_height - 1, false)) {
     fail_msg_writer() << boost::format(tr("Failed to get prices at height %d - maybe pricing record is missing?")) % (current_height - 1);
     return false;
   }
@@ -2331,9 +2331,12 @@ bool simple_wallet::reserve_info(const std::vector<std::string> &args)
   double reserve_ratio;
   double reserve_ratio_ma;
 
-  m_wallet->get_reserve_info(pr, zeph_reserve, num_stables, num_reserves, assets, assets_ma, liabilities, equity, equity_ma, reserve_ratio, reserve_ratio_ma);
+  m_wallet->get_reserve_info(pr, hf_version, zeph_reserve, num_stables, num_reserves, assets, assets_ma, liabilities, equity, equity_ma, reserve_ratio, reserve_ratio_ma);
 
   message_writer(console_color_white, false) << boost::format(tr("Height:             %d")) % current_height;
+  if (pr.has_missing_rates(hf_version)) {
+    message_writer(console_color_red, false) << tr("WARNING: Missing rates in pricing record");
+  }
   message_writer(console_color_white, false) << "";
   message_writer(console_color_default, false) << "Reserve Info";
   message_writer(console_color_white, false) << boost::format(tr("Reserve:            %d ƶeph")) % print_money(zeph_reserve);
@@ -2345,10 +2348,13 @@ bool simple_wallet::reserve_info(const std::vector<std::string> &args)
   message_writer(console_color_white, false) << boost::format(tr("Liabilities:        $%d")) % print_money(liabilities);
   message_writer(console_color_white, false) << boost::format(tr("Equity:             $%d")) % print_money(equity);
   message_writer(console_color_white, false) << "";
-  message_writer(console_color_white, false) << boost::format(tr("Assets (MA):        $%d")) % print_money(assets_ma);
-  message_writer(console_color_white, false) << boost::format(tr("Liabilities:        $%d")) % print_money(liabilities);
-  message_writer(console_color_white, false) << boost::format(tr("Equity (MA):        $%d")) % print_money(equity_ma);
-  message_writer(console_color_white, false) << "";
+
+  if (hf_version <= HF_VERSION_PR_UPDATE) {
+    message_writer(console_color_white, false) << boost::format(tr("Assets (MA):        $%d")) % print_money(assets_ma);
+    message_writer(console_color_white, false) << boost::format(tr("Liabilities:        $%d")) % print_money(liabilities);
+    message_writer(console_color_white, false) << boost::format(tr("Equity (MA):        $%d")) % print_money(equity_ma);
+    message_writer(console_color_white, false) << "";
+  }
   message_writer(console_color_white, false) << boost::format(tr("Reserve ratio:      %.2f")) % reserve_ratio;
   message_writer(console_color_white, false) << boost::format(tr("Reserve ratio (MA): %.2f")) % reserve_ratio_ma;
 
@@ -2360,27 +2366,6 @@ bool simple_wallet::reserve_info(const std::vector<std::string> &args)
   message_writer(console_color_white, false) << boost::format(tr("Stable (MA):        %d ƶeph")) % print_money(pr.stable_ma);
   message_writer(console_color_white, false) << boost::format(tr("Reserve:            %d ƶeph")) % print_money(pr.reserve);
   message_writer(console_color_white, false) << boost::format(tr("Reserve (MA):       %d ƶeph")) % print_money(pr.reserve_ma);
-
-  return true;
-}
-bool simple_wallet::reserve_ratio(const std::vector<std::string> &args)
-{ 
-  // Get the current blockchain height
-  uint64_t current_height = m_wallet->get_blockchain_current_height()-1;
-
-  // Get the pricing record for the current height
-  oracle::pricing_record pr;
-  if (!m_wallet->get_pricing_record(pr, current_height)) {
-    fail_msg_writer() << boost::format(tr("Failed to get prices at height %d - maybe pricing record is missing?")) % current_height;
-    return false;
-  }
-
-  double reserve_ratio_spot = m_wallet->get_spot_reserve_ratio(pr);
-  double reserve_ratio_ma = m_wallet->get_ma_reserve_ratio(pr);
-
-  // Iterate over the provided currencies
-  message_writer(console_color_white, false) << boost::format(tr("Spot reserve ratio: %.2f")) % reserve_ratio_spot;
-  message_writer(console_color_white, false) << boost::format(tr("MA reserve ratio: %.2f")) % reserve_ratio_ma;
 
   return true;
 }
@@ -3817,10 +3802,6 @@ m_cmd_binder.set_handler("reserve_transfer",
                            boost::bind(&simple_wallet::reserve_info, this, _1),
                            tr(USAGE_RESERVE_INFO),
                            tr("Get the current reserve info"));
- m_cmd_binder.set_handler("reserve_ratio",
-                           boost::bind(&simple_wallet::reserve_ratio, this, _1),
-                           tr(USAGE_RESERVE_RATIO),
-                           tr("Get the current reserve ratio"));
 
  m_cmd_binder.set_handler("apropos",
                            boost::bind(&simple_wallet::on_command, this, &simple_wallet::apropos, _1),

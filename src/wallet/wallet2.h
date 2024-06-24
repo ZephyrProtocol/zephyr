@@ -1080,8 +1080,9 @@ private:
     hw::device::device_type get_device_type() const { return m_key_device_type; }
     bool reconnect_device();
     
-    bool get_pricing_record(oracle::pricing_record& pr, const uint64_t height);
+    bool get_pricing_record(oracle::pricing_record& pr, const uint64_t height, const bool strict_check = true);
     bool get_circulating_supply(std::vector<std::pair<std::string, std::string>> &amounts);
+    bool get_pricing_record_history(std::vector<oracle::pricing_record> &pricing_record_history);
 
      // locked & unlocked balance of given or current subaddress account
     std::map<uint32_t, std::map<std::string, uint64_t>> balance(uint32_t subaddr_index_major, bool strict);
@@ -1141,6 +1142,7 @@ private:
     
     void get_reserve_info(
       const oracle::pricing_record& pricing_record,
+      const uint8_t hf_version,
       boost::multiprecision::uint128_t& zeph_reserve,
       boost::multiprecision::uint128_t& num_stables,
       boost::multiprecision::uint128_t& num_reserves,

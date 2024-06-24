@@ -2218,6 +2218,28 @@ namespace cryptonote
     typedef epee::misc_utils::struct_init<response_t> response;
   };
 
+  struct COMMAND_RPC_GET_PRICING_RECORD_HISTORY
+  {
+    struct request_t
+    {
+      BEGIN_KV_SERIALIZE_MAP()
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<request_t> request;
+
+    struct response_t
+    {
+      std::string status;
+      std::vector<oracle::pricing_record> pricing_record_history;
+
+      BEGIN_KV_SERIALIZE_MAP()
+        KV_SERIALIZE(status)
+        KV_SERIALIZE(pricing_record_history)
+      END_KV_SERIALIZE_MAP()
+    };
+    typedef epee::misc_utils::struct_init<response_t> response;
+  };
+
   struct COMMAND_RPC_GET_RESERVE_INFO
   {
     struct request_t
@@ -2231,6 +2253,7 @@ namespace cryptonote
     {
       std::string status;
       uint64_t height;
+      uint8_t hf_version;
       oracle::pricing_record pr;
 
       std::string zeph_reserve;
@@ -2247,6 +2270,7 @@ namespace cryptonote
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(status)
         KV_SERIALIZE(height)
+        KV_SERIALIZE(hf_version)
         KV_SERIALIZE(pr)
         KV_SERIALIZE(zeph_reserve)
         KV_SERIALIZE(num_stables)

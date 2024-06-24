@@ -75,7 +75,8 @@ public:
     subaddresses[this->m_miners[this->real_source_idx].get_keys().m_account_address.m_spend_public_key] = {0,0};
     rct::RCTConfig rct_config{range_proof_type, bp_version};
     std::vector<std::pair<std::string, std::string>> circ_amounts;
-    return cryptonote::construct_tx_and_get_tx_key(this->m_miners[this->real_source_idx].get_keys(), subaddresses, this->m_sources, m_destinations, cryptonote::account_public_address{}, std::vector<uint8_t>(), m_tx, "ZEPH", "ZEPH", 1, 2, oracle::pricing_record(), circ_amounts, 0, tx_key, additional_tx_keys, rct, rct_config);
+    std::vector<oracle::pricing_record> pricing_record_history;
+    return cryptonote::construct_tx_and_get_tx_key(this->m_miners[this->real_source_idx].get_keys(), subaddresses, this->m_sources, m_destinations, cryptonote::account_public_address{}, std::vector<uint8_t>(), m_tx, "ZEPH", "ZEPH", 1, 2, oracle::pricing_record(), circ_amounts, pricing_record_history, 0, tx_key, additional_tx_keys, rct, rct_config);
   }
 
 private:

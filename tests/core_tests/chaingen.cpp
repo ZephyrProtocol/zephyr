@@ -1100,7 +1100,8 @@ bool construct_tx_rct(const cryptonote::account_keys& sender_account_keys, std::
   std::vector<tx_destination_entry> destinations_copy = destinations;
   rct::RCTConfig rct_config = {range_proof_type, bp_version};
   std::vector<std::pair<std::string, std::string>> circ_amounts;
-  return construct_tx_and_get_tx_key(sender_account_keys, subaddresses, sources, destinations_copy, change_addr, extra, tx, "ZEPH", "ZEPH", 1, 2, oracle::pricing_record(), circ_amounts, unlock_time, tx_key, additional_tx_keys, rct, rct_config);
+  std::vector<oracle::pricing_record> pricing_record_history;
+  return construct_tx_and_get_tx_key(sender_account_keys, subaddresses, sources, destinations_copy, change_addr, extra, tx, "ZEPH", "ZEPH", 1, 2, oracle::pricing_record(), circ_amounts, pricing_record_history, unlock_time, tx_key, additional_tx_keys, rct, rct_config);
 }
 
 transaction construct_tx_with_fee(std::vector<test_event_entry>& events, const block& blk_head,

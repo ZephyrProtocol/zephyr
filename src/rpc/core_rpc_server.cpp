@@ -3042,7 +3042,7 @@ namespace cryptonote
     return true;
   }
   //----------------------------------------------------------------------------------------------------
-  bool core_rpc_server::get_pricing_record(oracle::pricing_record& pr, const uint64_t height)
+  bool core_rpc_server::get_pricing_record(oracle::pricing_record& pr, const uint64_t height, const bool strict_check)
   {
     COMMAND_RPC_GET_BLOCK_HEADER_BY_HEIGHT::request req = AUTO_VAL_INIT(req);
     COMMAND_RPC_GET_BLOCK_HEADER_BY_HEIGHT::response res = AUTO_VAL_INIT(res);
@@ -3051,8 +3051,14 @@ namespace cryptonote
     bool r = on_get_block_header_by_height(req, res, error_resp, nullptr);
     if (r && res.status == CORE_RPC_STATUS_OK)
     {
+      const uint8_t hf_version = res.block_header.major_version;
       // Got the block header - verify the pricing record
-      if (res.block_header.pricing_record.empty() || res.block_header.pricing_record.has_missing_rates()) {
+      if (strict_check) {
+        if (res.block_header.pricing_record.empty() || res.block_header.pricing_record.has_missing_rates(hf_version)) {
+          MERROR("Invalid pricing record in block header. Please try again later.");
+          return false;
+        }
+      } else if (!res.block_header.pricing_record.has_essential_rates(hf_version)) {
         MERROR("Invalid pricing record in block header. Please try again later.");
         return false;
       }
@@ -3081,14 +3087,24 @@ namespace cryptonote
     return true;    
   }
   //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::on_get_pricing_record_history(const COMMAND_RPC_GET_PRICING_RECORD_HISTORY::request& req, COMMAND_RPC_GET_PRICING_RECORD_HISTORY::response& res, epee::json_rpc::error& error_resp, const connection_context *ctx)
+  {
+    PERF_TIMER(on_get_pricing_record_history);
+    res.pricing_record_history = m_core.get_blockchain_storage().get_db().get_pricing_record_history();
+    res.status = CORE_RPC_STATUS_OK;
+    return true;
+  }
+  //------------------------------------------------------------------------------------------------------------------------------
   bool core_rpc_server::on_get_reserve_info(const COMMAND_RPC_GET_RESERVE_INFO::request& req, COMMAND_RPC_GET_RESERVE_INFO::response& res, epee::json_rpc::error& error_res, const connection_context *ctx)
   {
     PERF_TIMER(on_get_reserve_info);
     std::vector<std::pair<std::string, std::string>> circ_supply = m_core.get_blockchain_storage().get_db().get_circulating_supply();
+    std::vector<oracle::pricing_record> pricing_record_history = m_core.get_blockchain_storage().get_db().get_pricing_record_history();
     uint64_t current_height = m_core.get_current_blockchain_height();
+    const uint8_t hf_version = m_core.get_blockchain_storage().get_current_hard_fork_version();
 
     oracle::pricing_record pr;
-    if (!get_pricing_record(pr, current_height - 1)) {
+    if (!get_pricing_record(pr, current_height - 1, false)) {
       res.status = "Failed to get pricing record";
       return false;
     }
@@ -3103,7 +3119,7 @@ namespace cryptonote
     boost::multiprecision::uint128_t equity_ma;
     double reserve_ratio;
     double reserve_ratio_ma;
-    cryptonote::get_reserve_info(circ_supply, pr, zeph_reserve, num_stables, num_reserves, assets, assets_ma, liabilities, equity, equity_ma, reserve_ratio, reserve_ratio_ma);
+    cryptonote::get_reserve_info(circ_supply, pr, pricing_record_history, hf_version, zeph_reserve, num_stables, num_reserves, assets, assets_ma, liabilities, equity, equity_ma, reserve_ratio, reserve_ratio_ma);
 
     res.zeph_reserve = zeph_reserve.str();
     res.num_stables = num_stables.str();
@@ -3116,6 +3132,7 @@ namespace cryptonote
     res.reserve_ratio = std::to_string(reserve_ratio);
     res.reserve_ratio_ma = std::to_string(reserve_ratio_ma);
     res.height = current_height;
+    res.hf_version = hf_version;
     res.pr = pr;
     res.status = CORE_RPC_STATUS_OK;
     return true;

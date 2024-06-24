@@ -171,6 +171,7 @@ namespace cryptonote
         MAP_JON_RPC_WE("get_version",            on_get_version,                COMMAND_RPC_GET_VERSION)
         MAP_JON_RPC_WE_IF("get_coinbase_tx_sum", on_get_coinbase_tx_sum,        COMMAND_RPC_GET_COINBASE_TX_SUM, !m_restricted)
         MAP_JON_RPC_WE("get_circulating_supply", on_get_circulating_supply,     COMMAND_RPC_GET_CIRCULATING_SUPPLY)
+        MAP_JON_RPC_WE("get_pricing_record_history", on_get_pricing_record_history, COMMAND_RPC_GET_PRICING_RECORD_HISTORY)
         MAP_JON_RPC_WE("get_reserve_info",       on_get_reserve_info,           COMMAND_RPC_GET_RESERVE_INFO)
         MAP_JON_RPC_WE("get_fee_estimate",       on_get_base_fee_estimate,      COMMAND_RPC_GET_BASE_FEE_ESTIMATE)
         MAP_JON_RPC_WE_IF("get_alternate_chains",on_get_alternate_chains,       COMMAND_RPC_GET_ALTERNATE_CHAINS, !m_restricted)
@@ -251,6 +252,7 @@ namespace cryptonote
     bool on_get_version(const COMMAND_RPC_GET_VERSION::request& req, COMMAND_RPC_GET_VERSION::response& res, epee::json_rpc::error& error_resp, const connection_context *ctx = NULL);
     bool on_get_coinbase_tx_sum(const COMMAND_RPC_GET_COINBASE_TX_SUM::request& req, COMMAND_RPC_GET_COINBASE_TX_SUM::response& res, epee::json_rpc::error& error_resp, const connection_context *ctx = NULL);
     bool on_get_circulating_supply(const COMMAND_RPC_GET_CIRCULATING_SUPPLY::request& req, COMMAND_RPC_GET_CIRCULATING_SUPPLY::response& res, epee::json_rpc::error& error_resp, const connection_context *ctx = NULL);
+    bool on_get_pricing_record_history(const COMMAND_RPC_GET_PRICING_RECORD_HISTORY::request& req, COMMAND_RPC_GET_PRICING_RECORD_HISTORY::response& res, epee::json_rpc::error& error_resp, const connection_context *ctx = NULL);
     bool on_get_reserve_info(const COMMAND_RPC_GET_RESERVE_INFO::request& req, COMMAND_RPC_GET_RESERVE_INFO::response& res, epee::json_rpc::error& error_resp, const connection_context *ctx = NULL);
     bool on_get_base_fee_estimate(const COMMAND_RPC_GET_BASE_FEE_ESTIMATE::request& req, COMMAND_RPC_GET_BASE_FEE_ESTIMATE::response& res, epee::json_rpc::error& error_resp, const connection_context *ctx = NULL);
     bool on_get_alternate_chains(const COMMAND_RPC_GET_ALTERNATE_CHAINS::request& req, COMMAND_RPC_GET_ALTERNATE_CHAINS::response& res, epee::json_rpc::error& error_resp, const connection_context *ctx = NULL);
@@ -291,7 +293,7 @@ private:
     bool use_bootstrap_daemon_if_necessary(const invoke_http_mode &mode, const std::string &command_name, const typename COMMAND_TYPE::request& req, typename COMMAND_TYPE::response& res, bool &r);
     bool get_block_template(const account_public_address &address, const crypto::hash *prev_block, const cryptonote::blobdata &extra_nonce, size_t &reserved_offset, cryptonote::difficulty_type &difficulty, uint64_t &height, uint64_t &expected_reward, block &b, uint64_t &seed_height, crypto::hash &seed_hash, crypto::hash &next_seed_hash, epee::json_rpc::error &error_resp);
     bool check_payment(const std::string &client, uint64_t payment, const std::string &rpc, bool same_ts, std::string &message, uint64_t &credits, std::string &top_hash);
-    bool get_pricing_record(oracle::pricing_record& pr, const uint64_t height);
+    bool get_pricing_record(oracle::pricing_record& pr, const uint64_t height, const bool strict_check = true);
 
     core& m_core;
     nodetool::node_server<cryptonote::t_cryptonote_protocol_handler<cryptonote::core> >& m_p2p;

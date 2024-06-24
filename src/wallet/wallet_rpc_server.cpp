@@ -4613,8 +4613,9 @@ namespace tools
     if (!m_wallet) return not_open(er);
 
     uint64_t current_height = m_wallet->get_blockchain_current_height();
+    const uint8_t hf_version = m_wallet->get_current_hard_fork();
     oracle::pricing_record pr;
-    if (!m_wallet->get_pricing_record(pr, current_height - 1)) {
+    if (!m_wallet->get_pricing_record(pr, current_height - 1, false)) {
       res.status = "Failed to get pricing record";
       return false;
     }
@@ -4629,7 +4630,7 @@ namespace tools
     boost::multiprecision::uint128_t equity_ma;
     double reserve_ratio;
     double reserve_ratio_ma;
-    m_wallet->get_reserve_info(pr, zeph_reserve, num_stables, num_reserves, assets, assets_ma, liabilities, equity, equity_ma, reserve_ratio, reserve_ratio_ma);
+    m_wallet->get_reserve_info(pr, hf_version, zeph_reserve, num_stables, num_reserves, assets, assets_ma, liabilities, equity, equity_ma, reserve_ratio, reserve_ratio_ma);
 
     res.zeph_reserve = zeph_reserve.str();
     res.num_stables = num_stables.str();
@@ -4643,6 +4644,7 @@ namespace tools
     res.reserve_ratio_ma = std::to_string(reserve_ratio_ma);
     res.height = current_height;
     res.pr = pr;
+    res.hf_version = hf_version;
     res.status = CORE_RPC_STATUS_OK;
     return true;
   }

@@ -137,7 +137,8 @@ bool gen_rct2_tx_validation_base::generate_with(std::vector<test_event_entry>& e
     subaddresses[miner_accounts[n].get_keys().m_account_address.m_spend_public_key] = {0,0};
     rct_txes.resize(rct_txes.size() + 1);
     std::vector<std::pair<std::string, std::string>> circ_amounts;
-    bool r = construct_tx_and_get_tx_key(miner_accounts[n].get_keys(), subaddresses, sources, destinations, cryptonote::account_public_address{}, std::vector<uint8_t>(), rct_txes.back(), "ZEPH", "ZEPH", 1, hf_version, oracle::pricing_record(), circ_amounts, 0, tx_key, additional_tx_keys, true, rct_config[n]);
+    std::vector<oracle::pricing_record> pricing_record_history;
+    bool r = construct_tx_and_get_tx_key(miner_accounts[n].get_keys(), subaddresses, sources, destinations, cryptonote::account_public_address{}, std::vector<uint8_t>(), rct_txes.back(), "ZEPH", "ZEPH", 1, hf_version, oracle::pricing_record(), circ_amounts, pricing_record_history, 0, tx_key, additional_tx_keys, true, rct_config[n]);
     CHECK_AND_ASSERT_MES(r, false, "failed to construct transaction");
 
     if (post_tx && !post_tx(rct_txes.back(), n))

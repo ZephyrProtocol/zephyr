@@ -486,6 +486,8 @@ namespace cryptonote
   void get_reserve_info(
     const std::vector<std::pair<std::string, std::string>>& circ_amounts,
     const oracle::pricing_record& pr,
+    const std::vector<oracle::pricing_record>& pricing_record_history,
+    const uint8_t hf_version,
     multiprecision::uint128_t& zeph_reserve,
     multiprecision::uint128_t& num_stables,
     multiprecision::uint128_t& num_reserves,
@@ -498,38 +500,62 @@ namespace cryptonote
     double& reserve_ratio_ma
   ){
     get_circulating_asset_amounts(circ_amounts, zeph_reserve, num_stables, num_reserves);
-    
-    multiprecision::cpp_bin_float_quad assets_float = zeph_reserve.convert_to<multiprecision::cpp_bin_float_quad>() * pr.spot;
-    multiprecision::cpp_bin_float_quad assets_ma_float = zeph_reserve.convert_to<multiprecision::cpp_bin_float_quad>() * pr.moving_average;
-    multiprecision::cpp_bin_float_quad liabilities_float = num_stables.convert_to<multiprecision::cpp_bin_float_quad>();
 
-    if ((assets_float == 0 || assets_ma_float == 0) && liabilities_float == 0) {
-      assets = 0;
+    if (hf_version <= HF_VERSION_PR_UPDATE) {
+      multiprecision::cpp_bin_float_quad assets_float = zeph_reserve.convert_to<multiprecision::cpp_bin_float_quad>() * pr.spot;
+      multiprecision::cpp_bin_float_quad assets_ma_float = zeph_reserve.convert_to<multiprecision::cpp_bin_float_quad>() * pr.moving_average;
+      multiprecision::cpp_bin_float_quad liabilities_float = num_stables.convert_to<multiprecision::cpp_bin_float_quad>();
+
+      if ((assets_float == 0 || assets_ma_float == 0) && liabilities_float == 0) {
+        assets = 0;
+        assets_ma = 0;
+        liabilities = 0;
+        equity = 0;
+        equity_ma = 0;
+        reserve_ratio = 0;
+        reserve_ratio_ma = 0;
+        return;
+      }
+
+      multiprecision::cpp_bin_float_quad reserve_ratio_128 = assets_float / liabilities_float;
+      multiprecision::cpp_bin_float_quad reserve_ratio_ma_128 = assets_ma_float / liabilities_float;
+
+      assets_float /= COIN;
+      assets_ma_float /= COIN;
+      assets = assets_float.convert_to<multiprecision::uint128_t>();
+      assets_ma = assets_ma_float.convert_to<multiprecision::uint128_t>();
+      liabilities = liabilities_float.convert_to<multiprecision::uint128_t>();
+      equity = assets > liabilities ? assets - liabilities : 0;
+      equity_ma = assets_ma > liabilities ? assets_ma - liabilities : 0;
+
+      reserve_ratio_128 /= COIN;
+      reserve_ratio_ma_128 /= COIN;
+      reserve_ratio = reserve_ratio_128.convert_to<double>();
+      reserve_ratio_ma = reserve_ratio_ma_128.convert_to<double>();
+    } else {
+      assets = zeph_reserve * pr.spot;
+      liabilities = num_stables;
+      if (num_stables == 0) {
+        assets /= COIN;
+        equity = assets;
+        equity_ma = 0;
+        reserve_ratio = 0;
+        reserve_ratio_ma = 0;
+        return;
+      }
+
+      multiprecision::uint128_t reserve_ratio_int = assets / num_stables;
+      multiprecision::uint128_t reserve_ratio_ma_int = get_moving_average_reserve_ratio(pricing_record_history, (uint64_t)reserve_ratio_int);
+
+      reserve_ratio = reserve_ratio_int.convert_to<double>();
+      reserve_ratio /= COIN;
+      reserve_ratio_ma = reserve_ratio_ma_int.convert_to<double>();
+      reserve_ratio_ma /= COIN;
+      assets /= COIN;
+      equity = assets > liabilities ? assets - liabilities : 0;
       assets_ma = 0;
-      liabilities = 0;
-      equity = 0;
       equity_ma = 0;
-      reserve_ratio = 0;
-      reserve_ratio_ma = 0;
-      return;
     }
-
-    multiprecision::cpp_bin_float_quad reserve_ratio_128 = assets_float / liabilities_float;
-    multiprecision::cpp_bin_float_quad reserve_ratio_ma_128 = assets_ma_float / liabilities_float;
-
-    assets_float /= COIN;
-    assets_ma_float /= COIN;
-    assets = assets_float.convert_to<multiprecision::uint128_t>();
-    assets_ma = assets_ma_float.convert_to<multiprecision::uint128_t>();
-    liabilities = liabilities_float.convert_to<multiprecision::uint128_t>();
-    equity = assets > liabilities ? assets - liabilities : 0;
-    equity_ma = assets_ma > liabilities ? assets_ma - liabilities : 0;
-
-    reserve_ratio_128 /= COIN;
-    reserve_ratio_ma_128 /= COIN;
-    reserve_ratio = reserve_ratio_128.convert_to<double>();
-    reserve_ratio_ma = reserve_ratio_ma_128.convert_to<double>();
-    return;
   }
   double get_spot_reserve_ratio(const std::vector<std::pair<std::string, std::string>>& circ_amounts, const oracle::pricing_record& pr)
   {
@@ -553,16 +579,29 @@ namespace cryptonote
     if (reserve_ratio > std::numeric_limits<double>::max()) return std::numeric_limits<double>::infinity();
     return (double)reserve_ratio;
   }
-  //---------------------------------------------------------------
-  bool reserve_ratio_satisfied(const std::vector<std::pair<std::string, std::string>>& circ_amounts, const oracle::pricing_record& pr, const transaction_type& tx_type, multiprecision::int128_t tally_zeph, multiprecision::int128_t tally_stables, multiprecision::int128_t tally_reserves)
+  uint64_t get_pr_reserve_ratio(const std::vector<std::pair<std::string, std::string>>& circ_amounts, const uint64_t oracle_price)
   {
-    std::string error_reason;
-    return reserve_ratio_satisfied(circ_amounts, pr, tx_type, tally_zeph, tally_stables, tally_reserves, error_reason);
+    multiprecision::uint128_t zeph_reserve, num_stables, num_reserves;
+    get_circulating_asset_amounts(circ_amounts, zeph_reserve, num_stables, num_reserves);
+
+    multiprecision::uint128_t assets = zeph_reserve * oracle_price;
+    if (num_stables == 0) return 0;
+
+    multiprecision::uint128_t reserve_ratio = assets / num_stables;
+    reserve_ratio -= (reserve_ratio % 10000);
+    if (reserve_ratio > std::numeric_limits<uint64_t>::max()) return 0;
+    return (uint64_t)reserve_ratio;
   }
   //---------------------------------------------------------------
-  bool reserve_ratio_satisfied(const std::vector<std::pair<std::string, std::string>>& circ_amounts, const oracle::pricing_record& pr, const transaction_type& tx_type, multiprecision::int128_t tally_zeph, multiprecision::int128_t tally_stables, multiprecision::int128_t tally_reserves, std::string& error_reason)
+  bool reserve_ratio_satisfied(const std::vector<std::pair<std::string, std::string>>& circ_amounts, const std::vector<oracle::pricing_record>& pricing_record_history, const oracle::pricing_record& pr, const transaction_type& tx_type, multiprecision::int128_t tally_zeph, multiprecision::int128_t tally_stables, multiprecision::int128_t tally_reserves, const uint8_t hf_version)
   {
-    if (pr.has_missing_rates()) {
+    std::string error_reason;
+    return reserve_ratio_satisfied(circ_amounts, pricing_record_history, pr, tx_type, tally_zeph, tally_stables, tally_reserves, error_reason, hf_version);
+  }
+  //---------------------------------------------------------------
+  bool reserve_ratio_satisfied(const std::vector<std::pair<std::string, std::string>>& circ_amounts, const std::vector<oracle::pricing_record>& pricing_record_history, const oracle::pricing_record& pr, const transaction_type& tx_type, multiprecision::int128_t tally_zeph, multiprecision::int128_t tally_stables, multiprecision::int128_t tally_reserves, std::string& error_reason, const uint8_t hf_version)
+  {
+    if (pr.has_missing_rates(hf_version)) {
       error_reason = "Reserve ratio cannot be calculated. Pricing record is missing rates.";
       LOG_ERROR(error_reason);
       return false;
@@ -581,120 +620,238 @@ namespace cryptonote
       return false;
     }
 
-    multiprecision::cpp_bin_float_quad assets = zeph_reserve.convert_to<multiprecision::cpp_bin_float_quad>() + tally_zeph.convert_to<multiprecision::cpp_bin_float_quad>();
-    if (assets < 0) {
-      error_reason = "Reserve ratio not satisfied. Zeph reserve would be negative.";
-      LOG_ERROR(error_reason);
-      return false;
-    }
-
-    multiprecision::cpp_bin_float_quad liabilities = num_stables.convert_to<multiprecision::cpp_bin_float_quad>() + tally_stables.convert_to<multiprecision::cpp_bin_float_quad>();
-    if (liabilities < 0) {
-      error_reason = "Reserve ratio not satisfied. Liabilities would be negative.";
-      LOG_ERROR(error_reason);
-      return false;
-    }
-
-    multiprecision::cpp_bin_float_quad total_reserve_coins = num_reserves.convert_to<multiprecision::cpp_bin_float_quad>() + tally_reserves.convert_to<multiprecision::cpp_bin_float_quad>();
-    if (total_reserve_coins < 0) {
-      error_reason = "Reserve ratio not satisfied. Total reserve coins would be negative.";
-      LOG_ERROR(error_reason);
-      return false;
-    }
-
-    if (assets == 0 && liabilities == 0) {
-      error_reason = "Reserve ratio not satisfied. Assets and liabilities are both zero.";
-      LOG_ERROR(error_reason);
-      return false;
-    }
-
-    multiprecision::cpp_bin_float_quad assets_spot = assets * pr.spot;
-    multiprecision::cpp_bin_float_quad assets_MA = assets * pr.moving_average;
-    if (assets != 0 && (assets_spot == 0 || assets_MA == 0)) {
-      error_reason = "Reserve ratio not satisfied. Error calculating assets.";
-      LOG_ERROR(error_reason);
-      return false;
-    }
-
-    multiprecision::cpp_bin_float_quad reserve_ratio_spot = assets_spot / liabilities;
-    multiprecision::cpp_bin_float_quad reserve_ratio_MA = assets_MA / liabilities;
-
-    reserve_ratio_spot /= COIN;
-    reserve_ratio_MA /= COIN;
-
-    if (boost::math::isnan(reserve_ratio_spot) || boost::math::isnan(reserve_ratio_MA)) {
-      error_reason = "Reserve ratio not satisfied. Error calculating reserve ratio.";
-      LOG_ERROR(error_reason);
-      return false;
-    }
-    if (reserve_ratio_spot < 0 || reserve_ratio_MA < 0) {
-      error_reason = "Reserve ratio not satisfied. Reserve ratio would be negative.";
-      LOG_ERROR(error_reason);
-      return false;
-    }
-
-    if (tx_type == transaction_type::MINT_STABLE) {
-      // Make sure the reserve ratio is at least 4.0
-      if (reserve_ratio_spot < 4.0) {
-        error_reason = "Spot reserve ratio not satisfied. New reserve ratio would be " + std::to_string((double)reserve_ratio_spot) + " which is less than minimum 4.0";
+    if (hf_version >= HF_VERSION_V5) {
+      multiprecision::int128_t assets = zeph_reserve.convert_to<multiprecision::int128_t>() + tally_zeph;
+      if (assets < 0) {
+        error_reason = "Reserve ratio not satisfied. Zeph reserve would be negative.";
         LOG_ERROR(error_reason);
         return false;
       }
-      if (reserve_ratio_MA < 4.0) {
-        error_reason = "MA reserve ratio not satisfied. New reserve ratio would be " + std::to_string((double)reserve_ratio_MA) + " which is less than minimum 4.0";
+
+      multiprecision::int128_t liabilities = num_stables.convert_to<multiprecision::int128_t>() + tally_stables;
+      if (liabilities < 0) {
+        error_reason = "Reserve ratio not satisfied. Liabilities would be negative.";
         LOG_ERROR(error_reason);
         return false;
       }
-      return true;
-    }
 
-    if (tx_type == transaction_type::REDEEM_STABLE) {
-      if (assets == 0) {
-        error_reason = "Reserve ratio not satisfied. Assets are zero.";
+      multiprecision::int128_t total_reserve_coins = num_reserves.convert_to<multiprecision::int128_t>() + tally_reserves;
+      if (total_reserve_coins < 0) {
+        error_reason = "Reserve ratio not satisfied. Total reserve coins would be negative.";
         LOG_ERROR(error_reason);
         return false;
       }
-      return true;
-    }
 
-    if (tx_type == transaction_type::MINT_RESERVE) {
-      // If there is less than 100 circulating stablecoins, then reserve coin minting is allowed
-      const uint64_t threshold_num_stables = 100 * COIN;
-      if (liabilities < threshold_num_stables) {
+      if (assets == 0 && liabilities == 0) {
+        error_reason = "Reserve ratio not satisfied. Assets and liabilities are both zero.";
+        LOG_ERROR(error_reason);
+        return false;
+      }
+
+      multiprecision::int128_t assets_spot = assets * pr.spot;
+      if (assets != 0 && assets_spot == 0) {
+        error_reason = "Reserve ratio not satisfied. Error calculating assets.";
+        LOG_ERROR(error_reason);
+        return false;
+      }
+
+      multiprecision::int128_t reserve_ratio_spot;
+      multiprecision::int128_t reserve_ratio_MA;
+      if (liabilities == 0) {
+        reserve_ratio_spot = std::numeric_limits<multiprecision::int128_t>::infinity();
+        reserve_ratio_MA = std::numeric_limits<multiprecision::int128_t>::infinity();
+      } else {
+        reserve_ratio_spot = assets_spot / liabilities;
+        reserve_ratio_MA = get_moving_average_reserve_ratio(pricing_record_history, (uint64_t)reserve_ratio_spot);
+      }
+
+      if (reserve_ratio_spot < 0 || reserve_ratio_MA < 0) {
+        error_reason = "Reserve ratio not satisfied. Reserve ratio would be negative.";
+        LOG_ERROR(error_reason);
+        return false;
+      }
+
+      const uint64_t RESERVE_RATIO_MIN = 4 * COIN;
+      const uint64_t RESERVE_RATIO_MAX = 8 * COIN;
+
+      if (tx_type == transaction_type::MINT_STABLE) {
+        // Make sure the reserve ratio is at least 4.0
+        if (reserve_ratio_spot < RESERVE_RATIO_MIN) {
+          error_reason = "Spot reserve ratio not satisfied. New reserve ratio would be " + print_money((uint64_t)reserve_ratio_spot) + " which is less than minimum 4.0";
+          LOG_ERROR(error_reason);
+          return false;
+        }
+        if (reserve_ratio_MA < RESERVE_RATIO_MIN) {
+          error_reason = "MA reserve ratio not satisfied. New reserve ratio would be " + print_money((uint64_t)reserve_ratio_MA) + " which is less than minimum 4.0";
+          LOG_ERROR(error_reason);
+          return false;
+        }
         return true;
       }
-      // Make sure the reserve ratio has not exceeded max of 8.0
-      if (reserve_ratio_spot >= 8.0) {
-        error_reason = "Spot reserve ratio not satisfied. New reserve ratio would be " + std::to_string((double)reserve_ratio_spot) + " which is above the maximum 8.0";
-        LOG_ERROR(error_reason);
-        return false;
-      }
-      if (reserve_ratio_MA >= 8.0) {
-        error_reason = "MA reserve ratio not satisfied. New reserve ratio would be " + std::to_string((double)reserve_ratio_MA) + " which is above the maximum 8.0";
-        LOG_ERROR(error_reason);
-        return false;
-      }
-      return true;
-    }
 
-    if (tx_type == transaction_type::REDEEM_RESERVE) {
-      // Make sure the reserve ratio is at least 4.0
-      if (reserve_ratio_spot < 4.0) {
-        error_reason = "Reserve ratio not satisfied. New reserve ratio would be " + std::to_string((double)reserve_ratio_spot) + " which is less than the minimum 4.0";
-        LOG_ERROR(error_reason);
-        return false;
+      if (tx_type == transaction_type::REDEEM_STABLE) {
+        if (assets == 0) {
+          error_reason = "Reserve ratio not satisfied. Assets are zero.";
+          LOG_ERROR(error_reason);
+          return false;
+        }
+        return true;
       }
-      if (reserve_ratio_MA < 4.0) {
-        error_reason = "Reserve ratio not satisfied. New reserve ratio would be " + std::to_string((double)reserve_ratio_MA) + " which is less than the minimum 4.0";
-        LOG_ERROR(error_reason);
-        return false;
-      }
-      return true;
-    }
 
-    error_reason = "Reserve ratios not satisfied. Spot: " + std::to_string((double)reserve_ratio_spot) + " | MA: " + std::to_string((double)reserve_ratio_MA);
-    LOG_ERROR(error_reason);
-    return false;
+      if (tx_type == transaction_type::MINT_RESERVE) {
+        // If there is less than 100 circulating stablecoins, then reserve coin minting is allowed
+        const uint64_t threshold_num_stables = 100 * COIN;
+        if (liabilities < threshold_num_stables) {
+          return true;
+        }
+        // Make sure the reserve ratio has not exceeded max of 8.0
+        if (reserve_ratio_spot >= RESERVE_RATIO_MAX) {
+          error_reason = "Spot reserve ratio not satisfied. New reserve ratio would be " + print_money((uint64_t)reserve_ratio_spot) + " which is above the maximum 8.0";
+          LOG_ERROR(error_reason);
+          return false;
+        }
+        if (reserve_ratio_MA >= RESERVE_RATIO_MAX) {
+          error_reason = "MA reserve ratio not satisfied. New reserve ratio would be " + print_money((uint64_t)reserve_ratio_MA) + " which is above the maximum 8.0";
+          LOG_ERROR(error_reason);
+          return false;
+        }
+        return true;
+      }
+
+      if (tx_type == transaction_type::REDEEM_RESERVE) {
+        // Make sure the reserve ratio is at least 4.0
+        if (reserve_ratio_spot < RESERVE_RATIO_MIN) {
+          error_reason = "Reserve ratio not satisfied. New reserve ratio would be " + print_money((uint64_t)reserve_ratio_spot) + " which is less than the minimum 4.0";
+          LOG_ERROR(error_reason);
+          return false;
+        }
+        if (reserve_ratio_MA < RESERVE_RATIO_MIN) {
+          error_reason = "Reserve ratio not satisfied. New reserve ratio would be " + print_money((uint64_t)reserve_ratio_MA) + " which is less than the minimum 4.0";
+          LOG_ERROR(error_reason);
+          return false;
+        }
+        return true;
+      }
+
+      error_reason = "Reserve ratios not satisfied. Spot: " + print_money((uint64_t)reserve_ratio_spot) + " | MA: " + print_money((uint64_t)reserve_ratio_MA);
+      LOG_ERROR(error_reason);
+      return false;
+    } else {
+      multiprecision::cpp_bin_float_quad assets = zeph_reserve.convert_to<multiprecision::cpp_bin_float_quad>() + tally_zeph.convert_to<multiprecision::cpp_bin_float_quad>();
+      if (assets < 0) {
+        error_reason = "Reserve ratio not satisfied. Zeph reserve would be negative.";
+        LOG_ERROR(error_reason);
+        return false;
+      }
+
+      multiprecision::cpp_bin_float_quad liabilities = num_stables.convert_to<multiprecision::cpp_bin_float_quad>() + tally_stables.convert_to<multiprecision::cpp_bin_float_quad>();
+      if (liabilities < 0) {
+        error_reason = "Reserve ratio not satisfied. Liabilities would be negative.";
+        LOG_ERROR(error_reason);
+        return false;
+      }
+
+      multiprecision::cpp_bin_float_quad total_reserve_coins = num_reserves.convert_to<multiprecision::cpp_bin_float_quad>() + tally_reserves.convert_to<multiprecision::cpp_bin_float_quad>();
+      if (total_reserve_coins < 0) {
+        error_reason = "Reserve ratio not satisfied. Total reserve coins would be negative.";
+        LOG_ERROR(error_reason);
+        return false;
+      }
+
+      if (assets == 0 && liabilities == 0) {
+        error_reason = "Reserve ratio not satisfied. Assets and liabilities are both zero.";
+        LOG_ERROR(error_reason);
+        return false;
+      }
+
+      multiprecision::cpp_bin_float_quad assets_spot = assets * pr.spot;
+      multiprecision::cpp_bin_float_quad assets_MA = assets * pr.moving_average;
+      if (assets != 0 && (assets_spot == 0 || assets_MA == 0)) {
+        error_reason = "Reserve ratio not satisfied. Error calculating assets.";
+        LOG_ERROR(error_reason);
+        return false;
+      }
+
+      multiprecision::cpp_bin_float_quad reserve_ratio_spot = assets_spot / liabilities;
+      multiprecision::cpp_bin_float_quad reserve_ratio_MA = assets_MA / liabilities;
+
+      reserve_ratio_spot /= COIN;
+      reserve_ratio_MA /= COIN;
+
+      if (boost::math::isnan(reserve_ratio_spot) || boost::math::isnan(reserve_ratio_MA)) {
+        error_reason = "Reserve ratio not satisfied. Error calculating reserve ratio.";
+        LOG_ERROR(error_reason);
+        return false;
+      }
+      if (reserve_ratio_spot < 0 || reserve_ratio_MA < 0) {
+        error_reason = "Reserve ratio not satisfied. Reserve ratio would be negative.";
+        LOG_ERROR(error_reason);
+        return false;
+      }
+
+      if (tx_type == transaction_type::MINT_STABLE) {
+        // Make sure the reserve ratio is at least 4.0
+        if (reserve_ratio_spot < 4.0) {
+          error_reason = "Spot reserve ratio not satisfied. New reserve ratio would be " + std::to_string((double)reserve_ratio_spot) + " which is less than minimum 4.0";
+          LOG_ERROR(error_reason);
+          return false;
+        }
+        if (reserve_ratio_MA < 4.0) {
+          error_reason = "MA reserve ratio not satisfied. New reserve ratio would be " + std::to_string((double)reserve_ratio_MA) + " which is less than minimum 4.0";
+          LOG_ERROR(error_reason);
+          return false;
+        }
+        return true;
+      }
+
+      if (tx_type == transaction_type::REDEEM_STABLE) {
+        if (assets == 0) {
+          error_reason = "Reserve ratio not satisfied. Assets are zero.";
+          LOG_ERROR(error_reason);
+          return false;
+        }
+        return true;
+      }
+
+      if (tx_type == transaction_type::MINT_RESERVE) {
+        // If there is less than 100 circulating stablecoins, then reserve coin minting is allowed
+        const uint64_t threshold_num_stables = 100 * COIN;
+        if (liabilities < threshold_num_stables) {
+          return true;
+        }
+        // Make sure the reserve ratio has not exceeded max of 8.0
+        if (reserve_ratio_spot >= 8.0) {
+          error_reason = "Spot reserve ratio not satisfied. New reserve ratio would be " + std::to_string((double)reserve_ratio_spot) + " which is above the maximum 8.0";
+          LOG_ERROR(error_reason);
+          return false;
+        }
+        if (reserve_ratio_MA >= 8.0) {
+          error_reason = "MA reserve ratio not satisfied. New reserve ratio would be " + std::to_string((double)reserve_ratio_MA) + " which is above the maximum 8.0";
+          LOG_ERROR(error_reason);
+          return false;
+        }
+        return true;
+      }
+
+      if (tx_type == transaction_type::REDEEM_RESERVE) {
+        // Make sure the reserve ratio is at least 4.0
+        if (reserve_ratio_spot < 4.0) {
+          error_reason = "Reserve ratio not satisfied. New reserve ratio would be " + std::to_string((double)reserve_ratio_spot) + " which is less than the minimum 4.0";
+          LOG_ERROR(error_reason);
+          return false;
+        }
+        if (reserve_ratio_MA < 4.0) {
+          error_reason = "Reserve ratio not satisfied. New reserve ratio would be " + std::to_string((double)reserve_ratio_MA) + " which is less than the minimum 4.0";
+          LOG_ERROR(error_reason);
+          return false;
+        }
+        return true;
+      }
+
+      error_reason = "Reserve ratios not satisfied. Spot: " + std::to_string((double)reserve_ratio_spot) + " | MA: " + std::to_string((double)reserve_ratio_MA);
+      LOG_ERROR(error_reason);
+      return false;
+    }
   }
    //---------------------------------------------------------------
   uint64_t get_stable_coin_price(const std::vector<std::pair<std::string, std::string>>& circ_amounts, uint64_t oracle_price)
@@ -776,6 +933,74 @@ namespace cryptonote
     reserve_coin_price -= (reserve_coin_price % 10000);
     
     return std::max(reserve_coin_price, price_r_min);
+  }
+  //---------------------------------------------------------------
+  uint64_t get_moving_average_price(const std::vector<oracle::pricing_record>& pricing_record_history, uint64_t spot_price)
+  {
+    if (pricing_record_history.size() < 719) {
+      return 0;
+    }
+
+    uint64_t sum = 0;
+    int first_pr_index = pricing_record_history.size() - 719;
+    for (int i = pricing_record_history.size() - 1; i >= first_pr_index; i--) {
+      sum += pricing_record_history[i].spot;
+    }
+
+    uint64_t moving_average = (sum + spot_price) / 720;
+    moving_average -= (moving_average % 10000);
+    return moving_average;
+  }
+  //---------------------------------------------------------------
+  uint64_t get_moving_average_stable_coin_price(const std::vector<oracle::pricing_record>& pricing_record_history, uint64_t stable_price)
+  {
+    if (pricing_record_history.size() < 719) {
+      return 0;
+    }
+
+    uint64_t sum = 0;
+    int first_pr_index = pricing_record_history.size() - 719;
+    for (int i = pricing_record_history.size() - 1; i >= first_pr_index; i--) {
+      sum += pricing_record_history[i].stable;
+    }
+
+    uint64_t moving_average = (sum + stable_price) / 720;
+    moving_average -= (moving_average % 10000);
+    return moving_average;
+  }
+  //---------------------------------------------------------------
+  uint64_t get_moving_average_reserve_coin_price(const std::vector<oracle::pricing_record>& pricing_record_history, uint64_t reserve_price)
+  {
+    if (pricing_record_history.size() < 719) {
+      return 0;
+    }
+
+    uint64_t sum = 0;
+    int first_pr_index = pricing_record_history.size() - 719;
+    for (int i = pricing_record_history.size() - 1; i >= first_pr_index; i--) {
+      sum += pricing_record_history[i].reserve;
+    }
+
+    uint64_t moving_average = (sum + reserve_price) / 720;
+    moving_average -= (moving_average % 10000);
+    return moving_average;
+  }
+  //---------------------------------------------------------------
+  uint64_t get_moving_average_reserve_ratio(const std::vector<oracle::pricing_record>& pricing_record_history, uint64_t reserve_ratio)
+  {
+    if (pricing_record_history.size() < 719) {
+      return 0;
+    }
+
+    uint64_t sum = 0;
+    int first_pr_index = pricing_record_history.size() - 719;
+    for (int i = pricing_record_history.size() - 1; i >= first_pr_index; i--) {
+      sum += pricing_record_history[i].reserve_ratio;
+    }
+
+    uint64_t moving_average = (sum + reserve_ratio) / 720;
+    moving_average -= (moving_average % 10000);
+    return moving_average;
   }
   //---------------------------------------------------------------
   // ZEPH -> ZEPHRSV
@@ -895,9 +1120,9 @@ namespace cryptonote
     return zeph_fee.convert_to<uint64_t>();
   }
   //---------------------------------------------------------------------------------
-  uint64_t get_fee_in_zeph_equivalent(const std::string& fee_asset, uint64_t fee_amount, const oracle::pricing_record& pr)
+  uint64_t get_fee_in_zeph_equivalent(const std::string& fee_asset, uint64_t fee_amount, const oracle::pricing_record& pr, const uint8_t hf_version)
   {
-    if (fee_asset == "ZEPH" || pr.has_missing_rates()) {
+    if (fee_asset == "ZEPH" || pr.has_missing_rates(hf_version)) {
       return fee_amount;
     } else if (fee_asset == "ZEPHUSD") {
       return asset_to_zeph_fee(fee_amount, pr.stable_ma);
@@ -908,9 +1133,9 @@ namespace cryptonote
     return fee_amount;
   }
     //---------------------------------------------------------------------------------
-  uint64_t get_fee_in_asset_equivalent(const std::string& to_asset_type, uint64_t fee_amount, const oracle::pricing_record& pr)
+  uint64_t get_fee_in_asset_equivalent(const std::string& to_asset_type, uint64_t fee_amount, const oracle::pricing_record& pr, const uint8_t hf_version)
   {
-    if (to_asset_type == "ZEPH" || pr.has_missing_rates()) {
+    if (to_asset_type == "ZEPH" || pr.has_missing_rates(hf_version)) {
       return fee_amount;
     } else if (to_asset_type == "ZEPHUSD") {
       return zeph_to_asset_fee(fee_amount, pr.stable_ma);
@@ -945,6 +1170,7 @@ namespace cryptonote
     const uint8_t hf_version,
     const oracle::pricing_record& pr,
     const std::vector<std::pair<std::string, std::string>> circ_amounts,
+    const std::vector<oracle::pricing_record>& pricing_record_history,
     uint64_t unlock_time,
     const crypto::secret_key &tx_key,
     const std::vector<crypto::secret_key> &additional_tx_keys,
@@ -1232,7 +1458,7 @@ namespace cryptonote
         return false;
       }
 
-      if (!reserve_ratio_satisfied(circ_amounts, pr, tx_type, conversion_this_tx_zeph, conversion_this_tx_stables, conversion_this_tx_reserves)) {
+      if (!reserve_ratio_satisfied(circ_amounts, pricing_record_history, pr, tx_type, conversion_this_tx_zeph, conversion_this_tx_stables, conversion_this_tx_reserves, hf_version)) {
         LOG_ERROR("reserve ratio not satisfied");
         return false;
       }
@@ -1471,6 +1697,7 @@ namespace cryptonote
     const uint8_t hf_version,
     const oracle::pricing_record& pr,
     const std::vector<std::pair<std::string, std::string>> circ_amounts,
+    const std::vector<oracle::pricing_record>& pricing_record_history,
     uint64_t unlock_time,
     crypto::secret_key &tx_key,
     std::vector<crypto::secret_key> &additional_tx_keys,
@@ -1511,6 +1738,7 @@ namespace cryptonote
         hf_version,
         pr,
         circ_amounts,
+        pricing_record_history,
         unlock_time,
         tx_key,
         additional_tx_keys,
@@ -1536,7 +1764,8 @@ namespace cryptonote
     std::vector<tx_destination_entry> destinations_copy = destinations;
     
     std::vector<std::pair<std::string, std::string>> circ_supply; // = m_blockchain_storage.get_db().get_circulating_supply();
-    return construct_tx_and_get_tx_key(sender_account_keys, subaddresses, sources, destinations_copy, change_addr, extra, tx, "ZEPH", "ZEPH", 100, hf_version, oracle::pricing_record(), circ_supply, unlock_time, tx_key, additional_tx_keys, false, { rct::RangeProofBorromean, 0});
+    std::vector<oracle::pricing_record> pricing_record_history;
+    return construct_tx_and_get_tx_key(sender_account_keys, subaddresses, sources, destinations_copy, change_addr, extra, tx, "ZEPH", "ZEPH", 100, hf_version, oracle::pricing_record(), circ_supply, pricing_record_history, unlock_time, tx_key, additional_tx_keys, false, { rct::RangeProofBorromean, 0});
   }
   //---------------------------------------------------------------
   bool generate_genesis_block(

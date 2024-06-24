@@ -63,7 +63,7 @@ TEST(oracle, pricing_record_from_oracle_valid_signature)
     pr.signature[j++] = (char) strtol(byteString.c_str(), NULL, 16);
   }
 
-  EXPECT_TRUE(pr.verifySignature(get_config(cryptonote::network_type::TESTNET).ORACLE_PUBLIC_KEY));
+  EXPECT_TRUE(pr.verifySignature(get_config(cryptonote::network_type::TESTNET).ORACLE_PUBLIC_KEY, 3));
 }
 
 TEST(oracle, modified_pricing_record_from_oracle_invalid_signature)
@@ -79,16 +79,16 @@ TEST(oracle, modified_pricing_record_from_oracle_invalid_signature)
     pr.signature[j++] = (char) strtol(byteString.c_str(), NULL, 16);
   }
 
-  EXPECT_TRUE(pr.verifySignature(get_config(cryptonote::network_type::TESTNET).ORACLE_PUBLIC_KEY));
+  EXPECT_TRUE(pr.verifySignature(get_config(cryptonote::network_type::TESTNET).ORACLE_PUBLIC_KEY, 3));
 
   // modified spot price
   pr.spot = 1;
-  EXPECT_FALSE(pr.verifySignature(get_config(cryptonote::network_type::TESTNET).ORACLE_PUBLIC_KEY));
+  EXPECT_FALSE(pr.verifySignature(get_config(cryptonote::network_type::TESTNET).ORACLE_PUBLIC_KEY, 3));
   pr.spot = 2915484310000; // revert back
 
   // modified signature
   pr.signature[0] = 0x2e;
-  EXPECT_FALSE(pr.verifySignature(get_config(cryptonote::network_type::TESTNET).ORACLE_PUBLIC_KEY));
+  EXPECT_FALSE(pr.verifySignature(get_config(cryptonote::network_type::TESTNET).ORACLE_PUBLIC_KEY, 3));
 }
 
 TEST(oracle, pricing_record_values_valid)
@@ -104,7 +104,7 @@ TEST(oracle, pricing_record_values_valid)
     pr.signature[j++] = (char) strtol(byteString.c_str(), NULL, 16);
   }
 
-  EXPECT_TRUE(pr.verifySignature(get_config(cryptonote::network_type::TESTNET).ORACLE_PUBLIC_KEY));
+  EXPECT_TRUE(pr.verifySignature(get_config(cryptonote::network_type::TESTNET).ORACLE_PUBLIC_KEY, 3));
 
   pr.stable = 1;
   pr.stable_ma = 1;
@@ -127,7 +127,7 @@ TEST(oracle, pricing_record_missing_values_invalid)
     pr.signature[j++] = (char) strtol(byteString.c_str(), NULL, 16);
   }
 
-  EXPECT_TRUE(pr.verifySignature(get_config(cryptonote::network_type::TESTNET).ORACLE_PUBLIC_KEY));
+  EXPECT_TRUE(pr.verifySignature(get_config(cryptonote::network_type::TESTNET).ORACLE_PUBLIC_KEY, 3));
 
   pr.stable = 1;
   pr.stable_ma = 1;

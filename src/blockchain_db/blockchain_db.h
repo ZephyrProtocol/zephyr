@@ -1188,6 +1188,13 @@ public:
   virtual std::vector<std::pair<std::string, std::string>> get_circulating_supply() const = 0;
 
   /**
+   * @brief fetch the circulating supply tally values from the blockchain
+   *
+   * @return the current circulating supply tally values
+   */
+  virtual std::vector<oracle::pricing_record> get_pricing_record_history() const = 0;
+
+  /**
    * <!--
    * TODO: Rewrite (if necessary) such that all calls to remove_* are
    *       done in concrete members of this base class.

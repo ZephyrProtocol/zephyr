@@ -2255,7 +2255,7 @@ wallet2::transfers_iterator_container wallet2::get_specific_transfers(const std:
   return asset_transfers;
 }
 //----------------------------------------------------------------------------------------------------
-bool wallet2::get_pricing_record(oracle::pricing_record& pr, const uint64_t height)
+bool wallet2::get_pricing_record(oracle::pricing_record& pr, const uint64_t height, const bool strict_check)
 {
   // Issue an RPC call to get the block header (and thus the pricing record) at the specified height
   cryptonote::COMMAND_RPC_GET_BLOCK_HEADER_BY_HEIGHT::request req = AUTO_VAL_INIT(req);
@@ -2266,9 +2266,15 @@ bool wallet2::get_pricing_record(oracle::pricing_record& pr, const uint64_t heig
   m_daemon_rpc_mutex.unlock();
   if (r && res.status == CORE_RPC_STATUS_OK)
   {
+    uint8_t hf_version = res.block_header.major_version;
     // Got the block header - verify the pricing record
-    if (res.block_header.pricing_record.empty() || res.block_header.pricing_record.has_missing_rates()) {
-      MERROR("Invalid pricing record in block header - oracle TXs disabled. Please try again later.");
+    if (strict_check) {
+      if (res.block_header.pricing_record.empty() || res.block_header.pricing_record.has_missing_rates(hf_version)) {
+        MERROR("Invalid pricing record in block header - oracle TXs disabled. Please try again later.");
+        return false;
+      }
+    } else if (!res.block_header.pricing_record.has_essential_rates(hf_version)) {
+      MERROR("No pricing record in block header - oracle TXs disabled. Please try again later.");
       return false;
     }
 
@@ -2302,6 +2308,25 @@ bool wallet2::get_circulating_supply(std::vector<std::pair<std::string, std::str
   else
   {
     MERROR("Failed to retrieve circulating supply from daemon");
+    return false;
+  }
+}
+//----------------------------------------------------------------------------------------------------
+bool wallet2::get_pricing_record_history(std::vector<oracle::pricing_record> &pricing_record_history)
+{
+  cryptonote::COMMAND_RPC_GET_PRICING_RECORD_HISTORY::request req = AUTO_VAL_INIT(req);
+  cryptonote::COMMAND_RPC_GET_PRICING_RECORD_HISTORY::response res = AUTO_VAL_INIT(res);
+  m_daemon_rpc_mutex.lock();
+  bool r = invoke_http_json_rpc("/json_rpc", "get_pricing_record_history", req, res, rpc_timeout);
+  m_daemon_rpc_mutex.unlock();
+  if (r && res.status == CORE_RPC_STATUS_OK)
+  {
+    pricing_record_history = res.pricing_record_history;
+    return true;
+  }
+  else
+  {
+    MERROR("Failed to retrieve pricing record history from daemon");
     return false;
   }
 }
@@ -7397,7 +7422,9 @@ bool wallet2::sign_tx(unsigned_tx_set &exported_txs, std::vector<wallet2::pendin
     // Get the circulating supply data
     std::vector<std::pair<std::string, std::string>> circ_amounts;
     THROW_WALLET_EXCEPTION_IF(!get_circulating_supply(circ_amounts), error::wallet_internal_error, "Failed to get circulating supply");
-    bool r = cryptonote::construct_tx_and_get_tx_key(m_account.get_keys(), m_subaddresses, sd.sources, sd.splitted_dsts, sd.change_dts.addr, sd.extra, ptx.tx, "ZEPH", "ZEPH", 1, hf_version, oracle::pricing_record(), circ_amounts, sd.unlock_time, tx_key, additional_tx_keys, sd.use_rct, rct_config, sd.use_view_tags);
+    std::vector<oracle::pricing_record> pricing_record_history;
+    THROW_WALLET_EXCEPTION_IF(!get_pricing_record_history(pricing_record_history), error::wallet_internal_error, "Failed to get pricing record history");
+    bool r = cryptonote::construct_tx_and_get_tx_key(m_account.get_keys(), m_subaddresses, sd.sources, sd.splitted_dsts, sd.change_dts.addr, sd.extra, ptx.tx, "ZEPH", "ZEPH", 1, hf_version, oracle::pricing_record(), circ_amounts, pricing_record_history, sd.unlock_time, tx_key, additional_tx_keys, sd.use_rct, rct_config, sd.use_view_tags);
     THROW_WALLET_EXCEPTION_IF(!r, error::tx_not_constructed, sd.sources, sd.splitted_dsts, sd.unlock_time, m_nettype);
     // we don't test tx size, because we don't know the current limit, due to not having a blockchain,
     // and it's a bit pointless to fail there anyway, since it'd be a (good) guess only. We sign anyway,
@@ -9448,9 +9475,10 @@ void wallet2::transfer_selected(const std::vector<cryptonote::tx_destination_ent
   // Get the circulating supply data
   std::vector<std::pair<std::string, std::string>> circ_amounts;
   THROW_WALLET_EXCEPTION_IF(!get_circulating_supply(circ_amounts), error::wallet_internal_error, "Failed to get circulating supply");
-
+  std::vector<oracle::pricing_record> pricing_record_history;
+  THROW_WALLET_EXCEPTION_IF(!get_pricing_record_history(pricing_record_history), error::wallet_internal_error, "Failed to get pricing record history");
   uint32_t hf_version = get_current_hard_fork();
-  bool r = cryptonote::construct_tx_and_get_tx_key(m_account.get_keys(), m_subaddresses, sources, splitted_dsts, change_dts.addr, extra, tx, "ZEPH", "ZEPH", 1, hf_version, oracle::pricing_record(), circ_amounts, unlock_time, tx_key, additional_tx_keys, false, {}, use_view_tags);
+  bool r = cryptonote::construct_tx_and_get_tx_key(m_account.get_keys(), m_subaddresses, sources, splitted_dsts, change_dts.addr, extra, tx, "ZEPH", "ZEPH", 1, hf_version, oracle::pricing_record(), circ_amounts, pricing_record_history, unlock_time, tx_key, additional_tx_keys, false, {}, use_view_tags);
   LOG_PRINT_L2("constructed tx, r="<<r);
   THROW_WALLET_EXCEPTION_IF(!r, error::tx_not_constructed, sources, splitted_dsts, unlock_time, m_nettype);
   THROW_WALLET_EXCEPTION_IF(upper_transaction_weight_limit <= get_transaction_weight(tx), error::tx_too_big, tx, upper_transaction_weight_limit);
@@ -9766,6 +9794,8 @@ void wallet2::transfer_selected_rct(
     // Get the circulating supply data
     std::vector<std::pair<std::string, std::string>> circ_amounts;
     THROW_WALLET_EXCEPTION_IF(!get_circulating_supply(circ_amounts), error::wallet_internal_error, "Failed to get circulating supply");
+    std::vector<oracle::pricing_record> pricing_record_history;
+    THROW_WALLET_EXCEPTION_IF(!get_pricing_record_history(pricing_record_history), error::wallet_internal_error, "Failed to get pricing record history");
     // make a normal tx
     bool r = cryptonote::construct_tx_and_get_tx_key(
       m_account.get_keys(),
@@ -9781,6 +9811,7 @@ void wallet2::transfer_selected_rct(
       hf_version,
       pr,
       circ_amounts,
+      pricing_record_history,
       unlock_time,
       tx_key,
       additional_tx_keys,
@@ -10064,6 +10095,7 @@ static uint32_t get_count_above(const std::vector<wallet2::transfer_details> &tr
 
 void wallet2::get_reserve_info(
   const oracle::pricing_record& pricing_record,
+  const uint8_t hf_version,
   boost::multiprecision::uint128_t& zeph_reserve,
   boost::multiprecision::uint128_t& num_stables,
   boost::multiprecision::uint128_t& num_reserves,
@@ -10076,8 +10108,10 @@ void wallet2::get_reserve_info(
   double& reserve_ratio_ma
 ){
   std::vector<std::pair<std::string, std::string>> circ_amounts;
+  std::vector<oracle::pricing_record> pricing_record_history;
   THROW_WALLET_EXCEPTION_IF(!get_circulating_supply(circ_amounts), error::wallet_internal_error, "Failed to get circulating supply");
-  return cryptonote::get_reserve_info(circ_amounts, pricing_record, zeph_reserve, num_stables, num_reserves, assets, assets_ma, liabilities, equity, equity_ma, reserve_ratio, reserve_ratio_ma);
+  THROW_WALLET_EXCEPTION_IF(!get_pricing_record_history(pricing_record_history), error::wallet_internal_error, "Failed to get pricing record history");
+  return cryptonote::get_reserve_info(circ_amounts, pricing_record, pricing_record_history, hf_version, zeph_reserve, num_stables, num_reserves, assets, assets_ma, liabilities, equity, equity_ma, reserve_ratio, reserve_ratio_ma);
 }
 
 double wallet2::get_spot_reserve_ratio(const oracle::pricing_record& pricing_record)
@@ -10331,9 +10365,10 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(
   if (source_asset != dest_asset) {
     std::vector<std::pair<std::string, std::string>> circ_amounts;
     THROW_WALLET_EXCEPTION_IF(!get_circulating_supply(circ_amounts), error::wallet_internal_error, "Failed to get circulating supply");
-
+    std::vector<oracle::pricing_record> pricing_record_history;
+    THROW_WALLET_EXCEPTION_IF(!get_pricing_record_history(pricing_record_history), error::wallet_internal_error, "Failed to get pricing record history");
     std::string error_reason;
-    if (!reserve_ratio_satisfied(circ_amounts, pricing_record, tx_type, conversion_this_tx_zeph, conversion_this_tx_stables, conversion_this_tx_reserves, error_reason)) {
+    if (!reserve_ratio_satisfied(circ_amounts, pricing_record_history, pricing_record, tx_type, conversion_this_tx_zeph, conversion_this_tx_stables, conversion_this_tx_reserves, error_reason, hf_version)) {
       LOG_ERROR("reserve ratio not satisfied");
       THROW_WALLET_EXCEPTION_IF(true, error::wallet_internal_error, error_reason);
     }
@@ -10473,7 +10508,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(
     // will get us a known fee.
     uint64_t estimated_fee = estimate_fee(use_per_byte_fee, use_rct, 2, fake_outs_count, 2, extra.size(), bulletproof, clsag, bulletproof_plus, use_view_tags, base_fee, fee_quantization_mask);
     if (source_asset != "ZEPH" && source_asset != dest_asset) {
-      estimated_fee = get_fee_in_asset_equivalent(source_asset, estimated_fee, pricing_record);
+      estimated_fee = get_fee_in_asset_equivalent(source_asset, estimated_fee, pricing_record, hf_version);
       THROW_WALLET_EXCEPTION_IF(estimated_fee == 0, error::wallet_internal_error, "Failed to convert zeph value fee to " + source_asset + " equivalent");
     }
     total_needed_money = needed_money + (subtract_fee_from_outputs.size() ? 0 : estimated_fee);
@@ -10666,7 +10701,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(
       const size_t num_outputs = get_num_outputs(tx.dsts, m_transfers, tx.selected_transfers);
       needed_fee = estimate_fee(use_per_byte_fee, use_rct ,tx.selected_transfers.size(), fake_outs_count, num_outputs, extra.size(), bulletproof, clsag, bulletproof_plus, use_view_tags, base_fee, fee_quantization_mask);
       if (source_asset != "ZEPH" && source_asset != dest_asset) {
-        needed_fee = get_fee_in_asset_equivalent(source_asset, needed_fee, pricing_record);
+        needed_fee = get_fee_in_asset_equivalent(source_asset, needed_fee, pricing_record, hf_version);
         THROW_WALLET_EXCEPTION_IF(needed_fee == 0, error::wallet_internal_error, "Failed to convert zeph value fee to " + source_asset + " equivalent");
       }
 
@@ -10754,7 +10789,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(
       auto txBlob = t_serializable_object_to_blob(test_ptx.tx);
       needed_fee = calculate_fee(use_per_byte_fee, test_ptx.tx, txBlob.size(), base_fee, fee_quantization_mask);
       if (source_asset != "ZEPH" && source_asset != dest_asset) {
-        needed_fee = get_fee_in_asset_equivalent(source_asset, needed_fee, pricing_record);
+        needed_fee = get_fee_in_asset_equivalent(source_asset, needed_fee, pricing_record, hf_version);
         THROW_WALLET_EXCEPTION_IF(needed_fee == 0, error::wallet_internal_error, "Failed to convert zeph value fee to " + source_asset + " equivalent");
       }
 
@@ -10813,7 +10848,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(
           txBlob = t_serializable_object_to_blob(test_ptx.tx);
           needed_fee = calculate_fee(use_per_byte_fee, test_ptx.tx, txBlob.size(), base_fee, fee_quantization_mask);
           if (source_asset != "ZEPH" && source_asset != dest_asset) {
-            needed_fee = get_fee_in_asset_equivalent(source_asset, needed_fee, pricing_record);
+            needed_fee = get_fee_in_asset_equivalent(source_asset, needed_fee, pricing_record, hf_version);
             THROW_WALLET_EXCEPTION_IF(needed_fee == 0, error::wallet_internal_error, "Failed to convert zeph value fee to " + source_asset + " equivalent");
           }
 
@@ -11243,7 +11278,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(
       const size_t num_outputs = get_num_outputs(tx.dsts, m_transfers, tx.selected_transfers);
       needed_fee = estimate_fee(use_per_byte_fee, use_rct, tx.selected_transfers.size(), fake_outs_count, num_outputs, extra.size(), bulletproof, clsag, bulletproof_plus, use_view_tags, base_fee, fee_quantization_mask);
       if (source_asset != "ZEPH" && source_asset != dest_asset) {
-        needed_fee = get_fee_in_asset_equivalent(source_asset, needed_fee, pricing_record);
+        needed_fee = get_fee_in_asset_equivalent(source_asset, needed_fee, pricing_record, hf_version);
         THROW_WALLET_EXCEPTION_IF(needed_fee == 0, error::wallet_internal_error, "Failed to convert zeph value fee to " + source_asset + " equivalent");
       }
       // add N - 1 outputs for correct initial fee estimation
@@ -11261,7 +11296,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(
       auto txBlob = t_serializable_object_to_blob(test_ptx.tx);
       needed_fee = calculate_fee(use_per_byte_fee, test_ptx.tx, txBlob.size(), base_fee, fee_quantization_mask);
       if (source_asset != "ZEPH" && source_asset != dest_asset) {
-        needed_fee = get_fee_in_asset_equivalent(source_asset, needed_fee, pricing_record);
+        needed_fee = get_fee_in_asset_equivalent(source_asset, needed_fee, pricing_record, hf_version);
         THROW_WALLET_EXCEPTION_IF(needed_fee == 0, error::wallet_internal_error, "Failed to convert zeph value fee to " + source_asset + " equivalent");
       }
       available_for_fee = test_ptx.fee + test_ptx.change_dts.amount;
@@ -11333,9 +11368,11 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(
         if (source_asset != dest_asset) {
           std::vector<std::pair<std::string, std::string>> circ_amounts;
           THROW_WALLET_EXCEPTION_IF(!get_circulating_supply(circ_amounts), error::wallet_internal_error, "Failed to get circulating supply");
+          std::vector<oracle::pricing_record> pricing_record_history;
+          THROW_WALLET_EXCEPTION_IF(!get_pricing_record_history(pricing_record_history), error::wallet_internal_error, "Failed to get pricing record history");
 
           std::string error_reason;
-          if (!reserve_ratio_satisfied(circ_amounts, pricing_record, tx_type, conversion_this_tx_zeph, conversion_this_tx_stables, conversion_this_tx_reserves, error_reason)) {
+          if (!reserve_ratio_satisfied(circ_amounts, pricing_record_history, pricing_record, tx_type, conversion_this_tx_zeph, conversion_this_tx_stables, conversion_this_tx_reserves, error_reason, hf_version)) {
             LOG_ERROR("reserve ratio not satisfied");
             THROW_WALLET_EXCEPTION_IF(true, error::wallet_internal_error, error_reason);
           }
