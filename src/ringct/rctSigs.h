@@ -144,7 +144,8 @@ namespace rct {
         xmr_amount txnFee,
         unsigned int mixin,
         const RCTConfig &rct_config,
-        hw::device &hwdev
+        hw::device &hwdev,
+        const uint8_t hf_version
     );
     rctSig genRctSimple(
         const key & message,
@@ -162,7 +163,8 @@ namespace rct {
         const std::vector<unsigned int> & index,
         ctkeyV &outSk,
         const RCTConfig &rct_config,
-        hw::device &hwdev
+        hw::device &hwdev,
+        const uint8_t hf_version
     );
     bool verRct(const rctSig & rv, bool semantics);
     static inline bool verRct(const rctSig & rv) { return verRct(rv, true) && verRct(rv, false); }

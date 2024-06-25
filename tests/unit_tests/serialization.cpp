@@ -611,7 +611,7 @@ TEST(Serialization, serializes_ringct_types)
   std::map<size_t, std::string> outamounts_features;
 
   const rct::RCTConfig rct_config_clsag{ rct::RangeProofPaddedBulletproof, 4 };
-  s0 = rct::genRctSimple(rct::zero(), sc, pc, destinations, tx_type, "ZEPH", oracle::pricing_record(), inamounts, amounts, outamounts_features, amount_keys, 0, 3, rct_config_clsag, hw::get_device("default"));
+  s0 = rct::genRctSimple(rct::zero(), sc, pc, destinations, tx_type, "ZEPH", oracle::pricing_record(), inamounts, amounts, outamounts_features, amount_keys, 0, 3, rct_config_clsag, hw::get_device("default"), HF_VERSION_DJED);
 
   ASSERT_FALSE(s0.p.CLSAGs.empty());
   ASSERT_TRUE(s0.p.MGs.empty());

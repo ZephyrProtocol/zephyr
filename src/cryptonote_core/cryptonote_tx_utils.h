@@ -287,10 +287,10 @@ namespace cryptonote
   uint64_t get_moving_average_reserve_coin_price(const std::vector<oracle::pricing_record>& pricing_record_history, uint64_t reserve_price);
   uint64_t get_moving_average_reserve_ratio(const std::vector<oracle::pricing_record>& pricing_record_history, uint64_t reserve_ratio);
 
-  uint64_t zephrsv_to_zeph(const uint64_t amount, const oracle::pricing_record& pr);
-  uint64_t zeph_to_zephrsv(const uint64_t amount, const oracle::pricing_record& pr);
-  uint64_t zeph_to_zephusd(const uint64_t amount, const oracle::pricing_record& pr);
-  uint64_t zephusd_to_zeph(const uint64_t amount, const oracle::pricing_record& pr);
+  uint64_t zephrsv_to_zeph(const uint64_t amount, const oracle::pricing_record& pr, const uint8_t hf_version);
+  uint64_t zeph_to_zephrsv(const uint64_t amount, const oracle::pricing_record& pr, const uint8_t hf_version);
+  uint64_t zeph_to_zephusd(const uint64_t amount, const oracle::pricing_record& pr, const uint8_t hf_version);
+  uint64_t zephusd_to_zeph(const uint64_t amount, const oracle::pricing_record& pr, const uint8_t hf_version);
 
   uint64_t zeph_to_asset_fee(const uint64_t amount, const uint64_t exchange_rate);
   uint64_t asset_to_zeph_fee(const uint64_t amount, const uint64_t exchange_rate);

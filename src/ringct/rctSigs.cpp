@@ -1122,7 +1122,8 @@ namespace rct {
       const std::vector<unsigned int> & index,
       ctkeyV &outSk,
       const RCTConfig &rct_config,
-      hw::device &hwdev
+      hw::device &hwdev,
+      const uint8_t hf_version
     ) {
         const bool bulletproof_or_plus = rct_config.range_proof_type > RangeProofBorromean;
         CHECK_AND_ASSERT_THROW_MES(inamounts.size() > 0, "Empty inamounts");
@@ -1281,7 +1282,12 @@ namespace rct {
                 boost::multiprecision::uint128_t rate_128 = COIN;
                 rate_128 *= COIN;
                 rate_128 /= exchange_128;
-                boost::multiprecision::uint128_t conversion_fee = (rate_128 * 2) / 100; // 2% fee
+                boost::multiprecision::uint128_t conversion_fee;
+                if (hf_version >= HF_VERSION_V5) {
+                  conversion_fee = rate_128 / 1000;      // 0.1% fee
+                } else {
+                  conversion_fee = (rate_128 * 2) / 100; // 2% fee
+                }
                 rate_128 -= conversion_fee;
                 rate_128 -= (rate_128 % 10000);
 
@@ -1295,7 +1301,12 @@ namespace rct {
             } else if (tx_type == tt::REDEEM_STABLE) {
               if (outamounts_features[i] == "ZEPH") {
                 boost::multiprecision::uint128_t exchange_128 = std::min(pr.stable, pr.stable_ma);
-                boost::multiprecision::uint128_t conversion_fee = (exchange_128 * 2) / 100; // 2% fee
+                boost::multiprecision::uint128_t conversion_fee;
+                if (hf_version >= HF_VERSION_V5) {
+                  conversion_fee = exchange_128 / 1000;      // 0.1% fee
+                } else {
+                  conversion_fee = (exchange_128 * 2) / 100; // 2% fee
+                }
                 exchange_128 -= conversion_fee;
                 exchange_128 -= (exchange_128 % 10000);
 
@@ -1312,6 +1323,14 @@ namespace rct {
                 boost::multiprecision::uint128_t rate_128 = COIN;
                 rate_128 *= COIN;
                 rate_128 /= reserve_coin_price;
+
+                boost::multiprecision::uint128_t conversion_fee;
+                if (hf_version >= HF_VERSION_V5) {
+                  conversion_fee = rate_128 / 100;       // 1% fee
+                } else {
+                  conversion_fee = 0;                    // 0% fee
+                }
+                rate_128 -= conversion_fee;
                 rate_128 -= (rate_128 % 10000);
                 
                 key inverse_rate = invert(d2h((uint64_t)rate_128));
@@ -1325,7 +1344,12 @@ namespace rct {
             } else if (tx_type == tt::REDEEM_RESERVE) {
               if (outamounts_features[i] == "ZEPH") {
                 boost::multiprecision::uint128_t reserve_coin_price = std::min(pr.reserve, pr.reserve_ma);
-                boost::multiprecision::uint128_t conversion_fee = (reserve_coin_price * 2) / 100; // 2% fee
+                boost::multiprecision::uint128_t conversion_fee;
+                if (hf_version >= HF_VERSION_V5) {
+                  conversion_fee = reserve_coin_price / 100;       // 1% fee
+                } else {
+                  conversion_fee = (reserve_coin_price * 2) / 100; // 2% fee
+                }
                 reserve_coin_price -= conversion_fee;
                 reserve_coin_price -= (reserve_coin_price % 10000);
 
@@ -1410,7 +1434,8 @@ namespace rct {
       xmr_amount txnFee,
       unsigned int mixin,
       const RCTConfig &rct_config,
-      hw::device &hwdev
+      hw::device &hwdev,
+      const uint8_t hf_version
     ) {
         std::vector<unsigned int> index;
         index.resize(inPk.size());
@@ -1421,7 +1446,7 @@ namespace rct {
           mixRing[i].resize(mixin+1);
           index[i] = populateFromBlockchainSimple(mixRing[i], inPk[i], mixin);
         }
-        return genRctSimple(message, inSk, destinations, tx_type, in_asset_type, pr, inamounts, outamounts, outamounts_features, txnFee, mixRing, amount_keys, index, outSk, rct_config, hwdev);
+        return genRctSimple(message, inSk, destinations, tx_type, in_asset_type, pr, inamounts, outamounts, outamounts_features, txnFee, mixRing, amount_keys, index, outSk, rct_config, hwdev, hf_version);
     }
 
     //RingCT protocol
@@ -1603,7 +1628,12 @@ namespace rct {
           boost::multiprecision::uint128_t rate_128 = COIN;
           rate_128 *= COIN;
           rate_128 /= exchange_128;
-          boost::multiprecision::uint128_t conversion_fee = (rate_128 * 2) / 100; // 2% fee
+          boost::multiprecision::uint128_t conversion_fee;
+          if (version >= HF_VERSION_V5) {
+            conversion_fee = rate_128 / 1000;      // 0.1% fee
+          } else {
+            conversion_fee = (rate_128 * 2) / 100; // 2% fee
+          }
           rate_128 -= conversion_fee;
           rate_128 -= (rate_128 % 10000);
 
@@ -1613,7 +1643,12 @@ namespace rct {
           Zi = addKeys(sumC, D_final);
         } else if (tx_type == tt::REDEEM_STABLE) {
           boost::multiprecision::uint128_t exchange_128 = std::min(pr.stable, pr.stable_ma);
-          boost::multiprecision::uint128_t conversion_fee = (exchange_128 * 2) / 100; // 2% fee
+          boost::multiprecision::uint128_t conversion_fee;
+          if (version >= HF_VERSION_V5) {
+            conversion_fee = exchange_128 / 1000;      // 0.1% fee
+          } else {
+            conversion_fee = (exchange_128 * 2) / 100; // 2% fee
+          }
           exchange_128 -= conversion_fee;
           exchange_128 -= (exchange_128 % 10000);
 
@@ -1626,6 +1661,13 @@ namespace rct {
           boost::multiprecision::uint128_t rate_128 = COIN;
           rate_128 *= COIN;
           rate_128 /= reserve_coin_price;
+          boost::multiprecision::uint128_t conversion_fee;
+          if (version >= HF_VERSION_V5) {
+            conversion_fee = rate_128 / 100;       // 1% fee
+          } else {
+            conversion_fee = 0;                    // 0% fee
+          }
+          rate_128 -= conversion_fee;
           rate_128 -= (rate_128 % 10000);
 
           key D_scaled = scalarmultKey(sumD, d2h(COIN));
@@ -1634,7 +1676,12 @@ namespace rct {
           Zi = addKeys(sumC, D_final);
         } else if (tx_type == tt::REDEEM_RESERVE) {
           boost::multiprecision::uint128_t reserve_coin_price = std::min(pr.reserve, pr.reserve_ma);
-          boost::multiprecision::uint128_t conversion_fee = (reserve_coin_price * 2) / 100; // 2% fee
+          boost::multiprecision::uint128_t conversion_fee;
+          if (version >= HF_VERSION_V5) {
+            conversion_fee = reserve_coin_price / 100;       // 1% fee
+          } else {
+            conversion_fee = (reserve_coin_price * 2) / 100; // 2% fee
+          }
           reserve_coin_price -= conversion_fee;
           reserve_coin_price -= (reserve_coin_price % 10000);
           
@@ -1851,7 +1898,12 @@ namespace rct {
         boost::multiprecision::uint128_t rate_128 = COIN;
         rate_128 *= COIN;
         rate_128 /= exchange_128;
-        boost::multiprecision::uint128_t conversion_fee = (rate_128 * 2) / 100; // 2% fee
+        boost::multiprecision::uint128_t conversion_fee;
+        if (version >= HF_VERSION_V5) {
+          conversion_fee = rate_128 / 1000;      // 0.1% fee
+        } else {
+          conversion_fee = (rate_128 * 2) / 100; // 2% fee
+        }
         rate_128 -= conversion_fee;
         rate_128 -= (rate_128 % 10000);
 
@@ -1865,7 +1917,12 @@ namespace rct {
       } else if (source == "ZEPHUSD" && destination == "ZEPH") {
         boost::multiprecision::uint128_t stable_128 = amount_burnt;
         boost::multiprecision::uint128_t exchange_128 = std::min(pr.stable, pr.stable_ma);
-        boost::multiprecision::uint128_t conversion_fee = (exchange_128 * 2) / 100; // 2% fee
+        boost::multiprecision::uint128_t conversion_fee;
+        if (version >= HF_VERSION_V5) {
+          conversion_fee = exchange_128 / 1000;      // 0.1% fee
+        } else {
+          conversion_fee = (exchange_128 * 2) / 100; // 2% fee
+        }
         exchange_128 -= conversion_fee;
         exchange_128 -= (exchange_128 % 10000);
 
@@ -1882,6 +1939,13 @@ namespace rct {
         boost::multiprecision::uint128_t rate_128 = COIN;
         rate_128 *= COIN;
         rate_128 /= exchange_128;
+        boost::multiprecision::uint128_t conversion_fee;
+        if (version >= HF_VERSION_V5) {
+          conversion_fee = rate_128 / 100;       // 1% fee
+        } else {
+          conversion_fee = 0;                    // 0% fee
+        }
+        rate_128 -= conversion_fee;
         rate_128 -= (rate_128 % 10000);
 
         boost::multiprecision::uint128_t reserve_amount_128 = zeph_128 * rate_128;
@@ -1895,7 +1959,12 @@ namespace rct {
       } else if (source == "ZEPHRSV" && destination == "ZEPH") {
         boost::multiprecision::uint128_t stable_128 = amount_burnt;
         boost::multiprecision::uint128_t exchange_128 = std::min(pr.reserve, pr.reserve_ma);
-        boost::multiprecision::uint128_t conversion_fee = (exchange_128 * 2) / 100; // 2% fee
+        boost::multiprecision::uint128_t conversion_fee;
+        if (version >= HF_VERSION_V5) {
+          conversion_fee = exchange_128 / 100;      // 1% fee
+        } else {
+          conversion_fee = (exchange_128 * 2) / 100; // 2% fee
+        }
         exchange_128 -= conversion_fee;
         exchange_128 -= (exchange_128 % 10000);
 

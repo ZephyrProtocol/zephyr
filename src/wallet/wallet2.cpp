@@ -10329,25 +10329,25 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(
 
     if (tx_type == tt::MINT_STABLE) {
       // Input amount is in ZEPH - convert so we have both
-      dt.dest_amount = cryptonote::zeph_to_zephusd(dt.amount, pricing_record);
+      dt.dest_amount = cryptonote::zeph_to_zephusd(dt.amount, pricing_record, hf_version);
       conversion_this_tx_zeph += dt.amount; // Added to the reserve
       conversion_this_tx_stables += dt.dest_amount;
       THROW_WALLET_EXCEPTION_IF(dt.dest_amount == 0, error::wallet_internal_error, "Failed to convert needed_money to ZSD");
     } else if (tx_type == tt::REDEEM_STABLE) {      
       // Input amount is source amount (ZEPHUSD) - convert so we have both
-      dt.dest_amount = cryptonote::zephusd_to_zeph(dt.amount, pricing_record);
+      dt.dest_amount = cryptonote::zephusd_to_zeph(dt.amount, pricing_record, hf_version);
       conversion_this_tx_stables -= dt.amount;
       conversion_this_tx_zeph -= dt.dest_amount; // Deducted from the reserve
       THROW_WALLET_EXCEPTION_IF(dt.dest_amount == 0, error::wallet_internal_error, "Failed to convert needed_money to ZEPH");
     } else if (tx_type == tt::MINT_RESERVE) {
       // Input amount is in ZEPH - convert so we have both
-      dt.dest_amount = cryptonote::zeph_to_zephrsv(dt.amount, pricing_record);
+      dt.dest_amount = cryptonote::zeph_to_zephrsv(dt.amount, pricing_record, hf_version);
       conversion_this_tx_zeph += dt.amount;
       conversion_this_tx_reserves += dt.dest_amount;
       THROW_WALLET_EXCEPTION_IF(dt.dest_amount == 0, error::wallet_internal_error, "Failed to convert needed_money to ZRS");
     } else if (tx_type == tt::REDEEM_RESERVE) {
       // Input amount is in ZEPHRSV - convert so we have both
-      dt.dest_amount = cryptonote::zephrsv_to_zeph(dt.amount, pricing_record);
+      dt.dest_amount = cryptonote::zephrsv_to_zeph(dt.amount, pricing_record, hf_version);
       conversion_this_tx_reserves -= dt.amount;
       conversion_this_tx_zeph -= dt.dest_amount;
       THROW_WALLET_EXCEPTION_IF(dt.dest_amount == 0, error::wallet_internal_error, "Failed to convert needed_money to ZEPH");
@@ -11340,22 +11340,22 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(
           }
 
           if (tx_type == tt::MINT_STABLE) {
-            dt.dest_amount = cryptonote::zeph_to_zephusd(dt.amount, pricing_record);
+            dt.dest_amount = cryptonote::zeph_to_zephusd(dt.amount, pricing_record, hf_version);
             conversion_this_tx_zeph += dt.amount; // Added to the reserve
             conversion_this_tx_stables += dt.dest_amount;
             THROW_WALLET_EXCEPTION_IF(dt.dest_amount == 0, error::wallet_internal_error, "Failed to convert needed_money to ZSD");
           } else if (tx_type == tt::REDEEM_STABLE) {
-            dt.dest_amount = cryptonote::zephusd_to_zeph(dt.amount, pricing_record);
+            dt.dest_amount = cryptonote::zephusd_to_zeph(dt.amount, pricing_record, hf_version);
             conversion_this_tx_stables -= dt.amount;
             conversion_this_tx_zeph -= dt.dest_amount; // Deducted from the reserve
             THROW_WALLET_EXCEPTION_IF(dt.dest_amount == 0, error::wallet_internal_error, "Failed to convert needed_money to ZEPH");
           } else if (tx_type == tt::MINT_RESERVE) {
-            dt.dest_amount = cryptonote::zeph_to_zephrsv(dt.amount, pricing_record);
+            dt.dest_amount = cryptonote::zeph_to_zephrsv(dt.amount, pricing_record, hf_version);
             conversion_this_tx_zeph += dt.amount;
             conversion_this_tx_reserves += dt.dest_amount;
             THROW_WALLET_EXCEPTION_IF(dt.dest_amount == 0, error::wallet_internal_error, "Failed to convert needed_money to ZRS");
           } else if (tx_type == tt::REDEEM_RESERVE) {
-            dt.dest_amount = cryptonote::zephrsv_to_zeph(dt.amount, pricing_record);
+            dt.dest_amount = cryptonote::zephrsv_to_zeph(dt.amount, pricing_record, hf_version);
             conversion_this_tx_reserves -= dt.amount;
             conversion_this_tx_zeph -= dt.dest_amount;
             THROW_WALLET_EXCEPTION_IF(dt.dest_amount == 0, error::wallet_internal_error, "Failed to convert needed_money to ZEPH");
@@ -11462,16 +11462,16 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(
   de.dest_asset_type = dest_asset;
 
   if (tx_type == tt::MINT_STABLE) {
-    de.dest_amount = cryptonote::zeph_to_zephusd(de.amount, pricing_record);
+    de.dest_amount = cryptonote::zeph_to_zephusd(de.amount, pricing_record, hf_version);
     THROW_WALLET_EXCEPTION_IF(de.dest_amount == 0, error::wallet_internal_error, "Failed to convert needed_money to ZSD");
   } else if (tx_type == tt::REDEEM_STABLE) {
-    de.dest_amount = cryptonote::zephusd_to_zeph(de.amount, pricing_record);
+    de.dest_amount = cryptonote::zephusd_to_zeph(de.amount, pricing_record, hf_version);
     THROW_WALLET_EXCEPTION_IF(de.dest_amount == 0, error::wallet_internal_error, "Failed to convert needed_money to ZEPH");
   } else if (tx_type == tt::MINT_RESERVE) {
-    de.dest_amount = cryptonote::zeph_to_zephrsv(de.amount, pricing_record);
+    de.dest_amount = cryptonote::zeph_to_zephrsv(de.amount, pricing_record, hf_version);
     THROW_WALLET_EXCEPTION_IF(de.dest_amount == 0, error::wallet_internal_error, "Failed to convert needed_money to ZRS");
   } else if (tx_type == tt::REDEEM_RESERVE) {
-    de.dest_amount = cryptonote::zephrsv_to_zeph(de.amount, pricing_record);
+    de.dest_amount = cryptonote::zephrsv_to_zeph(de.amount, pricing_record, hf_version);
     THROW_WALLET_EXCEPTION_IF(de.dest_amount == 0, error::wallet_internal_error, "Failed to convert needed_money to ZEPH");
   } else {
     de.dest_amount = de.amount;

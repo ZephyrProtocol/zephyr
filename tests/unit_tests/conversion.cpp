@@ -200,7 +200,7 @@ TEST(zeph_to_zephusd, zeph_to_zephusd_conversion_success)
 
     uint64_t tx_amount = 120ull * COIN;
     uint64_t expected_conversion_amount = 1764000176400000;
-    EXPECT_EQ(cryptonote::zeph_to_zephusd(tx_amount, pr), expected_conversion_amount);
+    EXPECT_EQ(cryptonote::zeph_to_zephusd(tx_amount, pr, HF_VERSION_DJED), expected_conversion_amount);
 }
 
 TEST(zeph_to_zephusd, zeph_to_zephusd_uses_lower_of_spot_vs_ma)
@@ -210,12 +210,12 @@ TEST(zeph_to_zephusd, zeph_to_zephusd_uses_lower_of_spot_vs_ma)
 
     uint64_t tx_amount = 1756ull * COIN;
     uint64_t expected_conversion_amount = 25813202581320000;
-    EXPECT_EQ(cryptonote::zeph_to_zephusd(tx_amount, pr), expected_conversion_amount);
+    EXPECT_EQ(cryptonote::zeph_to_zephusd(tx_amount, pr, HF_VERSION_DJED), expected_conversion_amount);
 
     pr.moving_average = 25ull * COIN;
     expected_conversion_amount = 34417600000000000;
     UPDATE_PR(pr);
-    EXPECT_EQ(cryptonote::zeph_to_zephusd(tx_amount, pr), expected_conversion_amount);
+    EXPECT_EQ(cryptonote::zeph_to_zephusd(tx_amount, pr, HF_VERSION_DJED), expected_conversion_amount);
 }
 
 TEST(zeph_to_zephusd, zeph_to_zephusd_overflow_returns_zero)
@@ -224,7 +224,7 @@ TEST(zeph_to_zephusd, zeph_to_zephusd_overflow_returns_zero)
     INIT_PR(pr);
 
     uint64_t tx_amount = UINT64_MAX;
-    EXPECT_EQ(cryptonote::zeph_to_zephusd(tx_amount, pr), 0);
+    EXPECT_EQ(cryptonote::zeph_to_zephusd(tx_amount, pr, HF_VERSION_DJED), 0);
 }
 
 /*
@@ -237,7 +237,7 @@ TEST(zephusd_to_zeph, zephusd_to_zeph_conversion_success)
 
     uint64_t tx_amount = 120ull * COIN;
     uint64_t expected_conversion_amount = 5880000000000;
-    EXPECT_EQ(cryptonote::zephusd_to_zeph(tx_amount, pr), expected_conversion_amount);
+    EXPECT_EQ(cryptonote::zephusd_to_zeph(tx_amount, pr, HF_VERSION_DJED), expected_conversion_amount);
 }
 
 TEST(zephusd_to_zeph, zephusd_to_zeph_uses_higher_of_spot_vs_ma)
@@ -247,12 +247,12 @@ TEST(zephusd_to_zeph, zephusd_to_zeph_uses_higher_of_spot_vs_ma)
 
     uint64_t tx_amount = 1756ull * COIN;
     uint64_t expected_conversion_amount = 86044000000000;
-    EXPECT_EQ(cryptonote::zephusd_to_zeph(tx_amount, pr), expected_conversion_amount);
+    EXPECT_EQ(cryptonote::zephusd_to_zeph(tx_amount, pr, HF_VERSION_DJED), expected_conversion_amount);
 
     pr.moving_average = 25ull * COIN;
     expected_conversion_amount = 68835200000000;
     UPDATE_PR(pr);
-    EXPECT_EQ(cryptonote::zephusd_to_zeph(tx_amount, pr), expected_conversion_amount);
+    EXPECT_EQ(cryptonote::zephusd_to_zeph(tx_amount, pr, HF_VERSION_DJED), expected_conversion_amount);
 }
 
 TEST(zephusd_to_zeph, zephusd_to_zeph_overflow_returns_zero)
@@ -266,7 +266,7 @@ TEST(zephusd_to_zeph, zephusd_to_zeph_overflow_returns_zero)
     pr.stable_ma = 1000ull * COIN;
 
     uint64_t tx_amount = UINT64_MAX;
-    EXPECT_EQ(cryptonote::zephusd_to_zeph(tx_amount, pr), 0);
+    EXPECT_EQ(cryptonote::zephusd_to_zeph(tx_amount, pr, HF_VERSION_DJED), 0);
 }
 
 /*
@@ -280,7 +280,7 @@ TEST(zeph_to_zephrsv, zeph_to_zephrsv_conversion_success)
     uint64_t tx_amount = 120ull * COIN;
     uint64_t expected_conversion_amount = 126315788400000;
 
-    EXPECT_EQ(cryptonote::zeph_to_zephrsv(tx_amount, pr), expected_conversion_amount);
+    EXPECT_EQ(cryptonote::zeph_to_zephrsv(tx_amount, pr, HF_VERSION_DJED), expected_conversion_amount);
 }
 
 TEST(zeph_to_zephrsv, zeph_to_zephrsv_uses_lower_of_spot_vs_ma)
@@ -290,12 +290,12 @@ TEST(zeph_to_zephrsv, zeph_to_zephrsv_uses_lower_of_spot_vs_ma)
 
     uint64_t tx_amount = 1756ull * COIN;
     uint64_t expected_conversion_amount = 1848421036920000;
-    EXPECT_EQ(cryptonote::zeph_to_zephrsv(tx_amount, pr), expected_conversion_amount);
+    EXPECT_EQ(cryptonote::zeph_to_zephrsv(tx_amount, pr, HF_VERSION_DJED), expected_conversion_amount);
 
     pr.moving_average = 25ull * COIN;
     expected_conversion_amount = 1829166654960000;
     UPDATE_PR(pr);
-    EXPECT_EQ(cryptonote::zeph_to_zephrsv(tx_amount, pr), expected_conversion_amount);
+    EXPECT_EQ(cryptonote::zeph_to_zephrsv(tx_amount, pr, HF_VERSION_DJED), expected_conversion_amount);
 }
 
 TEST(zeph_to_zephrsv, zeph_to_zephrsv_overflow_returns_zero)
@@ -304,7 +304,7 @@ TEST(zeph_to_zephrsv, zeph_to_zephrsv_overflow_returns_zero)
     INIT_PR(pr);
 
     uint64_t tx_amount = UINT64_MAX;
-    EXPECT_EQ(cryptonote::zeph_to_zephrsv(tx_amount, pr), 0);
+    EXPECT_EQ(cryptonote::zeph_to_zephrsv(tx_amount, pr, HF_VERSION_DJED), 0);
 }
 
 /*
@@ -317,7 +317,7 @@ TEST(zephrsv_to_zeph, zephrsv_to_zeph_conversion_success)
 
     uint64_t tx_amount = 120ull * COIN;
     uint64_t expected_conversion_amount = 109759999200000;
-    EXPECT_EQ(cryptonote::zephrsv_to_zeph(tx_amount, pr), expected_conversion_amount);
+    EXPECT_EQ(cryptonote::zephrsv_to_zeph(tx_amount, pr, HF_VERSION_DJED), expected_conversion_amount);
 }
 
 TEST(zephrsv_to_zeph, zephrsv_to_zeph_uses_higher_of_spot_vs_ma)
@@ -327,12 +327,12 @@ TEST(zephrsv_to_zeph, zephrsv_to_zeph_uses_higher_of_spot_vs_ma)
 
     uint64_t tx_amount = 1756ull * COIN;
     uint64_t expected_conversion_amount = 1606154654960000;
-    EXPECT_EQ(cryptonote::zephrsv_to_zeph(tx_amount, pr), expected_conversion_amount);
+    EXPECT_EQ(cryptonote::zephrsv_to_zeph(tx_amount, pr, HF_VERSION_DJED), expected_conversion_amount);
 
     pr.moving_average = 25ull * COIN;
     expected_conversion_amount = 1634836000000000;
     UPDATE_PR(pr);
-    EXPECT_EQ(cryptonote::zephrsv_to_zeph(tx_amount, pr), expected_conversion_amount);
+    EXPECT_EQ(cryptonote::zephrsv_to_zeph(tx_amount, pr, HF_VERSION_DJED), expected_conversion_amount);
 }
 
 TEST(zephrsv_to_zeph, zephrsv_to_zeph_overflow_returns_zero)
@@ -344,5 +344,5 @@ TEST(zephrsv_to_zeph, zephrsv_to_zeph_overflow_returns_zero)
     pr.reserve_ma = 1000ull * COIN;
 
     uint64_t tx_amount = UINT64_MAX;
-    EXPECT_EQ(cryptonote::zephrsv_to_zeph(tx_amount, pr), 0);
+    EXPECT_EQ(cryptonote::zephrsv_to_zeph(tx_amount, pr, HF_VERSION_DJED), 0);
 }

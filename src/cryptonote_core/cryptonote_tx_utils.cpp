@@ -1004,7 +1004,7 @@ namespace cryptonote
   }
   //---------------------------------------------------------------
   // ZEPH -> ZEPHRSV
-  uint64_t zeph_to_zephrsv(const uint64_t amount, const oracle::pricing_record& pr)
+  uint64_t zeph_to_zephrsv(const uint64_t amount, const oracle::pricing_record& pr, const uint8_t hf_version)
   {
     multiprecision::uint128_t amount_128 = amount;
     multiprecision::uint128_t reserve_coin_price = std::max(pr.reserve, pr.reserve_ma);
@@ -1013,6 +1013,13 @@ namespace cryptonote
     multiprecision::uint128_t rate_128 = COIN;
     rate_128 *= COIN;
     rate_128 /= reserve_coin_price;
+    multiprecision::uint128_t conversion_fee;
+    if (hf_version >= HF_VERSION_V5) {
+      conversion_fee = rate_128 / 100;       // 1% fee
+    } else {
+      conversion_fee = 0;                    // no fee
+    }
+    rate_128 -= conversion_fee;
     rate_128 -= (rate_128 % 10000);
 
     multiprecision::uint128_t reserve_amount_128 = amount_128 * rate_128;
@@ -1027,11 +1034,16 @@ namespace cryptonote
   }
   //---------------------------------------------------------------
   // ZEPHRSV -> ZEPH
-  uint64_t zephrsv_to_zeph(const uint64_t amount, const oracle::pricing_record& pr)
+  uint64_t zephrsv_to_zeph(const uint64_t amount, const oracle::pricing_record& pr, const uint8_t hf_version)
   {
     multiprecision::uint128_t amount_128 = amount;
     multiprecision::uint128_t reserve_coin_price = std::min(pr.reserve, pr.reserve_ma);
-    multiprecision::uint128_t conversion_fee = (reserve_coin_price * 2) / 100; // 2% fee
+    multiprecision::uint128_t conversion_fee;
+    if (hf_version >= HF_VERSION_V5) {
+      conversion_fee = reserve_coin_price / 100;       // 1% fee
+    } else {
+      conversion_fee = (reserve_coin_price * 2) / 100; // 2% fee
+    }
     reserve_coin_price -= conversion_fee;
     reserve_coin_price -= (reserve_coin_price % 10000);
 
@@ -1047,7 +1059,7 @@ namespace cryptonote
   }
   //---------------------------------------------------------------
   // ZEPH -> ZEPHUSD
-  uint64_t zeph_to_zephusd(const uint64_t amount, const oracle::pricing_record& pr)
+  uint64_t zeph_to_zephusd(const uint64_t amount, const oracle::pricing_record& pr, const uint8_t hf_version)
   {
     multiprecision::uint128_t amount_128 = amount;
     multiprecision::uint128_t exchange_128 = std::max(pr.stable, pr.stable_ma);
@@ -1056,7 +1068,12 @@ namespace cryptonote
     rate_128 *= COIN;
     rate_128 /= exchange_128;
 
-    multiprecision::uint128_t conversion_fee = (rate_128 * 2) / 100; // 2% fee
+    multiprecision::uint128_t conversion_fee;
+    if (hf_version >= HF_VERSION_V5) {
+      conversion_fee = rate_128 / 1000;      // 0.1% fee
+    } else {
+      conversion_fee = (rate_128 * 2) / 100; // 2% fee
+    }
     rate_128 -= conversion_fee;
     rate_128 -= (rate_128 % 10000);
 
@@ -1072,11 +1089,16 @@ namespace cryptonote
   }
   //---------------------------------------------------------------
   // ZEPHUSD -> ZEPH
-  uint64_t zephusd_to_zeph(const uint64_t amount, const oracle::pricing_record& pr)
+  uint64_t zephusd_to_zeph(const uint64_t amount, const oracle::pricing_record& pr, const uint8_t hf_version)
   {
     multiprecision::uint128_t stable_128 = amount;
     multiprecision::uint128_t exchange_128 = std::min(pr.stable, pr.stable_ma);
-    multiprecision::uint128_t conversion_fee = (exchange_128 * 2) / 100; // 2% fee
+    multiprecision::uint128_t conversion_fee;
+    if (hf_version >= HF_VERSION_V5) {
+      conversion_fee = exchange_128 / 1000;      // 0.1% fee
+    } else {
+      conversion_fee = (exchange_128 * 2) / 100; // 2% fee
+    }
     exchange_128 -= conversion_fee;
     exchange_128 -= (exchange_128 % 10000);
     
@@ -1666,7 +1688,8 @@ namespace cryptonote
           index,
           outSk,
           rct_config,
-          hwdev
+          hwdev,
+          hf_version
         );
       else
         tx.rct_signatures = rct::genRct(rct::hash2rct(tx_prefix_hash), inSk, destinations, outamounts, mixRing, amount_keys, sources[0].real_output, outSk, rct_config, hwdev); // same index assumption

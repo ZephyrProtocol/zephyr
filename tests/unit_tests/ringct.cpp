@@ -348,7 +348,7 @@ TEST(ringct, range_proofs)
         std::map<size_t, std::string> outamounts_features;
 
         //compute rct data with mixin 3
-        rctSig s = genRctSimple(rct::zero(), sc, pc, destinations, tx_type, "ZEPH", oracle::pricing_record(), inamounts, amounts, outamounts_features, amount_keys, 0, 3, rct_config, hw::get_device("default"));
+        rctSig s = genRctSimple(rct::zero(), sc, pc, destinations, tx_type, "ZEPH", oracle::pricing_record(), inamounts, amounts, outamounts_features, amount_keys, 0, 3, rct_config, hw::get_device("default"), HF_VERSION_DJED);
 
         //verify rct data
         ASSERT_TRUE(verRctSimple(s));
@@ -364,7 +364,7 @@ TEST(ringct, range_proofs)
         destinations[1] = Pk;
 
         //compute rct data with mixin 3
-        s = genRctSimple(rct::zero(), sc, pc, destinations, tx_type, "ZEPH", oracle::pricing_record(), inamounts, amounts, outamounts_features, amount_keys, 0, 3, rct_config, hw::get_device("default"));
+        s = genRctSimple(rct::zero(), sc, pc, destinations, tx_type, "ZEPH", oracle::pricing_record(), inamounts, amounts, outamounts_features, amount_keys, 0, 3, rct_config, hw::get_device("default"), HF_VERSION_DJED);
 
         //verify rct data
         ASSERT_FALSE(verRctSimple(s));
@@ -414,7 +414,7 @@ TEST(ringct, range_proofs_with_fee)
         std::map<size_t, std::string> outamounts_features;
 
         //compute rct data with mixin 3
-        rctSig s = genRctSimple(rct::zero(), sc, pc, destinations, tx_type, "ZEPH", oracle::pricing_record(), inamounts, amounts, outamounts_features, amount_keys, 1, 3, rct_config, hw::get_device("default"));
+        rctSig s = genRctSimple(rct::zero(), sc, pc, destinations, tx_type, "ZEPH", oracle::pricing_record(), inamounts, amounts, outamounts_features, amount_keys, 1, 3, rct_config, hw::get_device("default"), HF_VERSION_DJED);
 
         //verify rct data
         ASSERT_TRUE(verRctSimple(s));
@@ -431,7 +431,7 @@ TEST(ringct, range_proofs_with_fee)
 
 
         //compute rct data with mixin 3
-        s = genRctSimple(rct::zero(), sc, pc, destinations, tx_type, "ZEPH", oracle::pricing_record(), inamounts, amounts, outamounts_features, amount_keys, 500, 3, rct_config, hw::get_device("default"));
+        s = genRctSimple(rct::zero(), sc, pc, destinations, tx_type, "ZEPH", oracle::pricing_record(), inamounts, amounts, outamounts_features, amount_keys, 500, 3, rct_config, hw::get_device("default"), HF_VERSION_DJED);
 
         //verify rct data
         ASSERT_FALSE(verRctSimple(s));
@@ -492,7 +492,7 @@ TEST(ringct, simple)
         const rct::RCTConfig rct_config { RangeProofBorromean, 0 };
         const cryptonote::transaction_type tx_type = cryptonote::transaction_type::TRANSFER;
         std::map<size_t, std::string> outamounts_features;
-        rctSig s = genRctSimple(message, sc, pc, destinations, tx_type, "ZEPH", oracle::pricing_record(), inamounts, outamounts, outamounts_features, amount_keys, txnfee, 2, rct_config, hw::get_device("default"));
+        rctSig s = genRctSimple(message, sc, pc, destinations, tx_type, "ZEPH", oracle::pricing_record(), inamounts, outamounts, outamounts_features, amount_keys, txnfee, 2, rct_config, hw::get_device("default"), HF_VERSION_DJED);
 
         //verify ring ct signature
         ASSERT_TRUE(verRctSimple(s));
@@ -556,7 +556,7 @@ static rct::rctSig make_sample_simple_rct_sig(int n_inputs, const uint64_t input
     const rct::RCTConfig rct_config { RangeProofBorromean, 0 };
     const cryptonote::transaction_type tx_type = cryptonote::transaction_type::TRANSFER;
     std::map<size_t, std::string> outamounts_features;
-    return genRctSimple(rct::zero(), sc, pc, destinations, tx_type, "ZEPH", oracle::pricing_record(), inamounts, outamounts, outamounts_features, amount_keys, fee, 3, rct_config, hw::get_device("default"));
+    return genRctSimple(rct::zero(), sc, pc, destinations, tx_type, "ZEPH", oracle::pricing_record(), inamounts, outamounts, outamounts_features, amount_keys, fee, 3, rct_config, hw::get_device("default"), HF_VERSION_DJED);
 }
 
 static bool range_proof_test(bool expected_valid,
