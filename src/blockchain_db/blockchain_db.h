@@ -408,6 +408,7 @@ private:
                 , const difficulty_type& cumulative_difficulty
                 , const uint64_t& coins_generated
                 , const uint64_t& reserve_reward
+                , const uint64_t& yield_reward_zsd
                 , uint64_t num_rct_outs
                 , oracle::asset_type_counts& cum_rct_by_asset_type
                 , const crypto::hash& blk_hash
@@ -435,7 +436,7 @@ private:
    * @param reserve_reward the amount of zeph to be removed from the reserve
    *
    */
-  virtual void remove_reserve_reward(const uint64_t& reserve_reward) = 0;
+  virtual void remove_reserve_reward(const uint64_t& reserve_reward, const uint64_t& yield_reward_zsd) = 0;
 
   /**
    * @brief store the transaction and its metadata
@@ -875,6 +876,7 @@ public:
                             , const difficulty_type& cumulative_difficulty
                             , const uint64_t& coins_generated
                             , const uint64_t& reserve_reward
+                            , const uint64_t& yield_reward_zsd
                             , const std::vector<std::pair<transaction, blobdata>>& txs
                             );
 

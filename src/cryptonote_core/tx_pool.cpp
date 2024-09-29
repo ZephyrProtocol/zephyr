@@ -256,12 +256,20 @@ namespace cryptonote
         return false;
       }
 
-      // Check the amount burnt and minted
-      if (!rct::validateMintedAmount(tx.rct_signatures, tx.amount_burnt, tx.amount_minted, tvc.pr, source, dest, version)) {
-        LOG_PRINT_L1("amount burnt / minted is incorrect: burnt = " << tx.amount_burnt << ", minted = " << tx.amount_minted);
-        tvc.m_verifivation_failed = true;
-        return false;
+      if (version >= HF_VERSION_V6) {
+        if (!rct::verRctSemanticsZeph(tx.rct_signatures, tvc.pr, tx_type, source, dest, tx.amount_burnt, tx.amount_minted, tx.vout, tx.vin, version)) {
+          LOG_PRINT_L1(" transaction proof-of-value is invalid for tx " << tx.hash);
+          tvc.m_verifivation_failed = true;
+          return false;
+        }
+      } else {
+        if (!rct::validateMintedAmount(tx.rct_signatures, tx.amount_burnt, tx.amount_minted, tvc.pr, source, dest, version)) {
+          LOG_PRINT_L1("amount burnt / minted is incorrect: burnt = " << tx.amount_burnt << ", minted = " << tx.amount_minted);
+          tvc.m_verifivation_failed = true;
+          return false;
+        }
       }
+
     } else {
       // make sure there is no burnt/mint set for transfers, since these numbers will affect circulating supply.
       if (tx.amount_burnt || tx.amount_minted) {
@@ -1889,21 +1897,23 @@ namespace cryptonote
           continue;
         }
 
-        if (tx_type == tt::MINT_STABLE) {
-          conversion_this_tx_zeph += tx.amount_burnt; // Added to the reserve
-          conversion_this_tx_stables += tx.amount_minted;
-        } else if (tx_type == tt::REDEEM_STABLE) {
-          conversion_this_tx_stables -= tx.amount_burnt;
-          conversion_this_tx_zeph -= tx.amount_minted; // Deducted from the reserve
-        } else if (tx_type == tt::MINT_RESERVE) {
-          conversion_this_tx_zeph += tx.amount_burnt;
-          conversion_this_tx_reserves += tx.amount_minted;
-        } else if (tx_type == tt::REDEEM_RESERVE) {
-          conversion_this_tx_reserves -= tx.amount_burnt;
-          conversion_this_tx_zeph -= tx.amount_minted;
-        } else {
-          LOG_PRINT_L2(" conversion transaction has invalid tx type " << sorted_it->second);
-          continue;
+        if (tx_type != tt::MINT_YIELD && tx_type != tt::REDEEM_YIELD) {
+          if (tx_type == tt::MINT_STABLE) {
+            conversion_this_tx_zeph += tx.amount_burnt; // Added to the reserve
+            conversion_this_tx_stables += tx.amount_minted;
+          } else if (tx_type == tt::REDEEM_STABLE) {
+            conversion_this_tx_stables -= tx.amount_burnt;
+            conversion_this_tx_zeph -= tx.amount_minted; // Deducted from the reserve
+          } else if (tx_type == tt::MINT_RESERVE) {
+            conversion_this_tx_zeph += tx.amount_burnt;
+            conversion_this_tx_reserves += tx.amount_minted;
+          } else if (tx_type == tt::REDEEM_RESERVE) {
+            conversion_this_tx_reserves -= tx.amount_burnt;
+            conversion_this_tx_zeph -= tx.amount_minted;
+          } else {
+            LOG_PRINT_L2(" conversion transaction has invalid tx type " << sorted_it->second);
+            continue;
+          }
         }
 
         boost::multiprecision::int128_t tally_zeph = total_conversion_zeph + conversion_this_tx_zeph;
@@ -1929,13 +1939,18 @@ namespace cryptonote
         }
 
         // make sure proof-of-value still holds
-        if (!rct::verRctSemanticsSimple(tx.rct_signatures, tx_pr_block.pricing_record, tx_type, source, dest, tx.amount_burnt, tx.vout, tx.vin, version))
-        {
-          LOG_PRINT_L2(" transaction proof-of-value is now invalid for tx " << sorted_it->second);
-          continue;
-        } 
+        if (version >= HF_VERSION_V6) {
+          if (!rct::verRctSemanticsZeph(tx.rct_signatures, tx_pr_block.pricing_record, tx_type, source, dest, tx.amount_burnt, tx.amount_minted, tx.vout, tx.vin, version)) {
+            LOG_PRINT_L2(" transaction proof-of-value is now invalid for tx " << sorted_it->second);
+            continue;
+          }
+        } else {
+          if (!rct::verRctSemanticsSimple(tx.rct_signatures, tx_pr_block.pricing_record, tx_type, source, dest, tx.amount_burnt, tx.vout, tx.vin, version)) {
+            LOG_PRINT_L2(" transaction proof-of-value is now invalid for tx " << sorted_it->second);
+            continue;
+          }
+        }
       }
-
 
       bl.tx_hashes.push_back(sorted_it->second);
       total_weight += meta.weight;
@@ -1957,7 +1972,8 @@ namespace cryptonote
         << total_weight << "/" << max_total_weight << ", coinbase " << print_money(best_coinbase)
         << " (including " << print_money(fee_map["ZEPH"]) << " ZEPH in fees | "
         << print_money(fee_map["ZEPHUSD"]) << " ZSD in fees | "
-        << print_money(fee_map["ZEPHRSV"]) << " ZRS in fees)");
+        << print_money(fee_map["ZEPHRSV"]) << " ZRS in fees | "
+        << print_money(fee_map["ZYIELD"]) << " ZYS in fees)");
     return true;
   }
   //---------------------------------------------------------------------------------

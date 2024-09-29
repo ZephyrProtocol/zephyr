@@ -203,10 +203,15 @@ namespace
   const char* USAGE_MINT_RESERVE_SWEEP_ALL("mint_reserve_sweep_all [index=<N1>[,<N2>,...] | index=all] [<priority>] [<ring_size>] [outputs=<N>] <address> [<payment_id (obsolete)>]");
   const char* USAGE_REDEEM_RESERVE_SWEEP_ALL("redeem_reserve_sweep_all [index=<N1>[,<N2>,...] | index=all] [<priority>] [<ring_size>] [outputs=<N>] <address> [<payment_id (obsolete)>]");
 
+  const char* USAGE_MINT_YIELD_SWEEP_ALL("mint_yield_sweep_all [index=<N1>[,<N2>,...] | index=all] [<priority>] [<ring_size>] [outputs=<N>] <address> [<payment_id (obsolete)>]");
+  const char* USAGE_REDEEM_YIELD_SWEEP_ALL("redeem_yield_sweep_all [index=<N1>[,<N2>,...] | index=all] [<priority>] [<ring_size>] [outputs=<N>] <address> [<payment_id (obsolete)>]");
+
   const char* USAGE_STABLE_SWEEP_ALL("stable_sweep_all [index=<N1>[,<N2>,...] | index=all] [<priority>] [<ring_size>] [outputs=<N>] <address> [<payment_id (obsolete)>]");
   const char* USAGE_STABLE_SWEEP_BELOW("stable_sweep_below <amount_threshold> [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] <address> [<payment_id (obsolete)>]");
   const char* USAGE_RESERVE_SWEEP_ALL("reserve_sweep_all [index=<N1>[,<N2>,...] | index=all] [<priority>] [<ring_size>] [outputs=<N>] <address> [<payment_id (obsolete)>]");
   const char* USAGE_RESERVE_SWEEP_BELOW("reserve_sweep_below <amount_threshold> [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] <address> [<payment_id (obsolete)>]");
+  const char* USAGE_YIELD_SWEEP_ALL("yield_sweep_all [index=<N1>[,<N2>,...] | index=all] [<priority>] [<ring_size>] [outputs=<N>] <address> [<payment_id (obsolete)>]");
+  const char* USAGE_YIELD_SWEEP_BELOW("yield_sweep_below <amount_threshold> [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] <address> [<payment_id (obsolete)>]");
 
   const char* USAGE_DONATE("donate [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] <amount> [<payment_id (obsolete)>]");
   const char* USAGE_SIGN_TRANSFER("sign_transfer [export_raw] [<filename>]");
@@ -302,7 +307,12 @@ namespace
   const char* USAGE_REDEEM_RESERVE("redeem_reserve [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] (<URI> | <address> <ZRS amount> [memo=<memo data>])");
   const char* USAGE_RESERVE_TRANSFER("reserve_transfer [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] (<URI> | <address> <ZRS amount> [subtractfeefrom=<D0>[,<D1>,all,...]] [memo=<memo data>])");
 
+  const char* USAGE_MINT_YIELD("mint_yield [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] (<URI> | <address> <ZSD amount> [memo=<memo data>])");
+  const char* USAGE_REDEEM_YIELD("redeem_yield [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] (<URI> | <address> <ZYS amount> [memo=<memo data>])");
+  const char* USAGE_YIELD_TRANSFER("yield_transfer [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] (<URI> | <address> <ZYS amount> [subtractfeefrom=<D0>[,<D1>,all,...]] [memo=<memo data>])");
+
   const char* USAGE_RESERVE_INFO("reserve_info");
+  const char* USAGE_YIELD_INFO("yield_info");
 
   std::string input_line(const std::string& prompt, bool yesno = false)
   {
@@ -2306,6 +2316,22 @@ bool simple_wallet::reserve_transfer(const std::vector<std::string> &args_)
   return true;
 }
 
+bool simple_wallet::mint_yield(const std::vector<std::string> &args_)
+{
+  transfer_main(Transfer, "ZEPHUSD", "ZYIELD", args_, false);
+  return true;
+}
+bool simple_wallet::redeem_yield(const std::vector<std::string> &args_)
+{
+  transfer_main(Transfer, "ZYIELD", "ZEPHUSD", args_, false);
+  return true;
+}
+bool simple_wallet::yield_transfer(const std::vector<std::string> &args_)
+{
+  transfer_main(Transfer, "ZYIELD", "ZYIELD", args_, false);
+  return true;
+}
+
 bool simple_wallet::reserve_info(const std::vector<std::string> &args)
 {
   uint64_t current_height = m_wallet->get_blockchain_current_height();
@@ -2331,7 +2357,10 @@ bool simple_wallet::reserve_info(const std::vector<std::string> &args)
   double reserve_ratio;
   double reserve_ratio_ma;
 
-  m_wallet->get_reserve_info(pr, hf_version, zeph_reserve, num_stables, num_reserves, assets, assets_ma, liabilities, equity, equity_ma, reserve_ratio, reserve_ratio_ma);
+  boost::multiprecision::uint128_t num_zyield;
+  boost::multiprecision::uint128_t zyield_reserve;
+
+  m_wallet->get_reserve_info(pr, hf_version, zeph_reserve, num_stables, num_reserves, assets, assets_ma, liabilities, equity, equity_ma, reserve_ratio, reserve_ratio_ma, num_zyield, zyield_reserve);
 
   message_writer(console_color_white, false) << boost::format(tr("Height:             %d")) % current_height;
   if (pr.has_missing_rates(hf_version)) {
@@ -2358,6 +2387,12 @@ bool simple_wallet::reserve_info(const std::vector<std::string> &args)
   message_writer(console_color_white, false) << boost::format(tr("Reserve ratio:      %.2f")) % reserve_ratio;
   message_writer(console_color_white, false) << boost::format(tr("Reserve ratio (MA): %.2f")) % reserve_ratio_ma;
 
+  if (hf_version >= HF_VERSION_V6) {
+    message_writer(console_color_white, false) << "";
+    message_writer(console_color_white, false) << boost::format(tr("Yield reserve:      %d ƶzd")) % print_money(zyield_reserve);
+    message_writer(console_color_white, false) << boost::format(tr("ZYS circ:           %d ƶys")) % print_money(num_zyield);
+  }
+
   message_writer(console_color_white, false) << "";
   message_writer(console_color_default, false) << "Exchange Rates";
   message_writer(console_color_white, false) << boost::format(tr("Spot:               $%d")) % print_money(pr.spot);
@@ -2366,6 +2401,30 @@ bool simple_wallet::reserve_info(const std::vector<std::string> &args)
   message_writer(console_color_white, false) << boost::format(tr("Stable (MA):        %d ƶeph")) % print_money(pr.stable_ma);
   message_writer(console_color_white, false) << boost::format(tr("Reserve:            %d ƶeph")) % print_money(pr.reserve);
   message_writer(console_color_white, false) << boost::format(tr("Reserve (MA):       %d ƶeph")) % print_money(pr.reserve_ma);
+
+  if (hf_version >= HF_VERSION_V6) {
+    message_writer(console_color_white, false) << boost::format(tr("Yield price:        %d ƶzd")) % print_money(pr.yield_price);
+  }
+
+  return true;
+}
+
+bool simple_wallet::yield_info(const std::vector<std::string> &args)
+{
+  uint64_t current_height = m_wallet->get_blockchain_current_height();
+  oracle::pricing_record pr;
+  if (!m_wallet->get_pricing_record(pr, current_height - 1, true)) {
+    fail_msg_writer() << boost::format(tr("Failed to get prices at height %d - maybe pricing record is missing?")) % (current_height - 1);
+    return false;
+  }
+
+  uint64_t balance = m_wallet->balance("ZYIELD", m_current_subaddress_account, false);
+  uint64_t yield_value_zsd = m_wallet->yield_value(balance, pr);
+
+  message_writer(console_color_white, false) << boost::format(tr("Height:             %d")) % current_height;
+  message_writer(console_color_white, false) << "";
+  success_msg_writer() << boost::format(tr("Yield balance:      %d ZYS")) % print_money(balance);
+  success_msg_writer() << boost::format(tr("Yield value:        %d ZSD")) % print_money(yield_value_zsd);
 
   return true;
 }
@@ -3104,21 +3163,27 @@ bool simple_wallet::help(const std::vector<std::string> &args/* = std::vector<st
     message_writer() << tr("\"transfer <address> <amount>\" - Send ZEPH to an address.");
     message_writer() << tr("\"stable_transfer <address> <amount>\" - Send ZSD to an address.");
     message_writer() << tr("\"reserve_transfer <address> <amount>\" - Send ZRS to an address.");
+    message_writer() << tr("\"yield_transfer <address> <amount>\" - Send ZYS to an address.");
 
     message_writer() << tr("\"mint_stable <address> <amount_zeph>\" - Mint ZSD from ZEPH to an address.");
     message_writer() << tr("\"mint_stable_sweep_all <address>\" - Mint ZSD from entire ZEPH balance to another wallet.");
     message_writer() << tr("\"mint_reserve <address> <amount_zeph>\" - Mint ZRS from ZEPH to an address.");
     message_writer() << tr("\"mint_reserve_sweep_all <address>\" - Mint ZRS from entire ZEPH balance to another wallet.");
+    message_writer() << tr("\"mint_yield <address> <amount_zsd>\" - Mint ZYS from ZSD to an address.");
+    message_writer() << tr("\"mint_yield_sweep_all <address>\" - Mint ZYS from entire ZSD balance to another wallet.");
 
     message_writer() << tr("\"redeem_stable <address> <amount_zsd>\" - Redeem ZSD for ZEPH to an address.");
     message_writer() << tr("\"redeem_stable_sweep_all <address>\" - Redeem entire ZSD balance for ZEPH to another wallet.");
     message_writer() << tr("\"redeem_reserve <address> <amount_zrs>\" - Redeem ZRS for ZEPH to an address.");
     message_writer() << tr("\"redeem_reserve_sweep_all <address>\" - Redeem entire ZRS balance for ZEPH to another wallet.");
+    message_writer() << tr("\"redeem_yield <address> <amount_zys>\" - Redeem ZYS for ZSD to an address.");
+    message_writer() << tr("\"redeem_yield_sweep_all <address>\" - Redeem entire ZYS balance for ZSD to another wallet.");
 
     message_writer() << tr("\"show_transfers [in|out|pending|failed|pool]\" - Show transactions.");
     message_writer() << tr("\"sweep_all <address>\" - Send whole ZEPH balance to another wallet.");
     message_writer() << tr("\"stable_sweep_all <address>\" - Send whole ZSD balance to another wallet.");
     message_writer() << tr("\"reserve_sweep_all <address>\" - Send whole ZRS balance to another wallet.");
+    message_writer() << tr("\"yield_sweep_all <address>\" - Send whole ZYS balance to another wallet.");
 
     message_writer() << tr("\"seed\" - Show secret 25 words that can be used to recover this wallet.");
     message_writer() << tr("\"refresh\" - Synchronize wallet with the Zephyr network.");
@@ -3303,6 +3368,14 @@ simple_wallet::simple_wallet()
                            tr(USAGE_RESERVE_SWEEP_BELOW),
                            tr("Send all unlocked ZRS outputs below the threshold to an address."));
 
+  m_cmd_binder.set_handler("yield_sweep_all", boost::bind(&simple_wallet::on_command, this, &simple_wallet::yield_sweep_all, _1),
+                           tr(USAGE_RESERVE_SWEEP_ALL),
+                           tr("Send all unlocked ZYS balance to an address. If the parameter \"index=<N1>[,<N2>,...]\" or \"index=all\" is specified, the wallet sweeps outputs received by those or all address indices, respectively. If omitted, the wallet randomly chooses an address index to be used. If the parameter \"outputs=<N>\" is specified and  N > 0, wallet splits the transaction into N even outputs."));
+  m_cmd_binder.set_handler("yield_sweep_below",
+                           boost::bind(&simple_wallet::on_command, this, &simple_wallet::yield_sweep_below, _1),
+                           tr(USAGE_RESERVE_SWEEP_BELOW),
+                           tr("Send all unlocked ZYS outputs below the threshold to an address."));
+
   m_cmd_binder.set_handler("mint_stable_sweep_all",
                            boost::bind(&simple_wallet::mint_stable_sweep_all, this, _1),
                            tr(USAGE_MINT_STABLE_SWEEP_ALL),
@@ -3311,6 +3384,10 @@ simple_wallet::simple_wallet()
                            boost::bind(&simple_wallet::mint_reserve_sweep_all, this, _1),
                            tr(USAGE_MINT_RESERVE_SWEEP_ALL),
                            tr("Convert all ZEPH balance into ZRS. If the parameter \"index=<N1>[,<N2>,...]\" or \"index=all\" is specified, the wallet sweeps outputs received by those or all address indices, respectively. If omitted, the wallet randomly chooses an address index to be used. If the parameter \"outputs=<N>\" is specified and  N > 0, wallet splits the transaction into N even outputs."));
+  m_cmd_binder.set_handler("mint_yield_sweep_all",
+                           boost::bind(&simple_wallet::mint_yield_sweep_all, this, _1),
+                           tr(USAGE_MINT_YIELD_SWEEP_ALL),
+                           tr("Convert all ZSD balance into ZYS. If the parameter \"index=<N1>[,<N2>,...]\" or \"index=all\" is specified, the wallet sweeps outputs received by those or all address indices, respectively. If omitted, the wallet randomly chooses an address index to be used. If the parameter \"outputs=<N>\" is specified and  N > 0, wallet splits the transaction into N even outputs."));
 
   m_cmd_binder.set_handler("redeem_stable_sweep_all",
                            boost::bind(&simple_wallet::redeem_stable_sweep_all, this, _1),
@@ -3320,6 +3397,11 @@ simple_wallet::simple_wallet()
                            boost::bind(&simple_wallet::redeem_reserve_sweep_all, this, _1),
                            tr(USAGE_REDEEM_RESERVE_SWEEP_ALL),
                            tr("Convert all ZRS balance into ZEPH. If the parameter \"index=<N1>[,<N2>,...]\" or \"index=all\" is specified, the wallet sweeps outputs received by those or all address indices, respectively. If omitted, the wallet randomly chooses an address index to be used. If the parameter \"outputs=<N>\" is specified and  N > 0, wallet splits the transaction into N even outputs."));
+  m_cmd_binder.set_handler("redeem_yield_sweep_all",
+                           boost::bind(&simple_wallet::redeem_yield_sweep_all, this, _1),
+                           tr(USAGE_REDEEM_YIELD_SWEEP_ALL),
+                           tr("Convert all ZYS balance into ZSD. If the parameter \"index=<N1>[,<N2>,...]\" or \"index=all\" is specified, the wallet sweeps outputs received by those or all address indices, respectively. If omitted, the wallet randomly chooses an address index to be used. If the parameter \"outputs=<N>\" is specified and  N > 0, wallet splits the transaction into N even outputs."));
+
 
   m_cmd_binder.set_handler("donate",
                            boost::bind(&simple_wallet::on_command, this, &simple_wallet::donate, _1),
@@ -3798,10 +3880,28 @@ m_cmd_binder.set_handler("reserve_transfer",
                            tr(USAGE_RESERVE_TRANSFER),
                            tr("Transfer <amount> Zephyr Reserve Shares (ZRS), with optional <priority> [0-5]. The \"subtractfeefrom=\" list allows you to choose which destinations to fund the tx fee from instead of the change output. The fee will be split across the chosen destinations proportionally equally. For example, to make 3 transfers where the fee is taken from the first and third destinations, one could do: \"transfer <addr1> 3 <addr2> 0.5 <addr3> 1 subtractfeefrom=0,2\". Let's say the tx fee is 0.1. The balance would drop by exactly 4.5 ZRS including fees, and addr1 & addr3 would receive 2.925 & 0.975 ZRS, respectively. Use \"subtractfeefrom=all\" to spread the fee across all destinations."));
 
+m_cmd_binder.set_handler("mint_yield",
+                           boost::bind(&simple_wallet::mint_yield, this, _1),
+                           tr(USAGE_MINT_YIELD),
+                           tr("Converts <amount> ZSD into Zephyr Yield Shares (ZYS), with optional <priority> [0-5]"));
+m_cmd_binder.set_handler("redeem_yield",
+                           boost::bind(&simple_wallet::redeem_yield, this, _1),
+                           tr(USAGE_REDEEM_YIELD),
+                           tr("Redeem <amount> ZYS from current Zephyr Yield Share balance to <address>. If the parameter \"index=<N1>[,<N2>,...]\" is specified, the wallet uses outputs received by addresses of those indices. If omitted, the wallet randomly chooses address indices to be used. In any case, it tries its best not to combine outputs across multiple addresses. <priority> is the priority of the transaction. The higher the priority, the higher the transaction fee. Valid values in priority order (from lowest to highest) are: unimportant, normal, elevated, priority. If omitted, the default value (see the command \"set priority\") is used. <ring_size> is the number of inputs to include for untraceability. Multiple payments can be made at once by adding URI_2 or <address_2> <amount_2> etcetera (before the payment ID, if it's included)"));
+m_cmd_binder.set_handler("yield_transfer",
+                           boost::bind(&simple_wallet::yield_transfer, this, _1),
+                           tr(USAGE_YIELD_TRANSFER),
+                           tr("Transfer <amount> Zephyr Yield Shares (ZYS), with optional <priority> [0-5]. The \"subtractfeefrom=\" list allows you to choose which destinations to fund the tx fee from instead of the change output. The fee will be split across the chosen destinations proportionally equally. For example, to make 3 transfers where the fee is taken from the first and third destinations, one could do: \"transfer <addr1> 3 <addr2> 0.5 <addr3> 1 subtractfeefrom=0,2\". Let's say the tx fee is 0.1. The balance would drop by exactly 4.5 ZYS including fees, and addr1 & addr3 would receive 2.925 & 0.975 ZYS, respectively. Use \"subtractfeefrom=all\" to spread the fee across all destinations."));
+
  m_cmd_binder.set_handler("reserve_info",
                            boost::bind(&simple_wallet::reserve_info, this, _1),
                            tr(USAGE_RESERVE_INFO),
                            tr("Get the current reserve info"));
+
+ m_cmd_binder.set_handler("yield_info",
+                           boost::bind(&simple_wallet::yield_info, this, _1),
+                           tr(USAGE_YIELD_INFO),
+                           tr("Get the current yield info"));
 
  m_cmd_binder.set_handler("apropos",
                            boost::bind(&simple_wallet::on_command, this, &simple_wallet::apropos, _1),
@@ -6639,13 +6739,13 @@ bool simple_wallet::transfer_main(
     return false;
   }
 
-  if ((subtract_fee_from_all || subtract_fee_from_outputs.size()) && tx_type != tt::TRANSFER && tx_type != tt::STABLE_TRANSFER && tx_type != tt::RESERVE_TRANSFER) {
+  if ((subtract_fee_from_all || subtract_fee_from_outputs.size()) && tx_type != tt::TRANSFER && tx_type != tt::STABLE_TRANSFER && tx_type != tt::RESERVE_TRANSFER && tx_type != tt::YIELD_TRANSFER) {
     fail_msg_writer() << tr("subtractfeefrom option is only available for transfers.");
     return false;
   }
 
   // adjust priority
-  if (tx_type == tt::STABLE_TRANSFER || tx_type == tt::RESERVE_TRANSFER) {
+  if (tx_type == tt::STABLE_TRANSFER || tx_type == tt::RESERVE_TRANSFER || tx_type == tt::YIELD_TRANSFER) {
     if (priority > 1) {
       message_writer() << boost::format(tr("Reducing priority from %d to 1 - Transfers do not permit other priorities\n")) % priority;
       priority = 1;
@@ -6901,6 +7001,12 @@ bool simple_wallet::transfer_main(
             break;
           case tt::REDEEM_RESERVE:
             prompt << boost::format(tr("Redeeming %s ZEPH from %s ZRS.\n")) % print_money(total_received) % print_money(total_sent);
+            break;
+          case tt::MINT_YIELD:
+            prompt << boost::format(tr("Minting %s ZYS from %s ZSD.\n")) % print_money(total_received) % print_money(total_sent);
+            break;
+          case tt::REDEEM_YIELD:
+            prompt << boost::format(tr("Redeeming %s ZSD from %s ZYS.\n")) % print_money(total_received) % print_money(total_sent);
             break;
           default:
             break;
@@ -7188,6 +7294,12 @@ bool simple_wallet::sweep_main(
         } else {
           PRINT_USAGE(USAGE_STABLE_SWEEP_ALL);
         }
+      } else if (source_asset == "ZYIELD") {
+        if (below) {
+          PRINT_USAGE(USAGE_YIELD_SWEEP_BELOW);
+        } else {
+          PRINT_USAGE(USAGE_YIELD_SWEEP_ALL);
+        }
       } else {
         if (below) {
           PRINT_USAGE(USAGE_SWEEP_BELOW);
@@ -7203,6 +7315,10 @@ bool simple_wallet::sweep_main(
       PRINT_USAGE(USAGE_MINT_RESERVE_SWEEP_ALL);
     } else if (source_asset == "ZEPHRSV" && dest_asset == "ZEPH") {
       PRINT_USAGE(USAGE_REDEEM_RESERVE_SWEEP_ALL);
+    } else if (source_asset == "ZEPHUSD" && dest_asset == "ZYIELD") {
+      PRINT_USAGE(USAGE_MINT_YIELD_SWEEP_ALL);
+    } else if (source_asset == "ZYIELD" && dest_asset == "ZEPHUSD") {
+      PRINT_USAGE(USAGE_REDEEM_YIELD_SWEEP_ALL);
     } else {
       PRINT_USAGE(USAGE_SWEEP_ALL);
     }
@@ -7456,6 +7572,12 @@ bool simple_wallet::sweep_main(
               break;
             case tt::REDEEM_RESERVE:
               prompt << boost::format(tr("Redeeming %s ZEPH from %s ZRS. Total fee is %s %s.\n  Is this okay?")) % print_money(total_received) % print_money(total_sent) % print_money(total_fee) % asset_display_name(source_asset);
+              break;
+            case tt::MINT_YIELD:
+              prompt << boost::format(tr("Minting %s ZYS from %s ZSD. Total fee is %s %s.\n  Is this okay?")) % print_money(total_received) % print_money(total_sent) % print_money(total_fee) % asset_display_name(source_asset);
+              break;
+            case tt::REDEEM_YIELD:
+              prompt << boost::format(tr("Redeeming %s ZSD from %s ZYS. Total fee is %s %s.\n  Is this okay?")) % print_money(total_received) % print_money(total_sent) % print_money(total_fee) % asset_display_name(source_asset);
               break;
             default:
               fail_msg_writer() << tr("Unknown transaction type.");
@@ -7868,6 +7990,28 @@ bool simple_wallet::reserve_sweep_below(const std::vector<std::string> &args_)
   return sweep_main(m_current_subaddress_account, below, false, "ZEPHRSV", "ZEPHRSV", std::vector<std::string>(++args_.begin(), args_.end()));
 }
 //----------------------------------------------------------------------------------------------------
+bool simple_wallet::yield_sweep_all(const std::vector<std::string> &args_)
+{
+  return sweep_main(m_current_subaddress_account, 0, false, "ZYIELD", "ZYIELD", args_);
+}
+//----------------------------------------------------------------------------------------------------
+bool simple_wallet::yield_sweep_below(const std::vector<std::string> &args_)
+{
+  uint64_t below = 0;
+  if (args_.size() < 1)
+  {
+    fail_msg_writer() << tr("missing threshold amount");
+    PRINT_USAGE(USAGE_RESERVE_SWEEP_BELOW);
+    return true;
+  }
+  if (!cryptonote::parse_amount(below, args_[0]))
+  {
+    fail_msg_writer() << tr("invalid amount threshold");
+    return true;
+  }
+  return sweep_main(m_current_subaddress_account, below, false, "ZYIELD", "ZYIELD", std::vector<std::string>(++args_.begin(), args_.end()));
+}
+//----------------------------------------------------------------------------------------------------
 bool simple_wallet::mint_stable_sweep_all(const std::vector<std::string> &args_)
 {
   return sweep_main(m_current_subaddress_account, 0, false, "ZEPH", "ZEPHUSD", args_);
@@ -7886,6 +8030,16 @@ bool simple_wallet::mint_reserve_sweep_all(const std::vector<std::string> &args_
 bool simple_wallet::redeem_reserve_sweep_all(const std::vector<std::string> &args_)
 {
   return sweep_main(m_current_subaddress_account, 0, false, "ZEPHRSV", "ZEPH", args_);
+}
+//----------------------------------------------------------------------------------------------------
+bool simple_wallet::mint_yield_sweep_all(const std::vector<std::string> &args_)
+{
+  return sweep_main(m_current_subaddress_account, 0, false, "ZEPHUSD", "ZYIELD", args_);
+}
+//----------------------------------------------------------------------------------------------------
+bool simple_wallet::redeem_yield_sweep_all(const std::vector<std::string> &args_)
+{
+  return sweep_main(m_current_subaddress_account, 0, false, "ZYIELD", "ZEPHUSD", args_);
 }
 //----------------------------------------------------------------------------------------------------
 bool simple_wallet::donate(const std::vector<std::string> &args_)

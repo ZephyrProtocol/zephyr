@@ -73,6 +73,18 @@ namespace oracle
     uint64_t timestamp;
     unsigned char signature[64];
   };
+  POD_CLASS pricing_record_pre_v3 {
+    uint64_t spot;
+    uint64_t moving_average;
+    uint64_t stable;
+    uint64_t stable_ma;
+    uint64_t reserve;
+    uint64_t reserve_ma;
+    uint64_t reserve_ratio;
+    uint64_t reserve_ratio_ma;
+    uint64_t timestamp;
+    unsigned char signature[64];
+  };
   #pragma pack(pop)
   class pricing_record
   {
@@ -88,6 +100,7 @@ namespace oracle
       uint64_t reserve_ma;
       uint64_t reserve_ratio;
       uint64_t reserve_ratio_ma;
+      uint64_t yield_price;
       uint64_t timestamp;
       unsigned char signature[64];
 
@@ -186,6 +199,53 @@ namespace oracle
       stable_ma = pr.stable_ma;
       reserve = pr.reserve;
       reserve_ma = pr.reserve_ma;
+      timestamp = pr.timestamp;
+      std::memcpy(signature, pr.signature, sizeof(signature));
+      return true;
+    };
+  };
+
+  class pricing_record_v3
+  {
+
+  public:
+    uint64_t spot;
+    uint64_t moving_average;
+    uint64_t stable;
+    uint64_t stable_ma;
+    uint64_t reserve;
+    uint64_t reserve_ma;
+    uint64_t reserve_ratio;
+    uint64_t reserve_ratio_ma;
+    uint64_t timestamp;
+    unsigned char signature[64];
+
+    bool write_to_pr(oracle::pricing_record &pr)
+    {
+      pr.spot = spot;
+      pr.moving_average = moving_average;
+      pr.stable = stable;
+      pr.stable_ma = stable_ma;
+      pr.reserve = reserve;
+      pr.reserve_ma = reserve_ma;
+      pr.reserve_ratio = reserve_ratio;
+      pr.reserve_ratio_ma = reserve_ratio_ma;
+      pr.yield_price = 0;
+      pr.timestamp = timestamp;
+      std::memcpy(pr.signature, signature, sizeof(pr.signature));
+      return true;
+    };
+
+    bool read_from_pr(oracle::pricing_record &pr)
+    {
+      spot = pr.spot;
+      moving_average = pr.moving_average;
+      stable = pr.stable;
+      stable_ma = pr.stable_ma;
+      reserve = pr.reserve;
+      reserve_ma = pr.reserve_ma;
+      reserve_ratio = pr.reserve_ratio;
+      reserve_ratio_ma = pr.reserve_ratio_ma;
       timestamp = pr.timestamp;
       std::memcpy(signature, pr.signature, sizeof(signature));
       return true;

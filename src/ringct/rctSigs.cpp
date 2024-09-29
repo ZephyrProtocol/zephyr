@@ -1159,7 +1159,7 @@ namespace rct {
         rv.ecdhInfo.resize(destinations.size());
 
         using tt = cryptonote::transaction_type;
-        bool conversion_tx = tx_type == tt::MINT_STABLE || tx_type == tt::REDEEM_STABLE || tx_type == tt::MINT_RESERVE || tx_type == tt::REDEEM_RESERVE;
+        bool conversion_tx = tx_type == tt::MINT_STABLE || tx_type == tt::REDEEM_STABLE || tx_type == tt::MINT_RESERVE || tx_type == tt::REDEEM_RESERVE || tx_type == tt::MINT_YIELD || tx_type == tt::REDEEM_YIELD;
         if (conversion_tx) {
           rv.maskSums.resize(2);
           rv.maskSums[0] = zero();
@@ -1358,6 +1358,36 @@ namespace rct {
                 sc_mul(outSk_scaled.bytes, tempkey.bytes, inverse_rate.bytes);
               } else {
                 // ZEPHRSV change output
+                outSk_scaled = outSk[i].mask;
+              }
+            } else if (tx_type == tt::MINT_YIELD) {
+               if (outamounts_features[i] == "ZYIELD") {
+                boost::multiprecision::uint128_t rate_128 = COIN;
+                rate_128 *= COIN;
+                rate_128 /= pr.yield_price;
+                boost::multiprecision::uint128_t conversion_fee = rate_128 / 1000; // 0.1% fee
+                rate_128 -= conversion_fee;
+                rate_128 -= (rate_128 % 10000);
+
+                key inverse_rate = invert(d2h((uint64_t)rate_128));
+                sc_mul(tempkey.bytes, outSk[i].mask.bytes, atomic.bytes);
+                sc_mul(outSk_scaled.bytes, tempkey.bytes, inverse_rate.bytes);
+              } else {
+                // ZEPHUSD change output
+                outSk_scaled = outSk[i].mask;
+              }
+            } else if (tx_type == tt::REDEEM_YIELD) {
+              if (outamounts_features[i] == "ZEPHUSD") {
+                boost::multiprecision::uint128_t yield_coin_price = pr.yield_price;
+                boost::multiprecision::uint128_t conversion_fee = yield_coin_price / 1000; // 0.1% fee
+                yield_coin_price -= conversion_fee;
+                yield_coin_price -= (yield_coin_price % 10000);
+
+                key inverse_rate = invert(d2h((uint64_t)yield_coin_price));
+                sc_mul(tempkey.bytes, outSk[i].mask.bytes, atomic.bytes);
+                sc_mul(outSk_scaled.bytes, tempkey.bytes, inverse_rate.bytes);
+              } else {
+                // ZYIELD change output
                 outSk_scaled = outSk[i].mask;
               }
             } else {
@@ -1758,6 +1788,168 @@ namespace rct {
       return verRctSemanticsSimple(rv, oracle::pricing_record(), cryptonote::transaction_type::TRANSFER, "ZEPH", "ZEPH", 0, {}, {}, 0);
     }
 
+    bool verRctSemanticsZeph(
+      const rctSig& rv,
+      const oracle::pricing_record& pr,
+      const cryptonote::transaction_type& tx_type,
+      const std::string& strSource,
+      const std::string& strDest,
+      uint64_t amount_burnt,
+      uint64_t amount_minted,
+      const std::vector<cryptonote::tx_out> &vout,
+      const std::vector<cryptonote::txin_v> &vin,
+      const uint8_t hf_version
+    ){
+      try
+      {
+        PERF_TIMER(verRctSemanticsZeph);
+        using tt = cryptonote::transaction_type;
+
+        const bool bulletproof_plus = is_rct_bulletproof_plus(rv.type);
+        CHECK_AND_ASSERT_MES(bulletproof_plus, false, "Only bulletproofs supported for Zephyr");
+        CHECK_AND_ASSERT_MES(rv.outPk.size() == n_bulletproof_plus_amounts(rv.p.bulletproofs_plus), false, "Mismatched sizes of outPk and bulletproofs_plus");
+        CHECK_AND_ASSERT_MES(rv.p.MGs.empty(), false, "MGs are not empty for CLSAG");
+        CHECK_AND_ASSERT_MES(rv.p.pseudoOuts.size() == rv.p.CLSAGs.size(), false, "Mismatched sizes of rv.p.pseudoOuts and rv.p.CLSAGs");
+        CHECK_AND_ASSERT_MES(rv.pseudoOuts.empty(), false, "rv.pseudoOuts is not empty");
+        CHECK_AND_ASSERT_MES(rv.outPk.size() == rv.ecdhInfo.size(), false, "Mismatched sizes of outPk and rv.ecdhInfo");
+
+        CHECK_AND_ASSERT_MES(std::find(oracle::ASSET_TYPES.begin(), oracle::ASSET_TYPES.end(), strSource) != oracle::ASSET_TYPES.end(), false, "Invalid Source Asset!");
+        CHECK_AND_ASSERT_MES(std::find(oracle::ASSET_TYPES.begin(), oracle::ASSET_TYPES.end(), strDest) != oracle::ASSET_TYPES.end(), false, "Invalid Dest Asset!");
+        CHECK_AND_ASSERT_MES(tx_type != tt::UNSET, false, "Invalid transaction type.");
+        if (strSource != strDest) {
+          CHECK_AND_ASSERT_MES(rv.maskSums.size() == 2, false, "maskSums size is not 2");
+          CHECK_AND_ASSERT_MES(!pr.empty(), false, "Empty pricing record found for a conversion tx");
+          CHECK_AND_ASSERT_MES(!pr.has_missing_rates(hf_version), false, "Missing values in pricing record for a conversion tx");
+          CHECK_AND_ASSERT_MES(amount_burnt, false, "0 amount_burnt found for a conversion tx");
+          CHECK_AND_ASSERT_MES(amount_minted, false, "0 amount_minted found for a conversion tx");
+        }
+
+        key zerokey = rct::identity();
+        key Zi = scalarmultH(d2h(1));
+
+        rct::keyV masks_C;
+        rct::keyV masks_D;
+        for (size_t i=0; i<vout.size(); i++) {
+          std::string output_asset_type;
+          bool ok = cryptonote::get_output_asset_type(vout[i], output_asset_type);
+          if (!ok) {
+            LOG_ERROR("Failed to get output type");
+            return false;
+          }
+
+          if (output_asset_type == strSource) {
+            masks_C.push_back(rv.outPk[i].mask);
+          } else if (output_asset_type == strDest) {
+            masks_D.push_back(rv.outPk[i].mask);
+          } else {
+            LOG_ERROR("Invalid output detected (wrong asset type)");
+            return false;
+          }
+        }
+
+        key sumOutpks_C = addKeys(masks_C);
+        key sumOutpks_D = addKeys(masks_D);
+        key txnFeeKey = scalarmultH(d2h(rv.txnFee));
+        key sumPseudoOuts = addKeys(rv.p.pseudoOuts);
+
+        key sumC;
+        subKeys(sumC, sumPseudoOuts, txnFeeKey);
+        subKeys(sumC, sumC, sumOutpks_C);
+
+        key sumD;
+        subKeys(sumD, zerokey, sumOutpks_D);
+
+        if (tx_type == tt::TRANSFER || tx_type == tt::STABLE_TRANSFER || tx_type == tt::RESERVE_TRANSFER || tx_type == tt::YIELD_TRANSFER) {
+          Zi = addKeys(sumC, sumD);
+        } else {
+          const boost::multiprecision::uint128_t amount_burnt_128 = amount_burnt;
+          boost::multiprecision::uint128_t conversion_fee = 0;
+          boost::multiprecision::uint128_t rate_128 = COIN;
+          rate_128 *= COIN;
+
+          if (tx_type == tt::MINT_STABLE) {
+            boost::multiprecision::uint128_t exchange_128 = std::max(pr.stable, pr.stable_ma);
+            rate_128 /= exchange_128;
+            conversion_fee = rate_128 / 1000; // 0.1% fee
+          } else if (tx_type == tt::REDEEM_STABLE) {
+            rate_128 = std::min(pr.stable, pr.stable_ma);
+            conversion_fee = rate_128 / 1000; // 0.1% fee
+          } else if (tx_type == tt::MINT_RESERVE) {
+            boost::multiprecision::uint128_t exchange_128 = std::max(pr.reserve, pr.reserve_ma);
+            rate_128 /= exchange_128;
+            conversion_fee = rate_128 / 100; // 1% fee
+          } else if (tx_type == tt::REDEEM_RESERVE) {
+            rate_128 = std::min(pr.reserve, pr.reserve_ma);
+            conversion_fee = rate_128 / 100; // 1% fee
+          } else if (tx_type == tt::MINT_YIELD) {
+            boost::multiprecision::uint128_t exchange_128 = pr.yield_price;
+            rate_128 /= exchange_128;
+            conversion_fee = rate_128 / 1000; // 0.1% fee
+          } else if (tx_type == tt::REDEEM_YIELD) {
+            rate_128 = pr.yield_price;
+            conversion_fee = rate_128 / 1000; // 0.1% fee
+          } else {
+            LOG_PRINT_L1("Invalid transaction type specified");
+            return false;
+          }
+
+          rate_128 -= conversion_fee;
+          rate_128 -= (rate_128 % 10000);
+          boost::multiprecision::uint128_t expected_mint = amount_burnt_128 * rate_128;
+          expected_mint /= COIN;
+          boost::multiprecision::uint128_t minted_128 = amount_minted;
+          if (expected_mint != minted_128) {
+            LOG_PRINT_L1("Minted/burnt amount verification failed");
+            return false;
+          }
+
+          key C_n;
+          genC(C_n, rv.maskSums[1], 0);
+          key C_burnt = addKeys(sumC, C_n);
+          key pseudoC_burnt;
+          genC(pseudoC_burnt, rv.maskSums[0], amount_burnt);
+          if (!equalKeys(C_burnt, pseudoC_burnt)) {
+            LOG_PRINT_L1("Tx amount burnt mask validation failed.");
+            return false;
+          }
+
+          key D_scaled = scalarmultKey(sumD, d2h(COIN));
+          key yC_invert = invert(d2h((uint64_t)rate_128));
+          key D_final = scalarmultKey(D_scaled, yC_invert);
+          Zi = addKeys(sumC, D_final);
+        }
+
+        //check Zi == 0
+        if (!equalKeys(Zi, zerokey)) {
+          LOG_PRINT_L1("Sum check failed (Zi)");
+          return false;
+        }
+
+        std::vector<const BulletproofPlus*> proofs;
+        for (size_t i = 0; i < rv.p.bulletproofs_plus.size(); i++)
+          proofs.push_back(&rv.p.bulletproofs_plus[i]);
+
+        if (!proofs.empty() && !verBulletproofPlus(proofs))
+        {
+          LOG_PRINT_L1("Aggregate range proof verified failed");
+          return false;
+        }
+
+        return true;
+      }
+      // we can get deep throws from ge_frombytes_vartime if input isn't valid
+      catch (const std::exception &e)
+      {
+        LOG_PRINT_L1("Error in verRctSemanticsZeph: " << e.what());
+        return false;
+      }
+      catch (...)
+      {
+        LOG_PRINT_L1("Error in verRctSemanticsZeph, but not an actual exception");
+        return false;
+      }
+    }
+
     //ver RingCT simple
     //assumes only post-rct style inputs (at least for max anonymity)
     bool verRctNonSemanticsSimple(const rctSig & rv) {
@@ -1892,6 +2084,10 @@ namespace rct {
     }
 
     bool validateMintedAmount(const rctSig &rv, const xmr_amount amount_burnt, const xmr_amount amount_minted, const oracle::pricing_record pr, const std::string& source, const std::string& destination, const uint8_t version) {
+      if (version >= HF_VERSION_V6) {
+        // validate minted amount is now done in verRctSemanticsZeph
+        return false;
+      }
       if (source == "ZEPH" && destination == "ZEPHUSD") {
         boost::multiprecision::uint128_t zeph_128 = amount_burnt;
         boost::multiprecision::uint128_t exchange_128 = std::max(pr.stable, pr.stable_ma);

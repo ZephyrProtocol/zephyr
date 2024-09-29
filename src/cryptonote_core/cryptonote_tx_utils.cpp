@@ -152,31 +152,39 @@ namespace cryptonote
 
     uint64_t governance_reward = 0;
     uint64_t reserve_reward = 0;
+    uint64_t yield_reward_in_zeph = 0;
     if (already_generated_coins != 0)
     {
-      governance_reward = get_governance_reward(block_reward);
       if (hard_fork_version >= HF_VERSION_DJED) {
-        reserve_reward = get_reserve_reward(block_reward);
+        reserve_reward = get_reserve_reward(block_reward, hard_fork_version);
       }
 
+      if (hard_fork_version >= HF_VERSION_V6) {
+        yield_reward_in_zeph = get_zeph_yield_reward(block_reward);
+      } else {
+        governance_reward = get_governance_reward(block_reward);
+      }
+
+
       block_reward -= reserve_reward;
+      block_reward -= yield_reward_in_zeph;
       block_reward -= governance_reward;
 
-      LOG_PRINT_L1("CREATING BLOCK reserve_reward " << reserve_reward << " height: " << height);
+      LOG_PRINT_L1("CREATING BLOCK reserve_reward " << reserve_reward << " yield_reward_in_zeph " << yield_reward_in_zeph << " height: " << height);
     }
-    
     
     block_reward += fee_map["ZEPH"];
     uint64_t summary_amounts = 0;
     CHECK_AND_ASSERT_MES(1 <= max_outs, false, "max_out must be non-zero");
 
+    uint64_t out_index = 0;
     crypto::key_derivation derivation = AUTO_VAL_INIT(derivation);
     crypto::public_key out_eph_public_key = AUTO_VAL_INIT(out_eph_public_key);
     bool r = crypto::generate_key_derivation(miner_address.m_view_public_key, txkey.sec, derivation);
     CHECK_AND_ASSERT_MES(r, false, "while creating outs: failed to generate_key_derivation(" << miner_address.m_view_public_key << ", " << txkey.sec << ")");
 
-    r = crypto::derive_public_key(derivation, 0, miner_address.m_spend_public_key, out_eph_public_key);
-    CHECK_AND_ASSERT_MES(r, false, "while creating outs: failed to derive_public_key(" << derivation << ", " << 0 << ", "<< miner_address.m_spend_public_key << ")");
+    r = crypto::derive_public_key(derivation, out_index, miner_address.m_spend_public_key, out_eph_public_key);
+    CHECK_AND_ASSERT_MES(r, false, "while creating outs: failed to derive_public_key(" << derivation << ", " << out_index << ", "<< miner_address.m_spend_public_key << ")");
 
     uint64_t amount = block_reward;
     summary_amounts += amount;
@@ -184,41 +192,44 @@ namespace cryptonote
     bool use_view_tags = true;
     crypto::view_tag view_tag;
     if (use_view_tags)
-      crypto::derive_view_tag(derivation, 0, view_tag);
+      crypto::derive_view_tag(derivation, out_index, view_tag);
 
     tx_out out;
     cryptonote::set_tx_out("ZEPH", amount, out_eph_public_key, use_view_tags, view_tag, out);
     tx.vout.push_back(out);
+    out_index++;
 
-    cryptonote::address_parse_info governance_wallet_address;
-    if (already_generated_coins != 0)
-    {
-      add_tx_pub_key_to_extra(tx, gov_key.pub);
-      cryptonote::get_account_address_from_str(governance_wallet_address, nettype, get_governance_address(nettype));
-
-      crypto::key_derivation derivation = AUTO_VAL_INIT(derivation);
-      crypto::public_key out_eph_public_key = AUTO_VAL_INIT(out_eph_public_key);
-      if (!get_deterministic_output_key(governance_wallet_address.address, gov_key, 1 /* second output in miner tx */, out_eph_public_key, derivation))
+    if (hard_fork_version < HF_VERSION_V6) {
+      cryptonote::address_parse_info governance_wallet_address;
+      if (already_generated_coins != 0)
       {
-        MERROR("Failed to generate deterministic output key for governance wallet output creation");
-        return false;
+        add_tx_pub_key_to_extra(tx, gov_key.pub);
+        cryptonote::get_account_address_from_str(governance_wallet_address, nettype, get_governance_address(nettype));
+
+        crypto::key_derivation derivation = AUTO_VAL_INIT(derivation);
+        crypto::public_key out_eph_public_key = AUTO_VAL_INIT(out_eph_public_key);
+        if (!get_deterministic_output_key(governance_wallet_address.address, gov_key, out_index /* second output in miner tx */, out_eph_public_key, derivation))
+        {
+          MERROR("Failed to generate deterministic output key for governance wallet output creation");
+          return false;
+        }
+
+        crypto::view_tag view_tag;
+        if (use_view_tags)
+          crypto::derive_view_tag(derivation, out_index, view_tag);
+
+        tx_out out;
+        cryptonote::set_tx_out("ZEPH", governance_reward, out_eph_public_key, use_view_tags, view_tag, out);
+
+        summary_amounts += governance_reward;
+
+        tx.vout.push_back(out);
+        out_index++;
+        CHECK_AND_ASSERT_MES(summary_amounts == (block_reward + governance_reward), false, "Failed to construct miner tx, summary_amounts = " << summary_amounts << " not equal total block_reward = " << (block_reward + governance_reward));
       }
-
-      crypto::view_tag view_tag;
-      if (use_view_tags)
-        crypto::derive_view_tag(derivation, 1, view_tag);
-
-      tx_out out;
-      cryptonote::set_tx_out("ZEPH", governance_reward, out_eph_public_key, use_view_tags, view_tag, out);
-
-      summary_amounts += governance_reward;
-
-      tx.vout.push_back(out);
-      CHECK_AND_ASSERT_MES(summary_amounts == (block_reward + governance_reward), false, "Failed to construct miner tx, summary_amounts = " << summary_amounts << " not equal total block_reward = " << (block_reward + governance_reward));
     }
 
     if (hard_fork_version >= HF_VERSION_DJED) {
-      uint64_t idx = 2;
       for (auto &fee_map_entry: fee_map)
       {
         if (fee_map_entry.first == "ZEPH" || fee_map_entry.second == 0)
@@ -228,18 +239,18 @@ namespace cryptonote
         bool r = crypto::generate_key_derivation(miner_address.m_view_public_key, txkey.sec, derivation);
         CHECK_AND_ASSERT_MES(r, false, "while creating outs: failed to generate_key_derivation(" << miner_address.m_view_public_key << ", " << txkey.sec << ")");
 
-        r = crypto::derive_public_key(derivation, idx, miner_address.m_spend_public_key, out_eph_public_key);
-        CHECK_AND_ASSERT_MES(r, false, "while creating outs: failed to derive_public_key(" << derivation << ", " << idx << ", "<< miner_address.m_spend_public_key << ")");
+        r = crypto::derive_public_key(derivation, out_index, miner_address.m_spend_public_key, out_eph_public_key);
+        CHECK_AND_ASSERT_MES(r, false, "while creating outs: failed to derive_public_key(" << derivation << ", " << out_index << ", "<< miner_address.m_spend_public_key << ")");
 
         bool use_view_tags = true;
         crypto::view_tag view_tag;
         if (use_view_tags)
-          crypto::derive_view_tag(derivation, idx, view_tag);
+          crypto::derive_view_tag(derivation, out_index, view_tag);
 
         tx_out out;
         cryptonote::set_tx_out(fee_map_entry.first, fee_map_entry.second, out_eph_public_key, use_view_tags, view_tag, out);
         tx.vout.push_back(out);
-        idx++;
+        out_index++;
       }
     }
 
@@ -288,9 +299,20 @@ namespace cryptonote
     return base_reward / 20; // 5% of base reward
   }
   //---------------------------------------------------------------
-  uint64_t get_reserve_reward(uint64_t base_reward)
+  uint64_t get_reserve_reward(uint64_t base_reward, const uint8_t hf_version)
   {
-    return base_reward / 5; // 20% of base reward
+    if (hf_version >= HF_VERSION_V6) {
+      multiprecision::uint128_t base_reward_128 = base_reward;
+      multiprecision::uint128_t reserve_reward_128 = (base_reward_128 * 3) / 10; // 30% of base reward
+      return reserve_reward_128.convert_to<uint64_t>();
+    } else {
+      return base_reward / 5; // 20% of base reward
+    }
+  }
+   //---------------------------------------------------------------
+  uint64_t get_zeph_yield_reward(uint64_t base_reward)
+  {
+    return base_reward / 20; // 5% of base reward
   }
   //---------------------------------------------------------------
   bool validate_governance_reward_key(uint64_t height, const std::string& governance_wallet_address_str, size_t output_index, const crypto::public_key& output_key, cryptonote::network_type nettype)
@@ -434,6 +456,8 @@ namespace cryptonote
         type = transaction_type::STABLE_TRANSFER;
       } else if (source == "ZEPHRSV") {
         type = transaction_type::RESERVE_TRANSFER;
+      } else if (source == "ZYIELD") {
+        type = transaction_type::YIELD_TRANSFER;
       } else {
         LOG_ERROR("Invalid conversion from " << source << "to" << destination << ". Rejecting..");
         return false;
@@ -447,6 +471,10 @@ namespace cryptonote
         type = transaction_type::MINT_RESERVE;
       } else if (source == "ZEPHRSV" && destination == "ZEPH") {
         type = transaction_type::REDEEM_RESERVE;
+      } else if (source == "ZEPHUSD" && destination == "ZYIELD") {
+        type = transaction_type::MINT_YIELD;
+      } else if (source == "ZYIELD" && destination == "ZEPHUSD") {
+        type = transaction_type::REDEEM_YIELD;
       } else {
         LOG_ERROR("Invalid conversion from " << source << "to" << destination << ". Rejecting..");
         return false;
@@ -482,6 +510,23 @@ namespace cryptonote
       }
     }
   }
+  void get_yield_asset_amounts(const std::vector<std::pair<std::string, std::string>>& circ_amounts, multiprecision::uint128_t& num_yield, multiprecision::uint128_t& num_yield_rsv)
+  {
+    num_yield = 0;
+    for (auto circ_amount : circ_amounts) {
+      if (circ_amount.first == "ZYIELD") {
+        num_yield = multiprecision::uint128_t(circ_amount.second);
+        break;
+      }
+    }
+    num_yield_rsv = 0;
+    for (auto circ_amount : circ_amounts) {
+      if (circ_amount.first == "ZYIELDRSV") {
+        num_yield_rsv = multiprecision::uint128_t(circ_amount.second);
+        break;
+      }
+    }
+  }
   //---------------------------------------------------------------
   void get_reserve_info(
     const std::vector<std::pair<std::string, std::string>>& circ_amounts,
@@ -497,7 +542,9 @@ namespace cryptonote
     multiprecision::uint128_t& equity,
     multiprecision::uint128_t& equity_ma,
     double& reserve_ratio,
-    double& reserve_ratio_ma
+    double& reserve_ratio_ma,
+    multiprecision::uint128_t& num_zyield,
+    multiprecision::uint128_t& zyield_reserve
   ){
     get_circulating_asset_amounts(circ_amounts, zeph_reserve, num_stables, num_reserves);
 
@@ -541,6 +588,8 @@ namespace cryptonote
         equity_ma = 0;
         reserve_ratio = 0;
         reserve_ratio_ma = 0;
+        num_zyield = 0;
+        zyield_reserve = 0;
         return;
       }
 
@@ -555,6 +604,10 @@ namespace cryptonote
       equity = assets > liabilities ? assets - liabilities : 0;
       assets_ma = 0;
       equity_ma = 0;
+
+      if (hf_version >= HF_VERSION_V6) {
+        get_yield_asset_amounts(circ_amounts, num_zyield, zyield_reserve);
+      }
     }
   }
   double get_spot_reserve_ratio(const std::vector<std::pair<std::string, std::string>>& circ_amounts, const oracle::pricing_record& pr)
@@ -605,6 +658,10 @@ namespace cryptonote
       error_reason = "Reserve ratio cannot be calculated. Pricing record is missing rates.";
       LOG_ERROR(error_reason);
       return false;
+    }
+
+    if (tx_type == transaction_type::MINT_YIELD || tx_type == transaction_type::REDEEM_YIELD) {
+      return true;
     }
 
     multiprecision::uint128_t zeph_reserve, num_stables, num_reserves;
@@ -935,6 +992,33 @@ namespace cryptonote
     return std::max(reserve_coin_price, price_r_min);
   }
   //---------------------------------------------------------------
+  uint64_t get_yield_coin_price(const std::vector<std::pair<std::string, std::string>>& circ_amounts)
+  {
+    multiprecision::uint128_t num_zyield, num_zyield_reserve;
+    get_yield_asset_amounts(circ_amounts, num_zyield, num_zyield_reserve);
+
+    uint64_t price_y_min = 1000000000000;
+    if (num_zyield_reserve == 0 || num_zyield == 0) {
+      MDEBUG("No zyield or yield reserve amount detected. Using price_y_min..");
+      return price_y_min;
+    }
+
+    multiprecision::cpp_bin_float_quad zyield_reserve_float = num_zyield_reserve.convert_to<multiprecision::cpp_bin_float_quad>();
+
+    zyield_reserve_float *= COIN;
+    multiprecision::cpp_bin_float_quad z_yield_price_float = zyield_reserve_float / num_zyield.convert_to<multiprecision::cpp_bin_float_quad>();
+
+    if (z_yield_price_float > std::numeric_limits<uint64_t>::max()) {
+      MWARNING("overflow detected in yield coin price calculation.");
+      return 0;
+    }
+
+    uint64_t yield_coin_price = z_yield_price_float.convert_to<uint64_t>();
+    yield_coin_price -= (yield_coin_price % 10000);
+
+    return yield_coin_price;
+  }
+  //---------------------------------------------------------------
   uint64_t get_moving_average_price(const std::vector<oracle::pricing_record>& pricing_record_history, uint64_t spot_price)
   {
     if (pricing_record_history.size() < 719) {
@@ -1113,6 +1197,54 @@ namespace cryptonote
     return zeph_128.convert_to<uint64_t>();
   }
   //---------------------------------------------------------------
+  // ZEPHUSD -> ZYIELD
+  uint64_t zephusd_to_zyield(const uint64_t amount, const oracle::pricing_record& pr)
+  {
+    multiprecision::uint128_t amount_128 = amount;
+
+    // for rct precision
+    multiprecision::uint128_t rate_128 = COIN;
+    rate_128 *= COIN;
+    rate_128 /= pr.yield_price;
+
+    multiprecision::uint128_t conversion_fee = rate_128 / 1000; // 0.1% fee
+
+    rate_128 -= conversion_fee;
+    rate_128 -= (rate_128 % 10000);
+
+    multiprecision::uint128_t zyield_amount_128 = amount_128 * rate_128;
+    zyield_amount_128 /= COIN;
+
+    if (zyield_amount_128 > std::numeric_limits<uint64_t>::max()) {
+      MWARNING("overflow detected in zephusd -> zyield amount calculation.");
+      zyield_amount_128 = 0;
+    }
+
+    return zyield_amount_128.convert_to<uint64_t>();
+  }
+  //---------------------------------------------------------------
+  // ZYIELD -> ZEPHUSD
+  uint64_t zyield_to_zephusd(const uint64_t amount, const oracle::pricing_record& pr)
+  {
+    multiprecision::uint128_t amount_128 = amount;
+    multiprecision::uint128_t yield_coin_price = pr.yield_price;
+
+    multiprecision::uint128_t conversion_fee = yield_coin_price / 1000;  // 0.1% fee
+
+    yield_coin_price -= conversion_fee;
+    yield_coin_price -= (yield_coin_price % 10000);
+
+    multiprecision::uint128_t zephusd_amount_128 = amount_128 * yield_coin_price;
+    zephusd_amount_128 /= COIN;
+
+    if (zephusd_amount_128 > std::numeric_limits<uint64_t>::max()) {
+      MWARNING("overflow detected in zyield -> zephusd amount calculation.");
+      zephusd_amount_128 = 0;
+    }
+
+    return zephusd_amount_128.convert_to<uint64_t>();
+  }
+  //---------------------------------------------------------------
   uint64_t zeph_to_asset_fee(const uint64_t zeph_fee, const uint64_t exchange_rate)
   {
     multiprecision::uint128_t zeph_fee_128 = zeph_fee;
@@ -1150,6 +1282,9 @@ namespace cryptonote
       return asset_to_zeph_fee(fee_amount, pr.stable_ma);
     } else if (fee_asset == "ZEPHRSV") {
       return asset_to_zeph_fee(fee_amount, pr.reserve_ma);
+    } else if (fee_asset == "ZYIELD") {
+      uint64_t fee_in_zsd = asset_to_zeph_fee(fee_amount, pr.yield_price);
+      return asset_to_zeph_fee(fee_in_zsd, pr.stable_ma);
     }
 
     return fee_amount;
@@ -1163,6 +1298,9 @@ namespace cryptonote
       return zeph_to_asset_fee(fee_amount, pr.stable_ma);
     } else if (to_asset_type == "ZEPHRSV") {
       return zeph_to_asset_fee(fee_amount, pr.reserve_ma);
+    } else if (to_asset_type == "ZYIELD") {
+      uint64_t fee_in_zsd = zeph_to_asset_fee(fee_amount, pr.stable_ma);
+      return zeph_to_asset_fee(fee_in_zsd, pr.yield_price);
     }
 
     return fee_amount;
@@ -1458,7 +1596,7 @@ namespace cryptonote
       }
     }
 
-    if (source_asset != dest_asset) {
+    if (source_asset != dest_asset && tx_type != transaction_type::MINT_YIELD && tx_type != transaction_type::REDEEM_YIELD) {
       multiprecision::int128_t conversion_this_tx_zeph = 0;
       multiprecision::int128_t conversion_this_tx_stables = 0;
       multiprecision::int128_t conversion_this_tx_reserves = 0;

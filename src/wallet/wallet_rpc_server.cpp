@@ -4630,7 +4630,11 @@ namespace tools
     boost::multiprecision::uint128_t equity_ma;
     double reserve_ratio;
     double reserve_ratio_ma;
-    m_wallet->get_reserve_info(pr, hf_version, zeph_reserve, num_stables, num_reserves, assets, assets_ma, liabilities, equity, equity_ma, reserve_ratio, reserve_ratio_ma);
+
+    boost::multiprecision::uint128_t num_zyield;
+    boost::multiprecision::uint128_t zyield_reserve;
+
+    m_wallet->get_reserve_info(pr, hf_version, zeph_reserve, num_stables, num_reserves, assets, assets_ma, liabilities, equity, equity_ma, reserve_ratio, reserve_ratio_ma, num_zyield, zyield_reserve);
 
     res.zeph_reserve = zeph_reserve.str();
     res.num_stables = num_stables.str();
@@ -4645,6 +4649,8 @@ namespace tools
     res.height = current_height;
     res.pr = pr;
     res.hf_version = hf_version;
+    res.num_zyield = num_zyield.str();
+    res.zyield_reserve = zyield_reserve.str();
     res.status = CORE_RPC_STATUS_OK;
     return true;
   }

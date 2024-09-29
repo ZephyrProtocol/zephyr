@@ -178,6 +178,10 @@ namespace cryptonote
     bool redeem_reserve(const std::vector<std::string> &args);
     bool reserve_transfer(const std::vector<std::string> &args);
 
+    bool mint_yield(const std::vector<std::string> &args);
+    bool redeem_yield(const std::vector<std::string> &args);
+    bool yield_transfer(const std::vector<std::string> &args);
+
     bool locked_transfer(const std::vector<std::string> &args);
     bool locked_sweep_all(const std::vector<std::string> &args);
     bool sweep_main(uint32_t account, uint64_t below, bool locked, const std::string& source_asset, const std::string& dest_asset, const std::vector<std::string> &args);
@@ -191,11 +195,15 @@ namespace cryptonote
     bool stable_sweep_below(const std::vector<std::string> &args);
     bool reserve_sweep_all(const std::vector<std::string> &args);
     bool reserve_sweep_below(const std::vector<std::string> &args);
+    bool yield_sweep_all(const std::vector<std::string> &args);
+    bool yield_sweep_below(const std::vector<std::string> &args);
 
     bool mint_stable_sweep_all(const std::vector<std::string> &args);
     bool redeem_stable_sweep_all(const std::vector<std::string> &args);
     bool mint_reserve_sweep_all(const std::vector<std::string> &args);
     bool redeem_reserve_sweep_all(const std::vector<std::string> &args);
+    bool mint_yield_sweep_all(const std::vector<std::string> &args);
+    bool redeem_yield_sweep_all(const std::vector<std::string> &args);
 
     bool donate(const std::vector<std::string> &args);
     bool sign_transfer(const std::vector<std::string> &args);
@@ -283,6 +291,7 @@ namespace cryptonote
     bool on_unknown_command(const std::vector<std::string>& args);
 
     bool reserve_info(const std::vector<std::string> &args);
+    bool yield_info(const std::vector<std::string> &args);
 
     bool cold_sign_tx(const std::vector<tools::wallet2::pending_tx>& ptx_vector, tools::wallet2::signed_tx_set &exported_txs, std::vector<cryptonote::address_parse_info> &dsts_info, std::function<bool(const tools::wallet2::signed_tx_set &)> accept_func);
     uint64_t get_daemon_blockchain_height(std::string& err);

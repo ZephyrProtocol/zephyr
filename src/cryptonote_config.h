@@ -174,6 +174,7 @@
 #define HF_VERSION_DJED                         3
 #define HF_VERSION_PR_UPDATE                    4
 #define HF_VERSION_V5                           5
+#define HF_VERSION_V6                           6
 
 
 #define PER_KB_FEE_QUANTIZATION_DECIMALS        8

@@ -171,6 +171,7 @@ namespace rct {
     
     bool verRctSemanticsSimple(const rctSig & rv, const oracle::pricing_record& pr, const cryptonote::transaction_type& type, const std::string& strSource, const std::string& strDest, uint64_t amount_burnt, const std::vector<cryptonote::tx_out> &vout, const std::vector<cryptonote::txin_v> &vin, const uint8_t version);
     bool verRctSemanticsSimple(const rctSig & rv);
+    bool verRctSemanticsZeph(const rctSig & rv, const oracle::pricing_record& pr, const cryptonote::transaction_type& type, const std::string& strSource, const std::string& strDest, uint64_t amount_burnt, uint64_t amount_minted, const std::vector<cryptonote::tx_out> &vout, const std::vector<cryptonote::txin_v> &vin, const uint8_t hf_version);
 
     bool verRctNonSemanticsSimple(const rctSig & rv);
     static inline bool verRctSimple(const rctSig & rv) { return  verRctSemanticsSimple(rv) && verRctNonSemanticsSimple(rv); }

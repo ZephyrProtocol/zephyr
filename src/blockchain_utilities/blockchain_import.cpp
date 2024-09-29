@@ -488,7 +488,8 @@ int import_from_file(cryptonote::core& core, const std::string& import_file_path
           {
             uint64_t long_term_block_weight = core.get_blockchain_storage().get_next_long_term_block_weight(block_weight);
             uint64_t reserve_reward = 0;
-            core.get_blockchain_storage().get_db().add_block(std::make_pair(b, block_to_blob(b)), block_weight, long_term_block_weight, cumulative_difficulty, coins_generated, reserve_reward, txs);
+            uint64_t yield_reward_zsd = 0;
+            core.get_blockchain_storage().get_db().add_block(std::make_pair(b, block_to_blob(b)), block_weight, long_term_block_weight, cumulative_difficulty, coins_generated, reserve_reward, yield_reward_zsd, txs);
           }
           catch (const std::exception& e)
           {

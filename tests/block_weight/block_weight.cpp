@@ -63,6 +63,7 @@ public:
                         , const cryptonote::difficulty_type& cumulative_difficulty
                         , const uint64_t& coins_generated
                         , const uint64_t& reserve_reward
+                        , const uint64_t& yield_reward_zsd
                         , uint64_t num_rct_outs
                         , oracle::asset_type_counts& cum_rct_by_asset_type
                         , const crypto::hash& blk_hash
@@ -147,7 +148,7 @@ static void test(test_t t, uint64_t blocks)
     cryptonote::block b;
     b.major_version = 1;
     b.minor_version = 1;
-    bc->get_db().add_block(std::make_pair(b, ""), 300000, 300000, bc->get_db().height(), bc->get_db().height(), 0, {});
+    bc->get_db().add_block(std::make_pair(b, ""), 300000, 300000, bc->get_db().height(), bc->get_db().height(), 0, 0, {});
     if (!bc->update_next_cumulative_weight_limit())
     {
       fprintf(stderr, "Failed to update cumulative weight limit 1\n");
@@ -181,7 +182,7 @@ static void test(test_t t, uint64_t blocks)
     cryptonote::block b;
     b.major_version = 10;
     b.minor_version = 10;
-    bc->get_db().add_block(std::make_pair(std::move(b), ""), w, ltw, bc->get_db().height(), bc->get_db().height(), 0, {});
+    bc->get_db().add_block(std::make_pair(std::move(b), ""), w, ltw, bc->get_db().height(), bc->get_db().height(), 0, 0, {});
 
     if (!bc->update_next_cumulative_weight_limit())
     {

@@ -1152,10 +1152,14 @@ private:
       boost::multiprecision::uint128_t& equity,
       boost::multiprecision::uint128_t& equity_ma,
       double& reserve_ratio,
-      double& reserve_ratio_ma
+      double& reserve_ratio_ma,
+      boost::multiprecision::uint128_t& num_zyield,
+      boost::multiprecision::uint128_t& zyield_reserve
     );
     double get_spot_reserve_ratio(const oracle::pricing_record& pricing_record);
     double get_ma_reserve_ratio(const oracle::pricing_record& pricing_record);
+
+    uint64_t yield_value(const uint64_t& amount, const oracle::pricing_record& pricing_record);
 
     std::vector<wallet2::pending_tx> create_transactions_2(
       std::vector<cryptonote::tx_destination_entry> dsts,

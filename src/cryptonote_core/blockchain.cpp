@@ -1386,9 +1386,14 @@ bool Blockchain::validate_miner_transaction(
     }
   }
 
+  uint64_t base_outputs = 2;
+  if (version >= HF_VERSION_V6) {
+    base_outputs = 1;
+  }
+
   // check output size
   const size_t output_size = b.miner_tx.vout.size();
-  const size_t expected_output_size = 2 + unique_assets.size();
+  const size_t expected_output_size = base_outputs + unique_assets.size();
   if (already_generated_coins != 0 && output_size != expected_output_size) {
     MERROR("Miner tx has invalid output size!");
     return false;
@@ -1416,32 +1421,43 @@ bool Blockchain::validate_miner_transaction(
 
   if (already_generated_coins != 0)
   {
-    // validate first & second outputs are ZEPH (miner tx and governance reward)
-    std::string first_output_asset_type, second_output_asset_type;
-    bool ok = cryptonote::get_output_asset_type(b.miner_tx.vout[0], first_output_asset_type);
-    ok     |= cryptonote::get_output_asset_type(b.miner_tx.vout[1], second_output_asset_type);
-    if ((first_output_asset_type != "ZEPH") || (second_output_asset_type != "ZEPH")) {
-      MERROR_VER("First and second outputs of a miner tx must be ZEPH");
-      return false;
-    }
+    if (version >= HF_VERSION_V6) {
+      // validate first output is ZEPH (miner tx)
+      std::string first_output_asset_type;
+      bool ok = cryptonote::get_output_asset_type(b.miner_tx.vout[0], first_output_asset_type);
+      if (!ok || first_output_asset_type != "ZEPH") {
+        MERROR_VER("First output of a miner tx must be ZEPH");
+        return false;
+      }
+    } else {
+      // validate first & second outputs are ZEPH (miner tx and governance reward)
+      std::string first_output_asset_type, second_output_asset_type;
+      bool ok = cryptonote::get_output_asset_type(b.miner_tx.vout[0], first_output_asset_type);
+      ok     |= cryptonote::get_output_asset_type(b.miner_tx.vout[1], second_output_asset_type);
+      if (!ok || (first_output_asset_type != "ZEPH") || (second_output_asset_type != "ZEPH")) {
+        MERROR_VER("First and second outputs of a miner tx must be ZEPH");
+        return false;
+      }
 
-    uint64_t governance_reward = get_governance_reward(base_reward);
-    if (b.miner_tx.vout[1].amount != governance_reward)
-    {
-      MERROR("Governance reward amount incorrect.  Should be: " << print_money(governance_reward) << ", is: " << print_money(b.miner_tx.vout[1].amount));
-      return false;
-    }
+      uint64_t governance_reward = get_governance_reward(base_reward);
+      if (b.miner_tx.vout[1].amount != governance_reward)
+      {
+        MERROR("Governance reward amount incorrect.  Should be: " << print_money(governance_reward) << ", is: " << print_money(b.miner_tx.vout[1].amount));
+        return false;
+      }
 
-    std::string governance_wallet_address_str = cryptonote::get_governance_address(m_nettype);
-    if (!validate_governance_reward_key(m_db->height(), governance_wallet_address_str, 1, boost::get<txout_zephyr_tagged_key>(b.miner_tx.vout[1].target).key, m_nettype))
-    {
-      MERROR("Governance reward public key incorrect (vout[1]).");
-      return false;
+      std::string governance_wallet_address_str = cryptonote::get_governance_address(m_nettype);
+      if (!validate_governance_reward_key(m_db->height(), governance_wallet_address_str, 1, boost::get<txout_zephyr_tagged_key>(b.miner_tx.vout[1].target).key, m_nettype))
+      {
+        MERROR("Governance reward public key incorrect (vout[1]).");
+        return false;
+      }
     }
 
     if (unique_assets.size() > 0) {
-      for (uint64_t idx = 2; idx < output_size; idx++) {
-        ok = cryptonote::get_output_asset_type(b.miner_tx.vout[idx], first_output_asset_type);
+      std::string first_output_asset_type;
+      for (uint64_t idx = base_outputs; idx < output_size; idx++) {
+        bool ok = cryptonote::get_output_asset_type(b.miner_tx.vout[idx], first_output_asset_type);
         if (!ok) {
           MERROR("Failed to get output asset type from miner TX vout[" << idx << "]");
           return false;
@@ -1462,10 +1478,15 @@ bool Blockchain::validate_miner_transaction(
 
   uint64_t reserve_reward = 0;
   if (version >= HF_VERSION_DJED) {
-    reserve_reward = get_reserve_reward(base_reward);
+    reserve_reward = get_reserve_reward(base_reward, version);
   }
 
-  if(money_in_use_map["ZEPH"] != base_reward - reserve_reward + fee_map["ZEPH"])
+  uint64_t yield_reward = 0;
+  if (version >= HF_VERSION_V6) {
+    yield_reward = get_zeph_yield_reward(base_reward);
+  }
+
+  if(money_in_use_map["ZEPH"] != base_reward - reserve_reward - yield_reward + fee_map["ZEPH"])
   {
     MERROR_VER("coinbase transaction amount mismatch (" << print_money(money_in_use_map["ZEPH"]) << "). Block reward is " << print_money(base_reward - reserve_reward + fee_map["ZEPH"]) << "(" << print_money(base_reward - reserve_reward) << "+" << print_money(fee_map["ZEPH"]) << ")");
     return false;
@@ -1909,6 +1930,11 @@ bool Blockchain::get_pricing_record(oracle::pricing_record& pr, uint64_t timesta
 
       pr.reserve_ratio = cryptonote::get_pr_reserve_ratio(circ_supply, pr.spot);
       pr.reserve_ratio_ma = cryptonote::get_moving_average_reserve_ratio(pricing_record_history, pr.reserve_ratio);
+
+      if (hf_version >= HF_VERSION_V6) {
+        pr.yield_price = cryptonote::get_yield_coin_price(circ_supply);
+      }
+
     } else {
       pr.stable = cryptonote::get_stable_coin_price(circ_supply, pr.spot);
       pr.stable_ma = cryptonote::get_stable_coin_price(circ_supply, pr.moving_average);
@@ -3225,6 +3251,15 @@ bool Blockchain::check_tx_outputs(const transaction& tx, tx_verification_context
     }
   }
 
+  // Disallow ZYIELD before hardfork V6
+  if (hf_version < HF_VERSION_V6) {
+    for (auto &o: tx.vout) {
+      if (boost::get<txout_zephyr_tagged_key>(o.target).asset_type == "ZYIELD") {
+        tvc.m_invalid_output = true;
+        return false;
+      }
+    }
+  }
 
   // forbid invalid pubkeys
   for (const auto &o: tx.vout) {
@@ -4275,6 +4310,16 @@ leave: {
         bvc.m_verifivation_failed = true;
         goto leave;
       }
+
+      if (hf_version >= HF_VERSION_V6) {
+        uint64_t yield_price = cryptonote::get_yield_coin_price(circ_supply);
+        if (yield_price != bl.pricing_record.yield_price) {
+          MERROR_VER("Block with id: " << id << std::endl << "has invalid yield price value!");
+          bvc.m_verifivation_failed = true;
+          goto leave;
+        }
+      }
+
     } else if (hf_version >= HF_VERSION_PR_UPDATE) {
       uint64_t stable_price = cryptonote::get_stable_coin_price(circ_supply, bl.pricing_record.spot);
       uint64_t stable_price_ma = cryptonote::get_stable_coin_price(circ_supply, bl.pricing_record.moving_average);
@@ -4595,22 +4640,24 @@ leave: {
         goto leave;
       }
 
-      if (tx_type == tt::MINT_STABLE) {
-        conversion_this_tx_zeph += tx.amount_burnt; // Added to the reserve
-        conversion_this_tx_stables += tx.amount_minted;
-      } else if (tx_type == tt::REDEEM_STABLE) {
-        conversion_this_tx_stables -= tx.amount_burnt;
-        conversion_this_tx_zeph -= tx.amount_minted; // Deducted from the reserve
-      } else if (tx_type == tt::MINT_RESERVE) {
-        conversion_this_tx_zeph += tx.amount_burnt;
-        conversion_this_tx_reserves += tx.amount_minted;
-      } else if (tx_type == tt::REDEEM_RESERVE) {
-        conversion_this_tx_reserves -= tx.amount_burnt;
-        conversion_this_tx_zeph -= tx.amount_minted;
-      } else {
-        LOG_PRINT_L2("error: conversion transaction has invalid tx type " << tx.hash);
-        bvc.m_verifivation_failed = true;
-        goto leave;
+      if (tx_type != tt::MINT_YIELD && tx_type != tt::REDEEM_YIELD) {
+        if (tx_type == tt::MINT_STABLE) {
+          conversion_this_tx_zeph += tx.amount_burnt; // Added to the reserve
+          conversion_this_tx_stables += tx.amount_minted;
+        } else if (tx_type == tt::REDEEM_STABLE) {
+          conversion_this_tx_stables -= tx.amount_burnt;
+          conversion_this_tx_zeph -= tx.amount_minted; // Deducted from the reserve
+        } else if (tx_type == tt::MINT_RESERVE) {
+          conversion_this_tx_zeph += tx.amount_burnt;
+          conversion_this_tx_reserves += tx.amount_minted;
+        } else if (tx_type == tt::REDEEM_RESERVE) {
+          conversion_this_tx_reserves -= tx.amount_burnt;
+          conversion_this_tx_zeph -= tx.amount_minted;
+        } else {
+          LOG_PRINT_L2("error: conversion transaction has invalid tx type " << tx.hash);
+          bvc.m_verifivation_failed = true;
+          goto leave;
+        }
       }
 
       boost::multiprecision::int128_t tally_zeph = total_conversion_zeph + conversion_this_tx_zeph;
@@ -4623,18 +4670,26 @@ leave: {
         goto leave;
       }
 
-      if (!rct::validateMintedAmount(tx.rct_signatures, tx.amount_burnt, tx.amount_minted, pr_bl.pricing_record, source, dest, hf_version)) {
-        LOG_PRINT_L1(" validateMintedAmount failed: burnt = " << tx.amount_burnt << ", minted = " << tx.amount_minted);
-        bvc.m_verifivation_failed = true;
-        goto leave;
-      }
-
-      // make sure proof-of-value still holds
-      if (!rct::verRctSemanticsSimple(tx.rct_signatures, pr_bl.pricing_record, tx_type, source, dest, tx.amount_burnt, tx.vout, tx.vin, hf_version))
-      {
-        LOG_PRINT_L2(" transaction proof-of-value is now invalid for tx " << tx.hash);
-        bvc.m_verifivation_failed = true;
-        goto leave; 
+      if (hf_version >= HF_VERSION_V6) {
+        if (!rct::verRctSemanticsZeph(tx.rct_signatures, pr_bl.pricing_record, tx_type, source, dest, tx.amount_burnt, tx.amount_minted, tx.vout, tx.vin, hf_version))
+        {
+          LOG_PRINT_L2(" transaction proof-of-value is now invalid for tx " << tx.hash);
+          bvc.m_verifivation_failed = true;
+          goto leave;
+        }
+      } else {
+        if (!rct::validateMintedAmount(tx.rct_signatures, tx.amount_burnt, tx.amount_minted, pr_bl.pricing_record, source, dest, hf_version)) {
+          LOG_PRINT_L1(" validateMintedAmount failed: burnt = " << tx.amount_burnt << ", minted = " << tx.amount_minted);
+          bvc.m_verifivation_failed = true;
+          goto leave;
+        }
+        // make sure proof-of-value still holds
+        if (!rct::verRctSemanticsSimple(tx.rct_signatures, pr_bl.pricing_record, tx_type, source, dest, tx.amount_burnt, tx.vout, tx.vin, hf_version))
+        {
+          LOG_PRINT_L2(" transaction proof-of-value is now invalid for tx " << tx.hash);
+          bvc.m_verifivation_failed = true;
+          goto leave;
+        }
       }
     } else {
       //make sure those values are 0 for transfers.
@@ -4685,7 +4740,20 @@ leave: {
 
   uint64_t reserve_reward = 0;
   if (hf_version >= HF_VERSION_DJED) {
-    reserve_reward = get_reserve_reward(base_reward);
+    reserve_reward = get_reserve_reward(base_reward, hf_version);
+  }
+
+  uint64_t yield_reward_zsd = 0;
+  if (hf_version >= HF_VERSION_V6) {
+    uint64_t yield_reward_in_zeph = get_zeph_yield_reward(base_reward);
+    reserve_reward += yield_reward_in_zeph;
+
+    if (!bl.pricing_record.has_missing_rates(bl.major_version)) {
+      const uint64_t YIELD_RSV_MIN = 2 * COIN; // 200%
+      if (bl.pricing_record.reserve_ratio > YIELD_RSV_MIN && bl.pricing_record.reserve_ratio_ma > YIELD_RSV_MIN) {
+        yield_reward_zsd = cryptonote::zeph_to_zephusd(yield_reward_in_zeph, bl.pricing_record, hf_version);
+      }
+    }
   }
 
   TIME_MEASURE_FINISH(vmt);
@@ -4716,7 +4784,7 @@ leave: {
     {
       uint64_t long_term_block_weight = get_next_long_term_block_weight(block_weight);
       cryptonote::blobdata bd = cryptonote::block_to_blob(bl);
-      new_height = m_db->add_block(std::make_pair(std::move(bl), std::move(bd)), block_weight, long_term_block_weight, cumulative_difficulty, already_generated_coins, reserve_reward, txs);
+      new_height = m_db->add_block(std::make_pair(std::move(bl), std::move(bd)), block_weight, long_term_block_weight, cumulative_difficulty, already_generated_coins, reserve_reward, yield_reward_zsd, txs);
     }
     catch (const KEY_IMAGE_EXISTS& e)
     {

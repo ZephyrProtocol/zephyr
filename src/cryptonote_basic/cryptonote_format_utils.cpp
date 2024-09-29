@@ -1119,6 +1119,8 @@ namespace cryptonote
       return "ZSD";
     if (asset_type == "ZEPHRSV")
       return "ZRS";
+    if (asset_type == "ZYIELD")
+      return "ZYS";
     return "ZEPH";
   }
   //---------------------------------------------------------------

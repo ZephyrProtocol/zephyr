@@ -2600,6 +2600,12 @@ bool t_rpc_command_executor::reserve_info()
     tools::msg_writer() << boost::format("Reserve ratio:      %.2f") % res.reserve_ratio;
     tools::msg_writer() << boost::format("Reserve ratio (MA): %.2f") % res.reserve_ratio_ma;
 
+    if (res.hf_version >= HF_VERSION_V6) {
+      tools::msg_writer() << "";
+      tools::msg_writer() << boost::format("Yield reserve:      %d ƶsd") % cryptonote::print_money(res.zyield_reserve);
+      tools::msg_writer() << boost::format("ZYS circ:           %d ƶys") % cryptonote::print_money(res.num_zyield);
+    }
+
     tools::msg_writer() << "";
     tools::msg_writer() << "Exchange Rates";
     tools::msg_writer() << boost::format("Spot:               $%d") % cryptonote::print_money(res.pr.spot);
@@ -2608,6 +2614,10 @@ bool t_rpc_command_executor::reserve_info()
     tools::msg_writer() << boost::format("Stable (MA):        %d ƶeph") % cryptonote::print_money(res.pr.stable_ma);
     tools::msg_writer() << boost::format("Reserve:            %d ƶeph") % cryptonote::print_money(res.pr.reserve);
     tools::msg_writer() << boost::format("Reserve (MA):       %d ƶeph") % cryptonote::print_money(res.pr.reserve_ma);
+
+    if (res.hf_version >= HF_VERSION_V6) {
+      tools::msg_writer() << boost::format("Yield price:        %d ƶsd") % cryptonote::print_money(res.pr.yield_price);
+    }
 
     return true;
 }

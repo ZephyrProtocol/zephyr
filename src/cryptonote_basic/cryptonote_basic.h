@@ -481,9 +481,23 @@ namespace cryptonote
       FIELD(prev_id)
       FIELD(nonce)
 
-      if (major_version >= HF_VERSION_PR_UPDATE)
+      if (major_version >= HF_VERSION_V6)
       {
         FIELD(pricing_record)
+      }
+      else if (major_version >= HF_VERSION_PR_UPDATE)
+      {
+        oracle::pricing_record_v3 pr_v3;
+        if (!typename Archive<W>::is_saving())
+        {
+          FIELD(pr_v3)
+          pr_v3.write_to_pr(pricing_record);
+        }
+        else
+        {
+          pr_v3.read_from_pr(pricing_record);
+          FIELD(pr_v3)
+        }
       }
       else if (major_version >= HF_VERSION_DJED)
       {

@@ -2608,6 +2608,9 @@ namespace wallet_rpc
       std::string reserve_ratio;
       std::string reserve_ratio_ma;
 
+      std::string num_zyield;
+      std::string zyield_reserve;
+
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(status)
         KV_SERIALIZE(height)
@@ -2623,6 +2626,8 @@ namespace wallet_rpc
         KV_SERIALIZE(equity_ma)
         KV_SERIALIZE(reserve_ratio)
         KV_SERIALIZE(reserve_ratio_ma)
+        KV_SERIALIZE(num_zyield)
+        KV_SERIALIZE(zyield_reserve)
       END_KV_SERIALIZE_MAP()
     };
     typedef epee::misc_utils::struct_init<response_t> response;

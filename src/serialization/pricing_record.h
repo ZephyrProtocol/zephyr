@@ -42,7 +42,7 @@ template <template <bool> class Archive>
 bool do_serialize(Archive<false> &ar, oracle::pricing_record &pr, uint8_t version)
 {
 
-  if (version >= HF_VERSION_PR_UPDATE)
+  if (version >= HF_VERSION_V6)
   {
     // very basic sanity check
     if (ar.remaining_bytes() < sizeof(oracle::pricing_record)) {
@@ -51,6 +51,21 @@ bool do_serialize(Archive<false> &ar, oracle::pricing_record &pr, uint8_t versio
 
     ar.serialize_blob(&pr, sizeof(oracle::pricing_record), "");
     if (!ar.good())
+      return false;
+  }
+  else if (version >= HF_VERSION_PR_UPDATE)
+  {
+    // very basic sanity check
+    if (ar.remaining_bytes() < sizeof(oracle::pricing_record_v3)) {
+      return false;
+    }
+
+    oracle::pricing_record_v3 pr_v3;
+    ar.serialize_blob(&pr_v3, sizeof(oracle::pricing_record_v3), "");
+    if (!ar.good())
+      return false;
+
+    if (!pr_v3.write_to_pr(pr))
       return false;
   }
   else if (version >= HF_VERSION_DJED)
@@ -93,9 +108,16 @@ bool do_serialize(Archive<true> &ar, oracle::pricing_record &pr, uint8_t version
 {
   ar.begin_string();
 
-  if (version >= HF_VERSION_PR_UPDATE)
+  if (version >= HF_VERSION_V6)
   {
     ar.serialize_blob(&pr, sizeof(oracle::pricing_record), "");
+  }
+  else if (version >= HF_VERSION_PR_UPDATE)
+  {
+    oracle::pricing_record_v3 pr_v3;
+    if (!pr_v3.read_from_pr(pr))
+      return false;
+    ar.serialize_blob(&pr_v3, sizeof(oracle::pricing_record_v3), "");
   }
   else if (version >= HF_VERSION_DJED)
   {
@@ -174,6 +196,35 @@ bool do_serialize(Archive<true> &ar, oracle::pricing_record_v2 &pr, uint8_t vers
   return true;
 }
 
+// read
+template <template <bool> class Archive>
+bool do_serialize(Archive<false> &ar, oracle::pricing_record_v3 &pr, uint8_t version)
+{
+  // very basic sanity check
+  if (ar.remaining_bytes() < sizeof(oracle::pricing_record_v3)) {
+    return false;
+  }
+
+  ar.serialize_blob(&pr, sizeof(oracle::pricing_record_v3), "");
+  if (!ar.good())
+    return false;
+
+  return true;
+}
+
+// write
+template <template <bool> class Archive>
+bool do_serialize(Archive<true> &ar, oracle::pricing_record_v3 &pr, uint8_t version)
+{
+  ar.begin_string();
+  ar.serialize_blob(&pr, sizeof(oracle::pricing_record_v3), "");
+  if (!ar.good())
+    return false;
+  ar.end_string();
+  return true;
+}
+
 BLOB_SERIALIZER(oracle::pricing_record);
 BLOB_SERIALIZER(oracle::pricing_record_v1);
 BLOB_SERIALIZER(oracle::pricing_record_v2);
+BLOB_SERIALIZER(oracle::pricing_record_v3);

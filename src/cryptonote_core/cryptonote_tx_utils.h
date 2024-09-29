@@ -55,7 +55,9 @@ namespace cryptonote
     keypair get_deterministic_keypair_from_height(uint64_t height);
 
     uint64_t get_governance_reward(uint64_t base_reward);
-    uint64_t get_reserve_reward(uint64_t base_reward);
+    uint64_t get_reserve_reward(uint64_t base_reward, const uint8_t hf_version);
+    uint64_t get_zeph_yield_reward(uint64_t base_reward);
+
     
     bool get_deterministic_output_key(const account_public_address& address, const keypair& tx_key, size_t output_index, crypto::public_key& output_key);
     bool get_deterministic_output_key(const account_public_address& address, const keypair& tx_key, size_t output_index, crypto::public_key& output_key, crypto::key_derivation& derivation);
@@ -248,7 +250,9 @@ namespace cryptonote
     boost::multiprecision::uint128_t& equity,
     boost::multiprecision::uint128_t& equity_ma,
     double& reserve_ratio,
-    double& reserve_ratio_ma
+    double& reserve_ratio_ma,
+    boost::multiprecision::uint128_t& num_zyield,
+    boost::multiprecision::uint128_t& zyield_reserve
   );
 
   double get_reserve_ratio(const std::vector<std::pair<std::string, std::string>>& circ_amounts, const uint64_t oracle_price);
@@ -281,6 +285,7 @@ namespace cryptonote
 
   uint64_t get_stable_coin_price(const std::vector<std::pair<std::string, std::string>>& circ_amounts, uint64_t oracle_price);
   uint64_t get_reserve_coin_price(const std::vector<std::pair<std::string, std::string>>& circ_amounts, uint64_t exchange_rate);
+  uint64_t get_yield_coin_price(const std::vector<std::pair<std::string, std::string>>& circ_amounts);
 
   uint64_t get_moving_average_price(const std::vector<oracle::pricing_record>& pricing_record_history, uint64_t spot_price);
   uint64_t get_moving_average_stable_coin_price(const std::vector<oracle::pricing_record>& pricing_record_history, uint64_t stable_price);
@@ -291,6 +296,10 @@ namespace cryptonote
   uint64_t zeph_to_zephrsv(const uint64_t amount, const oracle::pricing_record& pr, const uint8_t hf_version);
   uint64_t zeph_to_zephusd(const uint64_t amount, const oracle::pricing_record& pr, const uint8_t hf_version);
   uint64_t zephusd_to_zeph(const uint64_t amount, const oracle::pricing_record& pr, const uint8_t hf_version);
+
+  uint64_t zephusd_to_zyield(const uint64_t amount, const oracle::pricing_record& pr);
+  uint64_t zyield_to_zephusd(const uint64_t amount, const oracle::pricing_record& pr);
+
 
   uint64_t zeph_to_asset_fee(const uint64_t amount, const uint64_t exchange_rate);
   uint64_t asset_to_zeph_fee(const uint64_t amount, const uint64_t exchange_rate);

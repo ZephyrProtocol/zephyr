@@ -10105,13 +10105,15 @@ void wallet2::get_reserve_info(
   boost::multiprecision::uint128_t& equity,
   boost::multiprecision::uint128_t& equity_ma,
   double& reserve_ratio,
-  double& reserve_ratio_ma
+  double& reserve_ratio_ma,
+  boost::multiprecision::uint128_t& num_zyield,
+  boost::multiprecision::uint128_t& zyield_reserve
 ){
   std::vector<std::pair<std::string, std::string>> circ_amounts;
   std::vector<oracle::pricing_record> pricing_record_history;
   THROW_WALLET_EXCEPTION_IF(!get_circulating_supply(circ_amounts), error::wallet_internal_error, "Failed to get circulating supply");
   THROW_WALLET_EXCEPTION_IF(!get_pricing_record_history(pricing_record_history), error::wallet_internal_error, "Failed to get pricing record history");
-  return cryptonote::get_reserve_info(circ_amounts, pricing_record, pricing_record_history, hf_version, zeph_reserve, num_stables, num_reserves, assets, assets_ma, liabilities, equity, equity_ma, reserve_ratio, reserve_ratio_ma);
+  return cryptonote::get_reserve_info(circ_amounts, pricing_record, pricing_record_history, hf_version, zeph_reserve, num_stables, num_reserves, assets, assets_ma, liabilities, equity, equity_ma, reserve_ratio, reserve_ratio_ma, num_zyield, zyield_reserve);
 }
 
 double wallet2::get_spot_reserve_ratio(const oracle::pricing_record& pricing_record)
@@ -10125,6 +10127,11 @@ double wallet2::get_ma_reserve_ratio(const oracle::pricing_record& pricing_recor
   std::vector<std::pair<std::string, std::string>> circ_amounts;
   THROW_WALLET_EXCEPTION_IF(!get_circulating_supply(circ_amounts), error::wallet_internal_error, "Failed to get circulating supply");
   return cryptonote::get_ma_reserve_ratio(circ_amounts, pricing_record);
+}
+
+uint64_t wallet2::yield_value(const uint64_t& amount, const oracle::pricing_record& pricing_record)
+{
+  return cryptonote::zyield_to_zephusd(amount, pricing_record);
 }
 
 // Another implementation of transaction creation that is hopefully better
@@ -10351,6 +10358,12 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(
       conversion_this_tx_reserves -= dt.amount;
       conversion_this_tx_zeph -= dt.dest_amount;
       THROW_WALLET_EXCEPTION_IF(dt.dest_amount == 0, error::wallet_internal_error, "Failed to convert needed_money to ZEPH");
+    } else if (tx_type == tt::MINT_YIELD) {
+      dt.dest_amount = cryptonote::zephusd_to_zyield(dt.amount, pricing_record);
+      THROW_WALLET_EXCEPTION_IF(dt.dest_amount == 0, error::wallet_internal_error, "Failed to convert needed_money to ZYS");
+    } else if (tx_type == tt::REDEEM_YIELD) {
+      dt.dest_amount = cryptonote::zyield_to_zephusd(dt.amount, pricing_record);
+      THROW_WALLET_EXCEPTION_IF(dt.dest_amount == 0, error::wallet_internal_error, "Failed to convert needed_money to ZSD (from ZYS)");
     } else {
       // Input amount is in ZEPH
       dt.dest_amount = dt.amount;
@@ -11359,6 +11372,12 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(
             conversion_this_tx_reserves -= dt.amount;
             conversion_this_tx_zeph -= dt.dest_amount;
             THROW_WALLET_EXCEPTION_IF(dt.dest_amount == 0, error::wallet_internal_error, "Failed to convert needed_money to ZEPH");
+          } else if (tx_type == tt::MINT_YIELD) {
+            dt.dest_amount = cryptonote::zephusd_to_zyield(dt.amount, pricing_record);
+            THROW_WALLET_EXCEPTION_IF(dt.dest_amount == 0, error::wallet_internal_error, "Failed to convert needed_money to ZYS");
+          } else if (tx_type == tt::REDEEM_YIELD) {
+            dt.dest_amount = cryptonote::zyield_to_zephusd(dt.amount, pricing_record);
+            THROW_WALLET_EXCEPTION_IF(dt.dest_amount == 0, error::wallet_internal_error, "Failed to convert needed_money to ZSD (from ZYS)");
           } else {
             dt.dest_amount = dt.amount;
             THROW_WALLET_EXCEPTION_IF(dt.dest_amount == 0, error::wallet_internal_error, "Zero dest amount in sweep");
@@ -11473,6 +11492,12 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(
   } else if (tx_type == tt::REDEEM_RESERVE) {
     de.dest_amount = cryptonote::zephrsv_to_zeph(de.amount, pricing_record, hf_version);
     THROW_WALLET_EXCEPTION_IF(de.dest_amount == 0, error::wallet_internal_error, "Failed to convert needed_money to ZEPH");
+  } else if (tx_type == tt::MINT_YIELD) {
+    de.dest_amount = cryptonote::zephusd_to_zyield(de.amount, pricing_record);
+    THROW_WALLET_EXCEPTION_IF(de.dest_amount == 0, error::wallet_internal_error, "Failed to convert needed_money to ZYS");
+  } else if (tx_type == tt::REDEEM_YIELD) {
+    de.dest_amount = cryptonote::zyield_to_zephusd(de.amount, pricing_record);
+    THROW_WALLET_EXCEPTION_IF(de.dest_amount == 0, error::wallet_internal_error, "Failed to convert needed_money to ZSD (from ZYS)");
   } else {
     de.dest_amount = de.amount;
     THROW_WALLET_EXCEPTION_IF(de.dest_amount == 0, error::wallet_internal_error, "Zero dest amount in sweep");

@@ -48,6 +48,7 @@ namespace oracle
       uint64_t reserve_ma;
       uint64_t reserve_ratio;
       uint64_t reserve_ratio_ma;
+      uint64_t yield_price;
       uint64_t timestamp;
       std::string signature;
 
@@ -60,6 +61,7 @@ namespace oracle
         KV_SERIALIZE(reserve_ma)
         KV_SERIALIZE(reserve_ratio)
         KV_SERIALIZE(reserve_ratio_ma)
+        KV_SERIALIZE(yield_price)
         KV_SERIALIZE(timestamp)
         KV_SERIALIZE(signature)
       END_KV_SERIALIZE_MAP()
@@ -75,6 +77,7 @@ namespace oracle
     , reserve_ma(0)
     , reserve_ratio(0)
     , reserve_ratio_ma(0)
+    , yield_price(0)
     , timestamp(0)
   {
     std::memset(signature, 0, sizeof(signature));
@@ -94,6 +97,7 @@ namespace oracle
       reserve_ma = in.reserve_ma;
       reserve_ratio = in.reserve_ratio;
       reserve_ratio_ma = in.reserve_ratio_ma;
+      yield_price = in.yield_price;
       timestamp = in.timestamp;
       for (unsigned int i = 0; i < in.signature.length(); i += 2) {
         std::string byteString = in.signature.substr(i, 2);
@@ -114,7 +118,7 @@ namespace oracle
       ss << std::hex << std::setw(2) << std::setfill('0') << (0xff & signature[i]);
       sig_hex += ss.str();
     }
-    const pr_serialized out{spot,moving_average,stable,stable_ma,reserve,reserve_ma,reserve_ratio,reserve_ratio_ma,timestamp,sig_hex};
+    const pr_serialized out{spot,moving_average,stable,stable_ma,reserve,reserve_ma,reserve_ratio,reserve_ratio_ma,yield_price,timestamp,sig_hex};
     return out.store(dest, hparent);
   }
 
@@ -127,6 +131,7 @@ namespace oracle
     , reserve_ma(orig.reserve_ma)
     , reserve_ratio(orig.reserve_ratio)
     , reserve_ratio_ma(orig.reserve_ratio_ma)
+    , yield_price(orig.yield_price)
     , timestamp(orig.timestamp)
   {
     std::memcpy(signature, orig.signature, sizeof(signature));
@@ -142,6 +147,7 @@ namespace oracle
     reserve_ma = orig.reserve_ma;
     reserve_ratio = orig.reserve_ratio;
     reserve_ratio_ma = orig.reserve_ratio_ma;
+    yield_price = orig.yield_price;
     timestamp = orig.timestamp;
     ::memcpy(signature, orig.signature, sizeof(signature));
     return *this;
@@ -157,6 +163,7 @@ namespace oracle
       (reserve_ma == other.reserve_ma) &&
       (reserve_ratio == other.reserve_ratio) &&
       (reserve_ratio_ma == other.reserve_ratio_ma) &&
+      (yield_price == other.yield_price) &&
 	    (timestamp == other.timestamp) &&
       !::memcmp(signature, other.signature, sizeof(signature)));
   }
@@ -233,8 +240,10 @@ namespace oracle
       return missing_rates;
     } else if (hf_version <= HF_VERSION_PR_UPDATE) {
       return missing_rates || (reserve_ratio == 0);
+    } else if (hf_version == HF_VERSION_V5) {
+      return missing_rates || (reserve_ratio == 0) || (reserve_ratio_ma == 0);
     }
-    return missing_rates || (reserve_ratio == 0) || (reserve_ratio_ma == 0);
+    return missing_rates || (reserve_ratio == 0) || (reserve_ratio_ma == 0) || (yield_price == 0);
   }
 
   bool pricing_record::has_essential_rates(const uint8_t hf_version) const noexcept
