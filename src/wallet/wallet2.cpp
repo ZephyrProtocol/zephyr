@@ -4282,7 +4282,8 @@ bool wallet2::get_rct_distribution(const std::string rct_asset_type, uint64_t &s
   cryptonote::COMMAND_RPC_GET_OUTPUT_DISTRIBUTION::request req = AUTO_VAL_INIT(req);
   cryptonote::COMMAND_RPC_GET_OUTPUT_DISTRIBUTION::response res = AUTO_VAL_INIT(res);
   req.amounts.push_back(0);
-  req.from_height = 0;
+  const uint64_t ZYIELD_FORK_HEIGHT = 360000;
+  req.from_height = rct_asset_type == "ZYIELD" ? ZYIELD_FORK_HEIGHT : 0;
   req.rct_asset_type = rct_asset_type;
   req.cumulative = false;
   req.binary = true;
