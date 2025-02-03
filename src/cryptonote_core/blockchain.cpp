@@ -139,7 +139,7 @@ bool Blockchain::have_tx_keyimg_as_spent(const crypto::key_image &key_im) const
 // and collects the public key for each from the transaction it was included in
 // via the visitor passed to it.
 template <class visitor_t>
-bool Blockchain::scan_outputkeys_for_indexes(size_t tx_version, const txin_zephyr_key& tx_in_to_key, visitor_t &vis, const crypto::hash &tx_prefix_hash, uint64_t* pmax_related_block_height) const
+bool Blockchain::scan_outputkeys_for_indexes(size_t tx_version, const txin_zephyr_key& tx_in_to_key, visitor_t &vis, const crypto::hash &tx_prefix_hash, uint64_t hf_version, uint64_t* pmax_related_block_height) const
 {
   LOG_PRINT_L3("Blockchain::" << __func__);
 
@@ -230,10 +230,18 @@ bool Blockchain::scan_outputkeys_for_indexes(size_t tx_version, const txin_zephy
           output_index = m_db->get_output_key(tx_in_to_key.amount, i);
 
         // call to the passed boost visitor to grab the public key for the output
-        if (!vis.handle_output(output_index.unlock_time, tx_in_to_key.asset_type, output_index.pubkey, output_index.commitment))
-        {
-          MERROR_VER("Failed to handle_output for output no = " << count << ", with absolute offset " << i);
-          return false;
+        if (hf_version >= HF_VERSION_V7) {
+          if (!vis.handle_output(output_index.unlock_time, output_index.asset_type, output_index.pubkey, output_index.commitment))
+          {
+            MERROR_VER("Failed to handle_output for output no = " << count << ", with absolute offset " << i);
+            return false;
+          }
+        } else {
+          if (!vis.handle_output(output_index.unlock_time, tx_in_to_key.asset_type, output_index.pubkey, output_index.commitment))
+          {
+            MERROR_VER("Failed to handle_output for output no = " << count << ", with absolute offset " << i);
+            return false;
+          }
         }
       }
       catch (...)
@@ -4062,7 +4070,7 @@ bool Blockchain::check_tx_input(size_t tx_version, const txin_zephyr_key& txin, 
 
   // collect output keys
   outputs_visitor vi(output_keys, *this, txin.asset_type, hf_version);
-  if (!scan_outputkeys_for_indexes(tx_version, txin, vi, tx_prefix_hash, pmax_related_block_height))
+  if (!scan_outputkeys_for_indexes(tx_version, txin, vi, tx_prefix_hash, hf_version, pmax_related_block_height))
   {
     MERROR_VER("Failed to get output keys for tx with amount = " << print_money(txin.amount) << " and count indexes " << txin.key_offsets.size());
     return false;
