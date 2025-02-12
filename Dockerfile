@@ -1,7 +1,7 @@
 # Multistage docker build, requires docker 17.05
 
 # builder stage
-FROM ubuntu:20.04 as builder
+FROM ubuntu:mantic-20240216 as builder
 
 RUN set -ex && \
     apt-get update && \
@@ -32,7 +32,7 @@ RUN set -ex && \
     fi
 
 # runtime stage
-FROM ubuntu:20.04
+FROM ubuntu:mantic-20240216
 
 RUN set -ex && \
     apt-get update && \
@@ -63,4 +63,3 @@ USER monero
 
 ENTRYPOINT ["monerod"]
 CMD ["--p2p-bind-ip=0.0.0.0", "--p2p-bind-port=18080", "--rpc-bind-ip=0.0.0.0", "--rpc-bind-port=18081", "--non-interactive", "--confirm-external-bind"]
-
