@@ -407,6 +407,7 @@ private:
                 , uint64_t long_term_block_weight
                 , const difficulty_type& cumulative_difficulty
                 , const uint64_t& coins_generated
+                , const uint64_t& zeph_generated
                 , const uint64_t& reserve_reward
                 , const uint64_t& yield_reward_zsd
                 , uint64_t num_rct_outs
@@ -434,9 +435,23 @@ private:
    * subclass of DB_EXCEPTION
    *
    * @param reserve_reward the amount of zeph to be removed from the reserve
+   * @param yield_reward_zsd the amount of ZSD to be removed from the yield reserve
    *
    */
   virtual void remove_reserve_reward(const uint64_t& reserve_reward, const uint64_t& yield_reward_zsd) = 0;
+
+  /**
+   * @brief remove the block rewards from total and reserve supplies
+   *
+   * If any of this cannot be done, the subclass should throw the corresponding
+   * subclass of DB_EXCEPTION
+   *
+   * @param zeph_generated the amount of zeph to be removed from the total supply
+   * @param reserve_reward the amount of zeph to be removed from the reserve
+   * @param yield_reward_zsd the amount of ZSD to be removed from the yield reserve
+   *
+   */
+  virtual void remove_block_rewards(const uint64_t& zeph_generated, const uint64_t& reserve_reward, const uint64_t& yield_reward_zsd) = 0;
 
   /**
    * @brief store the transaction and its metadata
@@ -875,6 +890,7 @@ public:
                             , uint64_t long_term_block_weight
                             , const difficulty_type& cumulative_difficulty
                             , const uint64_t& coins_generated
+                            , const uint64_t& zeph_generated
                             , const uint64_t& reserve_reward
                             , const uint64_t& yield_reward_zsd
                             , const std::vector<std::pair<transaction, blobdata>>& txs
@@ -1181,6 +1197,13 @@ public:
    * @return the current blockchain height
    */
   virtual uint64_t height() const = 0;
+
+  /**
+   * @brief fetch the audited supply tally values from the blockchain
+   *
+   * @return the current audited supply tally values
+   */
+  virtual std::vector<std::pair<std::string, std::string>> get_audited_supply() const = 0;
 
   /**
    * @brief fetch the circulating supply tally values from the blockchain

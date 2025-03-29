@@ -249,6 +249,9 @@ const char* const LMDB_PROPERTIES = "properties";
 const char* const LMDB_CIRC_SUPPLY = "circ_supply";
 const char* const LMDB_CIRC_SUPPLY_TALLY = "circ_supply_tally";
 
+const char* const LMDB_TOTAL_ASSET_SUPPLY = "total_asset_supply";
+const char* const LMDB_RESERVE_ASSET_SUPPLY = "reserve_asset_supply";
+
 const char zerokey[8] = {0};
 const MDB_val zerokval = { sizeof(zerokey), (void *)zerokey };
 
@@ -882,7 +885,7 @@ void write_circulating_supply_data(MDB_cursor *cur_circ_supply_tally, MDB_val id
 }
 
 void BlockchainLMDB::add_block(const block& blk, size_t block_weight, uint64_t long_term_block_weight, const difficulty_type& cumulative_difficulty, const uint64_t& coins_generated,
-    const uint64_t& reserve_reward, const uint64_t& yield_reward_zsd, uint64_t num_rct_outs, oracle::asset_type_counts& cum_rct_by_asset_type, const crypto::hash& blk_hash)
+    const uint64_t& zeph_generated, const uint64_t& reserve_reward, const uint64_t& yield_reward_zsd, uint64_t num_rct_outs, oracle::asset_type_counts& cum_rct_by_asset_type, const crypto::hash& blk_hash)
 {
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
@@ -917,6 +920,8 @@ void BlockchainLMDB::add_block(const block& blk, size_t block_weight, uint64_t l
   CURSOR(blocks)
   CURSOR(block_info)
   CURSOR(circ_supply_tally)
+  CURSOR(total_asset_supply)
+  CURSOR(reserve_asset_supply)
 
   // this call to mdb_cursor_put will change height()
   cryptonote::blobdata block_blob(block_to_blob(blk));
@@ -943,7 +948,10 @@ void BlockchainLMDB::add_block(const block& blk, size_t block_weight, uint64_t l
         throw1(BLOCK_DNE(lmdb_error("Failed to get block info: ", result).c_str()));
     const mdb_block_info *bi_prev = (const mdb_block_info*)h.mv_data;
     bi.bi_cum_rct += bi_prev->bi_cum_rct;
-    for (auto const& asset_type : oracle::ASSET_TYPES)
+    std::vector<std::string> all_asset_types = oracle::ASSET_TYPES;
+    all_asset_types.insert(all_asset_types.end(), oracle::ASSET_TYPES_V2.begin(), oracle::ASSET_TYPES_V2.end());
+
+    for (auto const& asset_type : all_asset_types)
       cum_rct_by_asset_type.add(asset_type, bi_prev->bi_cum_rct_by_asset_type[asset_type]);
   }
   bi.bi_long_term_block_weight = long_term_block_weight;
@@ -963,34 +971,91 @@ void BlockchainLMDB::add_block(const block& blk, size_t block_weight, uint64_t l
   m_cum_size += block_weight;
   m_cum_count++;
 
-  uint64_t source_currency_type = std::find(oracle::ASSET_TYPES.begin(), oracle::ASSET_TYPES.end(), "ZEPH") - oracle::ASSET_TYPES.begin();
-  MDB_val_copy<uint64_t> source_idx(source_currency_type);
-  boost::multiprecision::int128_t source_tally = read_circulating_supply_data(m_cur_circ_supply_tally, source_idx);
+  if (blk.major_version >= HF_VERSION_AUDIT) {
+    if (m_height == AUDIT_FORK_HEIGHT) {
+      uint64_t zeph_reserve_currency_type_v1 = std::find(oracle::ASSET_TYPES.begin(), oracle::ASSET_TYPES.end(), "ZEPH") - oracle::ASSET_TYPES.begin();
+      uint64_t zsd_reserve_currency_type_v1 = std::find(oracle::ASSET_TYPES.begin(), oracle::ASSET_TYPES.end(), "ZYIELDRSV") - oracle::ASSET_TYPES.begin();
+      MDB_val_copy<uint64_t> zeph_reserve_idx_v1(zeph_reserve_currency_type_v1);
+      MDB_val_copy<uint64_t> zsd_reserve_idx_v1(zsd_reserve_currency_type_v1);
+      boost::multiprecision::int128_t zeph_reserve_tally_v1 = read_circulating_supply_data(m_cur_circ_supply_tally, zeph_reserve_idx_v1);
+      boost::multiprecision::int128_t zsd_reserve_tally_v1 = read_circulating_supply_data(m_cur_circ_supply_tally, zsd_reserve_idx_v1);
 
-  boost::multiprecision::int128_t final_source_tally;
-  if (m_height == 274662) {
-    final_source_tally = 1355092382175150195;
-  } else {
-    final_source_tally = source_tally + reserve_reward; // Add reserve reward ZEPH to reserve
+      uint64_t zeph_asset_currency_type = std::find(oracle::ASSET_TYPES_V2.begin(), oracle::ASSET_TYPES_V2.end(), "ZPH") - oracle::ASSET_TYPES_V2.begin();
+      uint64_t zsd_asset_currency_type = std::find(oracle::ASSET_TYPES_V2.begin(), oracle::ASSET_TYPES_V2.end(), "ZSD") - oracle::ASSET_TYPES_V2.begin();
+      MDB_val_copy<uint64_t> zeph_asset_idx(zeph_asset_currency_type);
+      MDB_val_copy<uint64_t> zsd_asset_idx(zsd_asset_currency_type);
+      write_circulating_supply_data(m_cur_total_asset_supply, zeph_asset_idx, zeph_reserve_tally_v1);
+      write_circulating_supply_data(m_cur_total_asset_supply, zsd_asset_idx, zsd_reserve_tally_v1);
+
+      uint64_t djed_reserve_type = std::find(oracle::RESERVE_TYPES_V2.begin(), oracle::RESERVE_TYPES_V2.end(), "DJED") - oracle::RESERVE_TYPES.begin();
+      uint64_t yield_reserve_type = std::find(oracle::RESERVE_TYPES_V2.begin(), oracle::RESERVE_TYPES_V2.end(), "YIELD") - oracle::RESERVE_TYPES.begin();
+      MDB_val_copy<uint64_t> djed_reserve_idx(djed_reserve_type);
+      MDB_val_copy<uint64_t> yield_reserve_idx(yield_reserve_type);
+      write_circulating_supply_data(m_cur_reserve_asset_supply, djed_reserve_idx, zeph_reserve_tally_v1);
+      write_circulating_supply_data(m_cur_reserve_asset_supply, yield_reserve_idx, zsd_reserve_tally_v1);
+    }
+
+    // Update ZEPH total supply
+    uint64_t zeph_asset_currency_type = std::find(oracle::ASSET_TYPES_V2.begin(), oracle::ASSET_TYPES_V2.end(), "ZPH") - oracle::ASSET_TYPES_V2.begin();
+    MDB_val_copy<uint64_t> zeph_asset_idx(zeph_asset_currency_type);
+    boost::multiprecision::int128_t zeph_asset_tally = read_circulating_supply_data(m_cur_total_asset_supply, zeph_asset_idx);
+    boost::multiprecision::int128_t final_zeph_asset_tally = zeph_asset_tally + zeph_generated; // Add base reward ZPH to ZPH total supply
+    write_circulating_supply_data(m_cur_total_asset_supply, zeph_asset_idx, final_zeph_asset_tally);
+
+    // Update DJED reserve supply (ZEPH)
+    uint64_t djed_reserve_type = std::find(oracle::RESERVE_TYPES_V2.begin(), oracle::RESERVE_TYPES_V2.end(), "DJED") - oracle::RESERVE_TYPES.begin();
+    MDB_val_copy<uint64_t> djed_reserve_idx(djed_reserve_type);
+    boost::multiprecision::int128_t djed_reserve_tally = read_circulating_supply_data(m_cur_reserve_asset_supply, djed_reserve_idx);
+    boost::multiprecision::int128_t final_djed_reserve_tally = djed_reserve_tally + reserve_reward; // Add reserve reward ZPH to DJED reserve
+    write_circulating_supply_data(m_cur_reserve_asset_supply, djed_reserve_idx, final_djed_reserve_tally);
+
+    if (yield_reward_zsd > 0) {
+      // Update ZSD total supply
+      uint64_t zsd_asset_currency_type = std::find(oracle::ASSET_TYPES_V2.begin(), oracle::ASSET_TYPES_V2.end(), "ZSD") - oracle::ASSET_TYPES_V2.begin();
+      MDB_val_copy<uint64_t> zsd_asset_idx(zsd_asset_currency_type);
+      boost::multiprecision::int128_t zsd_asset_tally = read_circulating_supply_data(m_cur_total_asset_supply, zsd_asset_idx);
+      boost::multiprecision::int128_t final_zsd_asset_tally = zsd_asset_tally + yield_reward_zsd; // Add yield reward ZSD to ZSD total supply
+      write_circulating_supply_data(m_cur_total_asset_supply, zsd_asset_idx, final_zsd_asset_tally);
+
+      // Update YIELD reserve supply (ZSD)
+      uint64_t yield_reserve_type = std::find(oracle::RESERVE_TYPES_V2.begin(), oracle::RESERVE_TYPES_V2.end(), "YIELD") - oracle::RESERVE_TYPES.begin();
+      MDB_val_copy<uint64_t> yield_reserve_idx(yield_reserve_type);
+      boost::multiprecision::int128_t yield_reserve_tally = read_circulating_supply_data(m_cur_reserve_asset_supply, yield_reserve_idx);
+      boost::multiprecision::int128_t final_yield_reserve_tally = yield_reserve_tally + yield_reward_zsd; // Add yield reward ZSD to YIELD reserve
+      write_circulating_supply_data(m_cur_reserve_asset_supply, yield_reserve_idx, final_yield_reserve_tally);
+    }
   }
-  write_circulating_supply_data(m_cur_circ_supply_tally, source_idx, final_source_tally);
 
-  if (yield_reward_zsd > 0) {
-    // add to circulating supply of ZSD
-    uint64_t zsd_currency_type = std::find(oracle::ASSET_TYPES.begin(), oracle::ASSET_TYPES.end(), "ZEPHUSD") - oracle::ASSET_TYPES.begin();
-    MDB_val_copy<uint64_t> zsd_idx(zsd_currency_type);
-    boost::multiprecision::int128_t zsd_tally = read_circulating_supply_data(m_cur_circ_supply_tally, zsd_idx);
+  if (blk.major_version <= HF_VERSION_AUDIT) {
+    uint64_t source_currency_type = std::find(oracle::ASSET_TYPES.begin(), oracle::ASSET_TYPES.end(), "ZEPH") - oracle::ASSET_TYPES.begin();
+    MDB_val_copy<uint64_t> source_idx(source_currency_type);
+    boost::multiprecision::int128_t source_tally = read_circulating_supply_data(m_cur_circ_supply_tally, source_idx);
 
-    boost::multiprecision::int128_t final_zsd_tally = zsd_tally + yield_reward_zsd; // Add yield reward ZSD to ZSD circ
-    write_circulating_supply_data(m_cur_circ_supply_tally, zsd_idx, final_zsd_tally);
+    boost::multiprecision::int128_t final_source_tally;
+    if (m_height == 274662) {
+      final_source_tally = 1355092382175150195;
+    } else {
+      final_source_tally = source_tally + reserve_reward; // Add reserve reward ZEPH to reserve
+    }
+    write_circulating_supply_data(m_cur_circ_supply_tally, source_idx, final_source_tally);
 
-    // add to reserve supply of ZSD
-    uint64_t zsd_reserve_currency_type = std::find(oracle::RESERVE_TYPES.begin(), oracle::RESERVE_TYPES.end(), "ZYIELDRSV") - oracle::RESERVE_TYPES.begin();
-    MDB_val_copy<uint64_t> zsd_reserve_idx(zsd_reserve_currency_type);
-    boost::multiprecision::int128_t zsd_reserve_tally = read_circulating_supply_data(m_cur_circ_supply_tally, zsd_reserve_idx);
+    if (yield_reward_zsd > 0) {
+      // add to circulating supply of ZSD
+      uint64_t zsd_currency_type = std::find(oracle::ASSET_TYPES.begin(), oracle::ASSET_TYPES.end(), "ZEPHUSD") - oracle::ASSET_TYPES.begin();
+      MDB_val_copy<uint64_t> zsd_idx(zsd_currency_type);
+      boost::multiprecision::int128_t zsd_tally = read_circulating_supply_data(m_cur_circ_supply_tally, zsd_idx);
 
-    boost::multiprecision::int128_t final_zsd_reserve_tally = zsd_reserve_tally + yield_reward_zsd; // Add yield reward ZSD to ZYIELDRSV
-    write_circulating_supply_data(m_cur_circ_supply_tally, zsd_reserve_idx, final_zsd_reserve_tally);
+      boost::multiprecision::int128_t final_zsd_tally = zsd_tally + yield_reward_zsd; // Add yield reward ZSD to ZSD circ
+      write_circulating_supply_data(m_cur_circ_supply_tally, zsd_idx, final_zsd_tally);
+
+      // add to reserve supply of ZSD
+      uint64_t zsd_reserve_currency_type = std::find(oracle::RESERVE_TYPES.begin(), oracle::RESERVE_TYPES.end(), "ZYIELDRSV") - oracle::RESERVE_TYPES.begin();
+      MDB_val_copy<uint64_t> zsd_reserve_idx(zsd_reserve_currency_type);
+      boost::multiprecision::int128_t zsd_reserve_tally = read_circulating_supply_data(m_cur_circ_supply_tally, zsd_reserve_idx);
+
+      boost::multiprecision::int128_t final_zsd_reserve_tally = zsd_reserve_tally + yield_reward_zsd; // Add yield reward ZSD to ZYIELDRSV
+      write_circulating_supply_data(m_cur_circ_supply_tally, zsd_reserve_idx, final_zsd_reserve_tally);
+    }
   }
 }
 
@@ -1084,6 +1149,89 @@ void BlockchainLMDB::remove_reserve_reward(const uint64_t& reserve_reward, const
   }
 }
 
+void BlockchainLMDB::remove_block_rewards(const uint64_t& zeph_generated, const uint64_t& reserve_reward, const uint64_t& yield_reward_zsd)
+{
+  LOG_PRINT_L3("BlockchainLMDB::" << __func__);
+  check_open();
+  uint64_t m_height = height();
+
+  if (m_height == 0)
+    throw0(BLOCK_DNE ("Attempting to remove block rewards from an empty blockchain"));
+
+  mdb_txn_cursors *m_cursors = &m_wcursors;
+  CURSOR(total_asset_supply)
+  CURSOR(reserve_asset_supply)
+
+
+  if (m_height == AUDIT_FORK_HEIGHT) {
+    uint64_t zeph_asset_currency_type = std::find(oracle::ASSET_TYPES_V2.begin(), oracle::ASSET_TYPES_V2.end(), "ZPH") - oracle::ASSET_TYPES_V2.begin();
+    uint64_t zsd_asset_currency_type = std::find(oracle::ASSET_TYPES_V2.begin(), oracle::ASSET_TYPES_V2.end(), "ZSD") - oracle::ASSET_TYPES_V2.begin();
+    uint64_t zrs_asset_currency_type = std::find(oracle::ASSET_TYPES_V2.begin(), oracle::ASSET_TYPES_V2.end(), "ZRS") - oracle::ASSET_TYPES_V2.begin();
+    uint64_t zys_asset_currency_type = std::find(oracle::ASSET_TYPES_V2.begin(), oracle::ASSET_TYPES_V2.end(), "ZYS") - oracle::ASSET_TYPES_V2.begin();
+    MDB_val_copy<uint64_t> zeph_asset_idx(zeph_asset_currency_type);
+    MDB_val_copy<uint64_t> zsd_asset_idx(zsd_asset_currency_type);
+    MDB_val_copy<uint64_t> zrs_asset_idx(zrs_asset_currency_type);
+    MDB_val_copy<uint64_t> zys_asset_idx(zys_asset_currency_type);
+    write_circulating_supply_data(m_cur_total_asset_supply, zeph_asset_idx, 0);
+    write_circulating_supply_data(m_cur_total_asset_supply, zsd_asset_idx, 0);
+    write_circulating_supply_data(m_cur_total_asset_supply, zrs_asset_idx, 0);
+    write_circulating_supply_data(m_cur_total_asset_supply, zys_asset_idx, 0);
+
+    uint64_t djed_reserve_type = std::find(oracle::RESERVE_TYPES_V2.begin(), oracle::RESERVE_TYPES_V2.end(), "DJED") - oracle::RESERVE_TYPES.begin();
+    uint64_t yield_reserve_type = std::find(oracle::RESERVE_TYPES_V2.begin(), oracle::RESERVE_TYPES_V2.end(), "YIELD") - oracle::RESERVE_TYPES.begin();
+    MDB_val_copy<uint64_t> djed_reserve_idx(djed_reserve_type);
+    MDB_val_copy<uint64_t> yield_reserve_idx(yield_reserve_type);
+    write_circulating_supply_data(m_cur_reserve_asset_supply, djed_reserve_idx, 0);
+    write_circulating_supply_data(m_cur_reserve_asset_supply, yield_reserve_idx, 0);
+  }
+
+  // Update ZEPH total supply
+  uint64_t zeph_asset_currency_type = std::find(oracle::ASSET_TYPES_V2.begin(), oracle::ASSET_TYPES_V2.end(), "ZPH") - oracle::ASSET_TYPES_V2.begin();
+  MDB_val_copy<uint64_t> zeph_asset_idx(zeph_asset_currency_type);
+  boost::multiprecision::int128_t zeph_asset_tally = read_circulating_supply_data(m_cur_total_asset_supply, zeph_asset_idx);
+  boost::multiprecision::int128_t final_zeph_asset_tally = zeph_asset_tally - zeph_generated;
+  if (final_zeph_asset_tally < 0) {
+    LOG_ERROR(__func__ << " : underflow detected for total ZEPH supply: correcting supply tally by " << final_zeph_asset_tally);
+    final_zeph_asset_tally = 0;
+  }
+  write_circulating_supply_data(m_cur_total_asset_supply, zeph_asset_idx, final_zeph_asset_tally);
+
+  // Update DJED reserve supply (ZEPH)
+  uint64_t djed_reserve_type = std::find(oracle::RESERVE_TYPES_V2.begin(), oracle::RESERVE_TYPES_V2.end(), "DJED") - oracle::RESERVE_TYPES.begin();
+  MDB_val_copy<uint64_t> djed_reserve_idx(djed_reserve_type);
+  boost::multiprecision::int128_t djed_reserve_tally = read_circulating_supply_data(m_cur_reserve_asset_supply, djed_reserve_idx);
+  boost::multiprecision::int128_t final_djed_reserve_tally = djed_reserve_tally - reserve_reward;
+  if (final_djed_reserve_tally < 0) {
+    LOG_ERROR(__func__ << " : underflow detected for reserve ZEPH supply: correcting supply tally by " << final_djed_reserve_tally);
+    final_djed_reserve_tally = 0;
+  }
+  write_circulating_supply_data(m_cur_reserve_asset_supply, djed_reserve_idx, final_djed_reserve_tally);
+
+  if (yield_reward_zsd > 0) {
+    // Update ZSD total supply
+    uint64_t zsd_asset_currency_type = std::find(oracle::ASSET_TYPES_V2.begin(), oracle::ASSET_TYPES_V2.end(), "ZSD") - oracle::ASSET_TYPES_V2.begin();
+    MDB_val_copy<uint64_t> zsd_asset_idx(zsd_asset_currency_type);
+    boost::multiprecision::int128_t zsd_asset_tally = read_circulating_supply_data(m_cur_total_asset_supply, zsd_asset_idx);
+    boost::multiprecision::int128_t final_zsd_asset_tally = zsd_asset_tally - yield_reward_zsd;
+    if (final_zsd_asset_tally < 0) {
+      LOG_ERROR(__func__ << " : underflow detected for total ZSD supply: correcting supply tally by " << final_zsd_asset_tally);
+      final_zsd_asset_tally = 0;
+    }
+    write_circulating_supply_data(m_cur_total_asset_supply, zsd_asset_idx, final_zsd_asset_tally);
+
+    // Update YIELD reserve supply (ZSD)
+    uint64_t yield_reserve_type = std::find(oracle::RESERVE_TYPES_V2.begin(), oracle::RESERVE_TYPES_V2.end(), "YIELD") - oracle::RESERVE_TYPES.begin();
+    MDB_val_copy<uint64_t> yield_reserve_idx(yield_reserve_type);
+    boost::multiprecision::int128_t yield_reserve_tally = read_circulating_supply_data(m_cur_reserve_asset_supply, yield_reserve_idx);
+    boost::multiprecision::int128_t final_yield_reserve_tally = yield_reserve_tally - yield_reward_zsd;
+    if (final_yield_reserve_tally < 0) {
+      LOG_ERROR(__func__ << " : underflow detected for reserve ZSD supply: correcting supply tally by " << final_yield_reserve_tally);
+      final_yield_reserve_tally = 0;
+    }
+    write_circulating_supply_data(m_cur_reserve_asset_supply, yield_reserve_idx, final_yield_reserve_tally);
+  }
+}
+
 uint64_t BlockchainLMDB::add_transaction_data(const crypto::hash& blk_hash, const std::pair<transaction, blobdata_ref>& txp, const crypto::hash& tx_hash, const crypto::hash& tx_prunable_hash, const bool miner_tx)
 {
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
@@ -1101,6 +1249,8 @@ uint64_t BlockchainLMDB::add_transaction_data(const crypto::hash& blk_hash, cons
   CURSOR(tx_indices)
   CURSOR(circ_supply)
   CURSOR(circ_supply_tally)
+  CURSOR(total_asset_supply)
+  CURSOR(reserve_asset_supply)
 
   MDB_val_set(val_tx_id, tx_id);
   MDB_val_set(val_h, tx_hash);
@@ -1168,6 +1318,10 @@ uint64_t BlockchainLMDB::add_transaction_data(const crypto::hash& blk_hash, cons
       throw0(DB_ERROR(lmdb_error("Failed to add prunable tx prunable hash to db transaction: ", result).c_str()));
   }
 
+  if (miner_tx) {
+    return tx_id;
+  }
+
   // get tx assets
   std::string strSource;
   std::string strDest;
@@ -1175,7 +1329,103 @@ uint64_t BlockchainLMDB::add_transaction_data(const crypto::hash& blk_hash, cons
     throw0(DB_ERROR("Failed to add tx circulating supply to db transaction: get_tx_asset_types fails."));
   }
 
-  if (strSource != strDest) {  
+  transaction_type tx_type;
+  if (!get_tx_type(strSource, strDest, tx_type)) {
+    LOG_ERROR("invalid tx type");
+    return false;
+  }
+
+  const uint8_t hf_version = m_hardfork->get_ideal_version(m_height);
+  bool audit_tx = tx_type == transaction_type::AUDIT_ZEPH || tx_type == transaction_type::AUDIT_STABLE || tx_type == transaction_type::AUDIT_RESERVE || tx_type == transaction_type::AUDIT_YIELD;
+
+  if (hf_version >= HF_VERSION_AUDIT) {
+    if (audit_tx) {
+        uint64_t dest_currency_type = std::find(oracle::ASSET_TYPES_V2.begin(), oracle::ASSET_TYPES_V2.end(), strDest) - oracle::ASSET_TYPES_V2.begin();
+        MDB_val_copy<uint64_t> dest_idx(dest_currency_type);
+        boost::multiprecision::int128_t dest_tally = read_circulating_supply_data(m_cur_total_asset_supply, dest_idx);
+        boost::multiprecision::int128_t final_dest_tally = dest_tally + tx.amount_minted + tx.rct_signatures.txnFee;
+        write_circulating_supply_data(m_cur_total_asset_supply, dest_idx, final_dest_tally);
+
+    } else if (strSource != strDest) {
+      if (tx_type == transaction_type::MINT_YIELD) {
+        uint64_t source_currency_type = std::find(oracle::RESERVE_TYPES_V2.begin(), oracle::RESERVE_TYPES_V2.end(), "YIELD") - oracle::RESERVE_TYPES_V2.begin();
+        MDB_val_copy<uint64_t> source_idx(source_currency_type);
+        boost::multiprecision::int128_t source_tally = read_circulating_supply_data(m_cur_reserve_asset_supply, source_idx);
+        boost::multiprecision::int128_t final_source_tally = source_tally + tx.amount_burnt; // Add spent ZSD to the Yield Reserve
+        write_circulating_supply_data(m_cur_reserve_asset_supply, source_idx, final_source_tally);
+
+        uint64_t dest_currency_type = std::find(oracle::ASSET_TYPES_V2.begin(), oracle::ASSET_TYPES_V2.end(), "ZYS") - oracle::ASSET_TYPES_V2.begin();
+        MDB_val_copy<uint64_t> dest_idx(dest_currency_type);
+        boost::multiprecision::int128_t dest_tally = read_circulating_supply_data(m_cur_total_asset_supply, dest_idx);
+        boost::multiprecision::int128_t final_dest_tally = dest_tally + tx.amount_minted; // Add minted ZYS to the ZYS Supply
+        write_circulating_supply_data(m_cur_total_asset_supply, dest_idx, final_dest_tally);
+
+      } else if (tx_type == transaction_type::REDEEM_YIELD) {
+        uint64_t source_currency_type = std::find(oracle::ASSET_TYPES_V2.begin(), oracle::ASSET_TYPES_V2.end(), "ZYS") - oracle::ASSET_TYPES_V2.begin();
+        MDB_val_copy<uint64_t> source_idx(source_currency_type);
+        boost::multiprecision::int128_t source_tally = read_circulating_supply_data(m_cur_total_asset_supply, source_idx);
+        boost::multiprecision::int128_t final_source_tally = source_tally - tx.amount_burnt; // Remove redeemed ZYIELD from the ZYIELD Supply
+        if (final_source_tally < 0) {
+          LOG_ERROR(__func__ << " : mint/burn underflow detected for ZYS : correcting supply tally by " << final_source_tally);
+          final_source_tally = 0;
+        }
+        write_circulating_supply_data(m_cur_total_asset_supply, source_idx, final_source_tally);
+
+        uint64_t dest_currency_type = std::find(oracle::RESERVE_TYPES_V2.begin(), oracle::RESERVE_TYPES_V2.end(), "YIELD") - oracle::RESERVE_TYPES_V2.begin();
+        MDB_val_copy<uint64_t> dest_idx(dest_currency_type);
+        boost::multiprecision::int128_t dest_tally = read_circulating_supply_data(m_cur_reserve_asset_supply, dest_idx);
+        boost::multiprecision::int128_t final_dest_tally = dest_tally - tx.amount_minted; // Remove returned ZEPHUSD from the Yield Reserve
+        if (final_dest_tally < 0) {
+          LOG_ERROR(__func__ << " : mint/burn underflow detected for YIELD reserve : correcting supply tally by " << final_dest_tally);
+          final_dest_tally = 0;
+        }
+        write_circulating_supply_data(m_cur_reserve_asset_supply, dest_idx, final_dest_tally);
+
+      } else {
+        if (strSource == "ZPH") {
+          // Add spent ZEPH to the Reserve
+          uint64_t source_currency_type = std::find(oracle::RESERVE_TYPES_V2.begin(), oracle::ASSET_TYPES_V2.end(), "DJED") - oracle::ASSET_TYPES_V2.begin();
+          MDB_val_copy<uint64_t> source_idx(source_currency_type);
+          boost::multiprecision::int128_t source_tally = read_circulating_supply_data(m_cur_reserve_asset_supply, source_idx);
+          boost::multiprecision::int128_t final_source_tally = source_tally + tx.amount_burnt;
+
+          write_circulating_supply_data(m_cur_reserve_asset_supply, source_idx, final_source_tally);
+        } else {
+          // Remove ZEPHUSD or ZEPHRSV supply
+          uint64_t source_currency_type = std::find(oracle::ASSET_TYPES_V2.begin(), oracle::ASSET_TYPES_V2.end(), strSource) - oracle::ASSET_TYPES_V2.begin();
+          MDB_val_copy<uint64_t> source_idx(source_currency_type);
+          boost::multiprecision::int128_t source_tally = read_circulating_supply_data(m_cur_total_asset_supply, source_idx);
+          boost::multiprecision::int128_t final_source_tally = source_tally - tx.amount_burnt;
+          if (final_source_tally < 0) {
+            LOG_ERROR(__func__ << " : mint/burn underflow detected for " << strSource << " : correcting supply tally by " << final_source_tally);
+            final_source_tally = 0;
+          }
+          write_circulating_supply_data(m_cur_total_asset_supply, source_idx, final_source_tally);
+        }
+
+        if (strDest == "ZPH") {
+          // Remove ZEPH amount from the Reserve
+          uint64_t dest_currency_type = std::find(oracle::RESERVE_TYPES_V2.begin(), oracle::ASSET_TYPES_V2.end(), "DJED") - oracle::ASSET_TYPES_V2.begin();
+          MDB_val_copy<uint64_t> dest_idx(dest_currency_type);
+          boost::multiprecision::int128_t dest_tally = read_circulating_supply_data(m_cur_reserve_asset_supply, dest_idx);
+          boost::multiprecision::int128_t final_dest_tally = dest_tally - tx.amount_minted;
+          if (final_dest_tally < 0) {
+            LOG_ERROR(__func__ << " : mint/burn underflow detected for " << strDest << " : correcting supply tally by " << final_dest_tally);
+            final_dest_tally = 0;
+          }
+          write_circulating_supply_data(m_cur_reserve_asset_supply, dest_idx, final_dest_tally);
+        } else {
+          // Mint ZEPHUSD or ZEPHRSV supply
+          uint64_t dest_currency_type = std::find(oracle::ASSET_TYPES_V2.begin(), oracle::ASSET_TYPES_V2.end(), strSource) - oracle::ASSET_TYPES_V2.begin();
+          MDB_val_copy<uint64_t> dest_idx(dest_currency_type);
+          boost::multiprecision::int128_t dest_tally = read_circulating_supply_data(m_cur_total_asset_supply, dest_idx);
+          boost::multiprecision::int128_t final_dest_tally = dest_tally + tx.amount_minted;
+          write_circulating_supply_data(m_cur_total_asset_supply, dest_idx, final_dest_tally);
+        }
+      }
+    }
+  // PRE-HF AUDIT
+  } else if (strSource != strDest) {
     // Conversion TX - update our records
     circ_supply cs;
     cs.tx_hash = tx_hash;
@@ -1194,26 +1444,20 @@ uint64_t BlockchainLMDB::add_transaction_data(const crypto::hash& blk_hash, cons
       uint64_t source_currency_type = std::find(oracle::RESERVE_TYPES.begin(), oracle::RESERVE_TYPES.end(), "ZYIELDRSV") - oracle::RESERVE_TYPES.begin();
       MDB_val_copy<uint64_t> source_idx(source_currency_type);
       boost::multiprecision::int128_t source_tally = read_circulating_supply_data(m_cur_circ_supply_tally, source_idx);
-      boost::multiprecision::int128_t final_source_tally;
-
-      final_source_tally = source_tally + cs.amount_burnt; // Add spent ZEPHUSD to the Yield Reserve
+      boost::multiprecision::int128_t final_source_tally = source_tally + cs.amount_burnt; // Add spent ZEPHUSD to the Yield Reserve
       write_circulating_supply_data(m_cur_circ_supply_tally, source_idx, final_source_tally);
 
       uint64_t dest_currency_type = std::find(oracle::RESERVE_TYPES.begin(), oracle::RESERVE_TYPES.end(), "ZYIELD") - oracle::RESERVE_TYPES.begin();
       MDB_val_copy<uint64_t> dest_idx(dest_currency_type);
       boost::multiprecision::int128_t dest_tally = read_circulating_supply_data(m_cur_circ_supply_tally, dest_idx);
-      boost::multiprecision::int128_t final_dest_tally;
-
-      final_dest_tally = dest_tally + cs.amount_minted; // Add minted ZYIELD to the ZYIELD Supply
+      boost::multiprecision::int128_t final_dest_tally = dest_tally + cs.amount_minted; // Add minted ZYIELD to the ZYIELD Supply
       write_circulating_supply_data(m_cur_circ_supply_tally, dest_idx, final_dest_tally);
 
     } else if (strSource == "ZYIELD" && strDest == "ZEPHUSD") { // redeem_yield
       uint64_t source_currency_type = std::find(oracle::RESERVE_TYPES.begin(), oracle::RESERVE_TYPES.end(), "ZYIELD") - oracle::RESERVE_TYPES.begin();
       MDB_val_copy<uint64_t> source_idx(source_currency_type);
       boost::multiprecision::int128_t source_tally = read_circulating_supply_data(m_cur_circ_supply_tally, source_idx);
-      boost::multiprecision::int128_t final_source_tally;
-
-      final_source_tally = source_tally - cs.amount_burnt; // Remove redeemed ZYIELD from the ZYIELD Supply
+      boost::multiprecision::int128_t final_source_tally = source_tally - cs.amount_burnt; // Remove redeemed ZYIELD from the ZYIELD Supply
       if (final_source_tally < 0) {
         LOG_ERROR(__func__ << " : mint/burn underflow detected for ZYIELD : correcting supply tally by " << final_source_tally);
         final_source_tally = 0;
@@ -1223,22 +1467,17 @@ uint64_t BlockchainLMDB::add_transaction_data(const crypto::hash& blk_hash, cons
       uint64_t dest_currency_type = std::find(oracle::RESERVE_TYPES.begin(), oracle::RESERVE_TYPES.end(), "ZYIELDRSV") - oracle::RESERVE_TYPES.begin();
       MDB_val_copy<uint64_t> dest_idx(dest_currency_type);
       boost::multiprecision::int128_t dest_tally = read_circulating_supply_data(m_cur_circ_supply_tally, dest_idx);
-      boost::multiprecision::int128_t final_dest_tally;
-
-      final_dest_tally = dest_tally - cs.amount_minted; // Remove returned ZEPHUSD from the Yield Reserve
+      boost::multiprecision::int128_t final_dest_tally = dest_tally - cs.amount_minted; // Remove returned ZEPHUSD from the Yield Reserve
       if (final_dest_tally < 0) {
         LOG_ERROR(__func__ << " : mint/burn underflow detected for ZYIELDRSV : correcting supply tally by " << final_dest_tally);
         final_dest_tally = 0;
       }
       write_circulating_supply_data(m_cur_circ_supply_tally, dest_idx, final_dest_tally);
-
     } else {
-
       // Get the current tally value for the source currency type
       MDB_val_copy<uint64_t> source_idx(cs.source_currency_type);
       boost::multiprecision::int128_t source_tally = read_circulating_supply_data(m_cur_circ_supply_tally, source_idx);
       boost::multiprecision::int128_t final_source_tally;
-
       if (strSource == "ZEPH") {
         final_source_tally = source_tally + cs.amount_burnt; // Adds burnt ZEPH to the Reserve
       } else {
@@ -1248,14 +1487,12 @@ uint64_t BlockchainLMDB::add_transaction_data(const crypto::hash& blk_hash, cons
           final_source_tally = 0;
         }
       }
-
       write_circulating_supply_data(m_cur_circ_supply_tally, source_idx, final_source_tally);
 
       // Get the current tally value for the dest currency type
       MDB_val_copy<uint64_t> dest_idx(cs.dest_currency_type);
       boost::multiprecision::int128_t dest_tally = read_circulating_supply_data(m_cur_circ_supply_tally, dest_idx);
       boost::multiprecision::int128_t final_dest_tally;
-
       if (strDest == "ZEPH") {
         final_dest_tally = dest_tally - cs.amount_minted; // Remove minted ZEPH amount from the Reserve
         if (final_dest_tally < 0) {
@@ -1265,7 +1502,6 @@ uint64_t BlockchainLMDB::add_transaction_data(const crypto::hash& blk_hash, cons
       } else {
         final_dest_tally = dest_tally + cs.amount_minted; // Mint ZEPHUSD or ZEPHRSV
       }
-
       write_circulating_supply_data(m_cur_circ_supply_tally, dest_idx, final_dest_tally);
 
       LOG_PRINT_L1("tx ID " << tx_id << "\nSource tally before burn =" << source_tally.str() << "\nSource tally after burn =" << final_source_tally.str() <<
@@ -1295,6 +1531,8 @@ void BlockchainLMDB::remove_transaction_data(const crypto::hash& tx_hash, const 
   CURSOR(tx_outputs)
   CURSOR(circ_supply)
   CURSOR(circ_supply_tally)
+  CURSOR(total_asset_supply)
+  CURSOR(reserve_asset_supply)
 
   MDB_val_set(val_h, tx_hash);
 
@@ -1342,11 +1580,105 @@ void BlockchainLMDB::remove_transaction_data(const crypto::hash& tx_hash, const 
   std::string strSource;
   std::string strDest;
   if (!get_tx_asset_types(tx, tx_hash, strSource, strDest, miner_tx)) {
-    throw0(DB_ERROR("Failed to add tx circulating supply to db transaction: get_tx_asset_types fails."));
+    throw0(DB_ERROR("Failed to remove tx circulating supply from db transaction: get_tx_asset_types fails."));
   }
 
-  if (strSource != strDest)
-  {    
+  transaction_type tx_type;
+  if (!get_tx_type(strSource, strDest, tx_type)) {
+    throw0(DB_ERROR("Failed to remove tx circulating supply from db transaction: get_tx_type fails."));
+  }
+
+  const uint8_t hf_version = m_hardfork->get_ideal_version(m_height);
+  bool audit_tx = tx_type == transaction_type::AUDIT_ZEPH || tx_type == transaction_type::AUDIT_STABLE || tx_type == transaction_type::AUDIT_RESERVE || tx_type == transaction_type::AUDIT_YIELD;
+
+  if (hf_version >= HF_VERSION_AUDIT && !miner_tx) {
+    if (audit_tx) {
+        uint64_t dest_currency_type = std::find(oracle::ASSET_TYPES_V2.begin(), oracle::ASSET_TYPES_V2.end(), strDest) - oracle::ASSET_TYPES_V2.begin();
+        MDB_val_copy<uint64_t> dest_idx(dest_currency_type);
+        boost::multiprecision::int128_t dest_tally = read_circulating_supply_data(m_cur_total_asset_supply, dest_idx);
+        boost::multiprecision::int128_t final_dest_tally = dest_tally - tx.amount_minted - tx.rct_signatures.txnFee;
+        if (final_dest_tally < 0) {
+          LOG_ERROR(__func__ << " : audit mint/burn underflow detected for " << strDest << " : correcting supply tally by " << final_dest_tally);
+          final_dest_tally = 0;
+        }
+        write_circulating_supply_data(m_cur_total_asset_supply, dest_idx, final_dest_tally);
+    } else if (strSource != strDest) {
+      if (tx_type == transaction_type::MINT_YIELD) {
+        uint64_t source_currency_type = std::find(oracle::RESERVE_TYPES_V2.begin(), oracle::RESERVE_TYPES_V2.end(), "YIELD") - oracle::RESERVE_TYPES_V2.begin();
+        MDB_val_copy<uint64_t> source_idx(source_currency_type);
+        boost::multiprecision::int128_t source_tally = read_circulating_supply_data(m_cur_reserve_asset_supply, source_idx);
+        boost::multiprecision::int128_t final_source_tally = source_tally - tx.amount_burnt; // Remove spent ZSD from the Yield Reserve
+        if (final_source_tally < 0) {
+          LOG_ERROR(__func__ << " : mint/burn underflow detected for YIELD reserve : correcting supply tally by " << final_source_tally);
+          final_source_tally = 0;
+        }
+        write_circulating_supply_data(m_cur_reserve_asset_supply, source_idx, final_source_tally);
+
+        uint64_t dest_currency_type = std::find(oracle::ASSET_TYPES_V2.begin(), oracle::ASSET_TYPES_V2.end(), "ZYS") - oracle::ASSET_TYPES_V2.begin();
+        MDB_val_copy<uint64_t> dest_idx(dest_currency_type);
+        boost::multiprecision::int128_t dest_tally = read_circulating_supply_data(m_cur_total_asset_supply, dest_idx);
+        boost::multiprecision::int128_t final_dest_tally = dest_tally - tx.amount_minted; // Remove minted ZYS from the ZYS Supply
+        if (final_dest_tally < 0) {
+          LOG_ERROR(__func__ << " : mint/burn underflow detected for ZYS : correcting supply tally by " << final_dest_tally);
+          final_dest_tally = 0;
+        }
+        write_circulating_supply_data(m_cur_total_asset_supply, dest_idx, final_dest_tally);
+      } else if (tx_type == transaction_type::REDEEM_YIELD) {
+        uint64_t source_currency_type = std::find(oracle::ASSET_TYPES_V2.begin(), oracle::ASSET_TYPES_V2.end(), "ZYS") - oracle::ASSET_TYPES_V2.begin();
+        MDB_val_copy<uint64_t> source_idx(source_currency_type);
+        boost::multiprecision::int128_t source_tally = read_circulating_supply_data(m_cur_total_asset_supply, source_idx);
+        boost::multiprecision::int128_t final_source_tally = source_tally + tx.amount_burnt; // Undo removal of ZYS from the ZYS Supply
+        write_circulating_supply_data(m_cur_total_asset_supply, source_idx, final_source_tally);
+
+        uint64_t dest_currency_type = std::find(oracle::RESERVE_TYPES_V2.begin(), oracle::RESERVE_TYPES_V2.end(), "YIELD") - oracle::RESERVE_TYPES_V2.begin();
+        MDB_val_copy<uint64_t> dest_idx(dest_currency_type);
+        boost::multiprecision::int128_t dest_tally = read_circulating_supply_data(m_cur_reserve_asset_supply, dest_idx);
+        boost::multiprecision::int128_t final_dest_tally = dest_tally + tx.amount_minted; // Undo removal of ZSD from the Yield Reserve
+        write_circulating_supply_data(m_cur_reserve_asset_supply, dest_idx, final_dest_tally);
+      } else {
+        if (strSource == "ZPH") {
+          // Undo adding spent ZEPH to the Reserve
+          uint64_t source_currency_type = std::find(oracle::RESERVE_TYPES_V2.begin(), oracle::ASSET_TYPES_V2.end(), "DJED") - oracle::ASSET_TYPES_V2.begin();
+          MDB_val_copy<uint64_t> source_idx(source_currency_type);
+          boost::multiprecision::int128_t source_tally = read_circulating_supply_data(m_cur_reserve_asset_supply, source_idx);
+          boost::multiprecision::int128_t final_source_tally = source_tally - tx.amount_burnt; // Undo addition of ZEPH to the Reserve
+          if (final_source_tally < 0) {
+            LOG_ERROR(__func__ << " : mint/burn underflow detected for " << strSource << " : correcting supply tally by " << final_source_tally);
+            final_source_tally = 0;
+          }
+          write_circulating_supply_data(m_cur_reserve_asset_supply, source_idx, final_source_tally);
+        } else {
+          // Undo Removal of ZEPHUSD or ZEPHRSV supply
+          uint64_t source_currency_type = std::find(oracle::ASSET_TYPES_V2.begin(), oracle::ASSET_TYPES_V2.end(), strSource) - oracle::ASSET_TYPES_V2.begin();
+          MDB_val_copy<uint64_t> source_idx(source_currency_type);
+          boost::multiprecision::int128_t source_tally = read_circulating_supply_data(m_cur_total_asset_supply, source_idx);
+          boost::multiprecision::int128_t final_source_tally = source_tally + tx.amount_burnt;
+          write_circulating_supply_data(m_cur_total_asset_supply, source_idx, final_source_tally);
+        }
+
+        if (strDest == "ZPH") {
+          // Undo removal of ZEPH amount from the Reserve
+          uint64_t dest_currency_type = std::find(oracle::RESERVE_TYPES_V2.begin(), oracle::ASSET_TYPES_V2.end(), "DJED") - oracle::ASSET_TYPES_V2.begin();
+          MDB_val_copy<uint64_t> dest_idx(dest_currency_type);
+          boost::multiprecision::int128_t dest_tally = read_circulating_supply_data(m_cur_reserve_asset_supply, dest_idx);
+          boost::multiprecision::int128_t final_dest_tally = dest_tally + tx.amount_minted;
+          write_circulating_supply_data(m_cur_reserve_asset_supply, dest_idx, final_dest_tally);
+        } else {
+          // Undo minting of ZEPHUSD or ZEPHRSV supply
+          uint64_t dest_currency_type = std::find(oracle::ASSET_TYPES_V2.begin(), oracle::ASSET_TYPES_V2.end(), strSource) - oracle::ASSET_TYPES_V2.begin();
+          MDB_val_copy<uint64_t> dest_idx(dest_currency_type);
+          boost::multiprecision::int128_t dest_tally = read_circulating_supply_data(m_cur_total_asset_supply, dest_idx);
+          boost::multiprecision::int128_t final_dest_tally = dest_tally - tx.amount_minted;
+          if (final_dest_tally < 0) {
+            LOG_ERROR(__func__ << " : mint/burn underflow detected for " << strDest << " : correcting supply tally by " << final_dest_tally);
+            final_dest_tally = 0;
+          }
+          write_circulating_supply_data(m_cur_total_asset_supply, dest_idx, final_dest_tally);
+        }
+      }
+    }
+  // PRE-HF AUDIT
+  } else if (strSource != strDest && !miner_tx) {
     // Update the tally table
     // Get the current tally value for the source currency type
     circ_supply cs;
@@ -1944,6 +2276,8 @@ void BlockchainLMDB::open(const std::string& filename, const int db_flags)
   lmdb_db_open(txn, LMDB_CIRC_SUPPLY, MDB_INTEGERKEY | MDB_CREATE, m_circ_supply, "Failed to open db handle for m_circ_supply");
   lmdb_db_open(txn, LMDB_CIRC_SUPPLY_TALLY, MDB_CREATE, m_circ_supply_tally, "Failed to open db handle for m_circ_supply_tally");
 
+  lmdb_db_open(txn, LMDB_TOTAL_ASSET_SUPPLY, MDB_CREATE, m_total_asset_supply, "Failed to open db handle for m_total_asset_supply");
+  lmdb_db_open(txn, LMDB_RESERVE_ASSET_SUPPLY, MDB_CREATE, m_reserve_asset_supply, "Failed to open db handle for m_reserve_asset_supply");
 
   mdb_set_dupsort(txn, m_spent_keys, compare_hash32);
   mdb_set_dupsort(txn, m_block_heights, compare_hash32);
@@ -1967,6 +2301,9 @@ void BlockchainLMDB::open(const std::string& filename, const int db_flags)
 
   mdb_set_compare(txn, m_circ_supply, compare_uint64);
   mdb_set_compare(txn, m_circ_supply_tally, compare_uint64);
+
+  mdb_set_compare(txn, m_total_asset_supply, compare_uint64);
+  mdb_set_compare(txn, m_reserve_asset_supply, compare_uint64);
 
   if (!(mdb_flags & MDB_RDONLY))
   {
@@ -3423,6 +3760,54 @@ uint64_t BlockchainLMDB::height() const
   return db_stats.ms_entries;
 }
 
+std::vector<std::pair<std::string, std::string>> BlockchainLMDB::get_audited_supply() const
+{
+  LOG_PRINT_L3("BlockchainLMDB::" << __func__);
+  std::vector<std::pair<std::string, std::string>> audited_supply;
+  uint64_t m_height = height();
+  if (m_height == 0) {
+    return audited_supply;
+  }
+
+  check_open();
+
+  TXN_PREFIX_RDONLY();
+  RCURSOR(total_asset_supply);
+  RCURSOR(reserve_asset_supply);
+
+  MDB_val k;
+  MDB_val v;
+  int result = 0;
+
+  MDB_cursor_op op = MDB_FIRST;
+  while (1)
+  {
+    LOG_PRINT_L1("BlockchainLMDB::" << __func__ << " - getting total asset supply");
+    int result = mdb_cursor_get(m_cur_total_asset_supply, &k, &v, op);
+    op = MDB_NEXT;
+    if (result == MDB_NOTFOUND)
+      break;
+    if (result)
+      throw0(DB_ERROR(lmdb_error("Failed to get total asset supply: ", result).c_str()));
+
+    LOG_PRINT_L1("BlockchainLMDB::" << __func__ << " - got total asset supply");
+    // Push the data into the circulating supply return struct
+    const uint64_t currency_type = *(const uint64_t*)k.mv_data;
+    circ_supply_tally *cst = (circ_supply_tally*)v.mv_data;
+    const std::string currency_label = oracle::ASSET_TYPES_V2.at(currency_type);
+    boost::multiprecision::int128_t amount = import_tally_from_cst(cst);
+
+    audited_supply.emplace_back(std::pair<std::string, std::string>{currency_label, amount.str()});
+  }
+
+  TXN_POSTFIX_RDONLY();
+
+  if (audited_supply.empty()) {
+    audited_supply.emplace_back(std::pair<std::string, std::string>{"ZPH",  std::to_string(0)});
+  }
+  return audited_supply;
+}
+
 std::vector<std::pair<std::string, std::string>> BlockchainLMDB::get_circulating_supply() const
 {
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
@@ -3435,36 +3820,75 @@ std::vector<std::pair<std::string, std::string>> BlockchainLMDB::get_circulating
   uint64_t m_coinbase = get_block_already_generated_coins(m_height-1);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__ << " - mined supply for ZEPH = " << m_coinbase);
   check_open();
-  
+
   TXN_PREFIX_RDONLY();
   RCURSOR(circ_supply_tally);
+  RCURSOR(total_asset_supply);
+  RCURSOR(reserve_asset_supply);
 
   MDB_val k;
   MDB_val v;
   int result = 0;
 
   MDB_cursor_op op = MDB_FIRST;
-  while (1)
-  {
-    int result = mdb_cursor_get(m_cur_circ_supply_tally, &k, &v, op);
-    op = MDB_NEXT;
-    if (result == MDB_NOTFOUND)
-      break;
-    if (result)
-      throw0(DB_ERROR(lmdb_error("Failed to get circulating supply: ", result).c_str()));
+  if (m_height >= HF_VERSION_V10_FORK_HEIGHT) {
+    while (1)
+    {
+      int result = mdb_cursor_get(m_cur_total_asset_supply, &k, &v, op);
+      op = MDB_NEXT;
+      if (result == MDB_NOTFOUND)
+        break;
+      if (result)
+        throw0(DB_ERROR(lmdb_error("Failed to get total asset supply: ", result).c_str()));
 
-    // Push the data into the circulating supply return struct
-    const uint64_t currency_type = *(const uint64_t*)k.mv_data;
-    circ_supply_tally *cst = (circ_supply_tally*)v.mv_data;
-    const std::string currency_label = oracle::RESERVE_TYPES.at(currency_type);
-    boost::multiprecision::int128_t amount = import_tally_from_cst(cst);
+      // Push the data into the circulating supply return struct
+      const uint64_t currency_type = *(const uint64_t*)k.mv_data;
+      circ_supply_tally *cst = (circ_supply_tally*)v.mv_data;
+      const std::string currency_label = oracle::ASSET_TYPES_V2.at(currency_type);
+      boost::multiprecision::int128_t amount = import_tally_from_cst(cst);
 
-    circulating_supply.emplace_back(std::pair<std::string, std::string>{currency_label, amount.str()});
+      circulating_supply.emplace_back(std::pair<std::string, std::string>{currency_label, amount.str()});
+    }
+    op = MDB_FIRST;
+    while (1)
+    {
+      int result = mdb_cursor_get(m_cur_reserve_asset_supply, &k, &v, op);
+      op = MDB_NEXT;
+      if (result == MDB_NOTFOUND)
+        break;
+      if (result)
+        throw0(DB_ERROR(lmdb_error("Failed to get reserve asset supply: ", result).c_str()));
+
+      // Push the data into the circulating supply return struct
+      const uint64_t currency_type = *(const uint64_t*)k.mv_data;
+      circ_supply_tally *cst = (circ_supply_tally*)v.mv_data;
+      const std::string currency_label = oracle::RESERVE_TYPES_V2.at(currency_type);
+      boost::multiprecision::int128_t amount = import_tally_from_cst(cst);
+
+      circulating_supply.emplace_back(std::pair<std::string, std::string>{currency_label, amount.str()});
+    }
+  } else {
+    while (1)
+    {
+      int result = mdb_cursor_get(m_cur_circ_supply_tally, &k, &v, op);
+      op = MDB_NEXT;
+      if (result == MDB_NOTFOUND)
+        break;
+      if (result)
+        throw0(DB_ERROR(lmdb_error("Failed to get circulating supply: ", result).c_str()));
+
+      // Push the data into the circulating supply return struct
+      const uint64_t currency_type = *(const uint64_t*)k.mv_data;
+      circ_supply_tally *cst = (circ_supply_tally*)v.mv_data;
+      const std::string currency_label = oracle::RESERVE_TYPES.at(currency_type);
+      boost::multiprecision::int128_t amount = import_tally_from_cst(cst);
+
+      circulating_supply.emplace_back(std::pair<std::string, std::string>{currency_label, amount.str()});
+    }
   }
 
   TXN_POSTFIX_RDONLY();
 
-  // NEAC: check for empty supply tally - only happens prior to first conversion on chain
   if (circulating_supply.empty()) {
     circulating_supply.emplace_back(std::pair<std::string, std::string>{"ZEPH",  std::to_string(0)});
   }
@@ -4717,7 +5141,7 @@ void BlockchainLMDB::block_rtxn_abort() const
 }
 
 uint64_t BlockchainLMDB::add_block(const std::pair<block, blobdata>& blk, size_t block_weight, uint64_t long_term_block_weight, const difficulty_type& cumulative_difficulty, const uint64_t& coins_generated,
-    const uint64_t& reserve_reward, const uint64_t& yield_reward_zsd, const std::vector<std::pair<transaction, blobdata>>& txs)
+    const uint64_t& zeph_generated, const uint64_t& reserve_reward, const uint64_t& yield_reward_zsd, const std::vector<std::pair<transaction, blobdata>>& txs)
 {
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
@@ -4735,7 +5159,7 @@ uint64_t BlockchainLMDB::add_block(const std::pair<block, blobdata>& blk, size_t
 
   try
   {
-    BlockchainDB::add_block(blk, block_weight, long_term_block_weight, cumulative_difficulty, coins_generated, reserve_reward, yield_reward_zsd, txs);
+    BlockchainDB::add_block(blk, block_weight, long_term_block_weight, cumulative_difficulty, coins_generated, zeph_generated, reserve_reward, yield_reward_zsd, txs);
   }
   catch (const DB_ERROR_TXN_START& e)
   {

@@ -1081,6 +1081,7 @@ private:
     bool reconnect_device();
     
     bool get_pricing_record(oracle::pricing_record& pr, const uint64_t height, const bool strict_check = true);
+    bool get_audited_supply(std::vector<std::pair<std::string, std::string>> &amounts);
     bool get_circulating_supply(std::vector<std::pair<std::string, std::string>> &amounts);
     bool get_pricing_record_history(std::vector<oracle::pricing_record> &pricing_record_history);
 
@@ -1140,6 +1141,13 @@ private:
     bool load_tx(const std::string &signed_filename, std::vector<tools::wallet2::pending_tx> &ptx, std::function<bool(const signed_tx_set&)> accept_func = NULL);
     bool parse_tx_from_str(const std::string &signed_tx_st, std::vector<tools::wallet2::pending_tx> &ptx, std::function<bool(const signed_tx_set &)> accept_func);
     
+    void get_audit_info(
+      boost::multiprecision::uint128_t& zeph_audited,
+      boost::multiprecision::uint128_t& stables_audited,
+      boost::multiprecision::uint128_t& reserves_audited,
+      boost::multiprecision::uint128_t& yield_audited
+    );
+
     void get_reserve_info(
       const oracle::pricing_record& pricing_record,
       const uint8_t hf_version,

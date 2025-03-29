@@ -1389,7 +1389,7 @@ bool Blockchain::validate_miner_transaction(
 
   std::set<std::string> unique_assets;
   for (const auto& asset : fee_map) {
-    if (asset.first != "ZEPH") {
+    if (asset.first != "ZEPH" && asset.first != "ZPH") {
       unique_assets.insert(asset.first);
     }
   }
@@ -1429,7 +1429,15 @@ bool Blockchain::validate_miner_transaction(
 
   if (already_generated_coins != 0)
   {
-    if (version >= HF_VERSION_V6) {
+    if (version >= HF_VERSION_AUDIT) {
+      // validate first output is ZPH (miner tx)
+      std::string first_output_asset_type;
+      bool ok = cryptonote::get_output_asset_type(b.miner_tx.vout[0], first_output_asset_type);
+      if (!ok || first_output_asset_type != "ZPH") {
+        MERROR_VER("First output of a miner tx must be ZPH");
+        return false;
+      }
+    } else if (version >= HF_VERSION_V6) {
       // validate first output is ZEPH (miner tx)
       std::string first_output_asset_type;
       bool ok = cryptonote::get_output_asset_type(b.miner_tx.vout[0], first_output_asset_type);
@@ -1476,6 +1484,11 @@ bool Blockchain::validate_miner_transaction(
           return false;
         }
 
+        if (first_output_asset_type == "ZPH") {
+          MERROR("ZPH not allowed in additional asset types for miner TX : tx.vout[" << idx << "]");
+          return false;
+        }
+
         if (b.miner_tx.vout[idx].amount != fee_map[first_output_asset_type]) {
           MERROR("Miner reward amount for " << first_output_asset_type << " is incorrect. Should be: " << print_money(fee_map[first_output_asset_type]) << ", is: " << print_money(b.miner_tx.vout[idx].amount));
           return false;
@@ -1494,16 +1507,24 @@ bool Blockchain::validate_miner_transaction(
     yield_reward = get_zeph_yield_reward(base_reward);
   }
 
-  if(money_in_use_map["ZEPH"] != base_reward - reserve_reward - yield_reward + fee_map["ZEPH"])
-  {
-    MERROR_VER("coinbase transaction amount mismatch (" << print_money(money_in_use_map["ZEPH"]) << "). Block reward is " << print_money(base_reward - reserve_reward + fee_map["ZEPH"]) << "(" << print_money(base_reward - reserve_reward) << "+" << print_money(fee_map["ZEPH"]) << ")");
-    return false;
+  if (version >= HF_VERSION_AUDIT) {
+    if(money_in_use_map["ZPH"] != base_reward - reserve_reward - yield_reward + fee_map["ZPH"])
+    {
+      MERROR_VER("coinbase transaction amount mismatch (" << print_money(money_in_use_map["ZPH"]) << "). Block reward is " << print_money(base_reward - reserve_reward + fee_map["ZPH"]) << "(" << print_money(base_reward - reserve_reward) << "+" << print_money(fee_map["ZPH"]) << ")");
+      return false;
+    }
+  } else {
+    if(money_in_use_map["ZEPH"] != base_reward - reserve_reward - yield_reward + fee_map["ZEPH"])
+    {
+      MERROR_VER("coinbase transaction amount mismatch (" << print_money(money_in_use_map["ZEPH"]) << "). Block reward is " << print_money(base_reward - reserve_reward + fee_map["ZEPH"]) << "(" << print_money(base_reward - reserve_reward) << "+" << print_money(fee_map["ZEPH"]) << ")");
+      return false;
+    }
   }
 
   if (version >= HF_VERSION_DJED) {
     for (auto &money_in_use_map_entry: money_in_use_map) {
       const std::string& asset = money_in_use_map_entry.first;
-      if (asset == "ZEPH") continue;
+      if (asset == "ZEPH" || asset == "ZPH") continue;
 
       // make sure each asset type in miner tx actually exist in at least one of the fee maps
       if (unique_assets.find(asset) == unique_assets.end()) {
@@ -3269,6 +3290,33 @@ bool Blockchain::check_tx_outputs(const transaction& tx, tx_verification_context
     }
   }
 
+  // Disallow all new asset types before audit hardfork
+  if (hf_version < HF_VERSION_AUDIT) {
+    for (auto &o: tx.vout) {
+      std::string asset_type = boost::get<txout_zephyr_tagged_key>(o.target).asset_type;
+      if (asset_type == "ZPH" || asset_type == "ZSD" || asset_type == "ZRS" || asset_type == "ZYS") {
+        tvc.m_invalid_output = true;
+        return false;
+      }
+    }
+  }
+
+  // Disallow all old asset types post audit
+  if (hf_version > HF_VERSION_AUDIT) {
+    for (auto &o: tx.vout) {
+      std::string asset_type = boost::get<txout_zephyr_tagged_key>(o.target).asset_type;
+      if (asset_type == "ZEPH" || asset_type == "ZEPHUSD" || asset_type == "ZEPHRSV" || asset_type == "ZYIELD") {
+        tvc.m_invalid_output = true;
+        return false;
+      }
+    }
+  }
+
+  if (hf_version == HF_VERSION_PAUSE) {
+    tvc.m_invalid_output = true;
+    return false;
+  }
+
   // forbid invalid pubkeys
   for (const auto &o: tx.vout) {
     crypto::public_key output_public_key;
@@ -4622,12 +4670,32 @@ leave: {
       goto leave;
     }
 
+    bool audit_tx = tx_type == tt::AUDIT_ZEPH || tx_type == tt::AUDIT_STABLE || tx_type == tt::AUDIT_RESERVE || tx_type == tt::AUDIT_YIELD;
+
+    if (hf_version == HF_VERSION_AUDIT && !audit_tx) {
+      LOG_PRINT_L2("error: non-audit transaction found in block during HF_VERSION_AUDIT");
+      bvc.m_verifivation_failed = true;
+      goto leave;
+    }
+
+    if (hf_version > HF_VERSION_AUDIT && audit_tx) {
+      LOG_PRINT_L2("error: audit transaction found in block after HF_VERSION_AUDIT");
+      bvc.m_verifivation_failed = true;
+      goto leave;
+    }
+
+    if (hf_version == HF_VERSION_PAUSE) {
+      LOG_PRINT_L2("error: transaction found in block during HF_VERSION_PAUSE");
+      bvc.m_verifivation_failed = true;
+      goto leave;
+    }
+
     boost::multiprecision::int128_t conversion_this_tx_zeph = 0;
     boost::multiprecision::int128_t conversion_this_tx_stables = 0;
     boost::multiprecision::int128_t conversion_this_tx_reserves = 0;
 
      // Validate tx pr height
-    if (source != dest) {
+    if (source != dest && !audit_tx) {
        if (!have_valid_pr) {
         LOG_PRINT_L2(" tx found in the block but no acceptable pricing record. Invlalid block." << tx.hash);
         bvc.m_verifivation_failed = true;
@@ -4701,7 +4769,7 @@ leave: {
       }
     } else {
       //make sure those values are 0 for transfers.
-      if (tx.amount_burnt || tx.amount_minted) {
+      if ((tx.amount_burnt || tx.amount_minted) && !audit_tx) {
         LOG_PRINT_L2("error: Invalid Tx found. Amount burnt/mint > 0 for a transfer tx.");
         bvc.m_verifivation_failed = true;
         goto leave;
@@ -4715,6 +4783,17 @@ leave: {
 
     TIME_MEASURE_FINISH(cc);
     t_checktx += cc;
+
+    if (hf_version >= HF_VERSION_AUDIT) {
+      if (fee_asset_type == "ZEPH")
+        fee_asset_type = "ZPH";
+      else if (fee_asset_type == "ZEPHUSD")
+        fee_asset_type = "ZSD";
+      else if (fee_asset_type == "ZEPHRSV")
+        fee_asset_type = "ZRS";
+      else if (fee_asset_type == "ZYIELD")
+        fee_asset_type = "ZYS";
+    }
     fee_map[fee_asset_type] += fee;
     total_conversion_zeph += conversion_this_tx_zeph;
     total_conversion_stables += conversion_this_tx_stables;
@@ -4792,7 +4871,7 @@ leave: {
     {
       uint64_t long_term_block_weight = get_next_long_term_block_weight(block_weight);
       cryptonote::blobdata bd = cryptonote::block_to_blob(bl);
-      new_height = m_db->add_block(std::make_pair(std::move(bl), std::move(bd)), block_weight, long_term_block_weight, cumulative_difficulty, already_generated_coins, reserve_reward, yield_reward_zsd, txs);
+      new_height = m_db->add_block(std::make_pair(std::move(bl), std::move(bd)), block_weight, long_term_block_weight, cumulative_difficulty, already_generated_coins, base_reward, reserve_reward, yield_reward_zsd, txs);
     }
     catch (const KEY_IMAGE_EXISTS& e)
     {

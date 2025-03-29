@@ -254,6 +254,7 @@ uint64_t BlockchainDB::add_block( const std::pair<block, blobdata>& blck
                                 , uint64_t long_term_block_weight
                                 , const difficulty_type& cumulative_difficulty
                                 , const uint64_t& coins_generated
+                                , const uint64_t& zeph_generated
                                 , const uint64_t& reserve_reward
                                 , const uint64_t& yield_reward_zsd
                                 , const std::vector<std::pair<transaction, blobdata>>& txs
@@ -317,7 +318,7 @@ uint64_t BlockchainDB::add_block( const std::pair<block, blobdata>& blck
 
   // call out to subclass implementation to add the block & metadata
   time1 = epee::misc_utils::get_tick_count();
-  add_block(blk, block_weight, long_term_block_weight, cumulative_difficulty, coins_generated, reserve_reward, yield_reward_zsd, num_rct_outs, num_rct_outs_by_asset_type, blk_hash);
+  add_block(blk, block_weight, long_term_block_weight, cumulative_difficulty, coins_generated, zeph_generated, reserve_reward, yield_reward_zsd, num_rct_outs, num_rct_outs_by_asset_type, blk_hash);
   TIME_MEASURE_FINISH(time1);
   time_add_block1 += time1;
 
@@ -379,7 +380,10 @@ void BlockchainDB::pop_reserve_reward(block& blk, const uint64_t& block_weight)
       }
     }
 
-    remove_reserve_reward(reserve_reward, yield_reward_zsd);
+    if (blk.major_version >= HF_VERSION_AUDIT)
+      remove_block_rewards(base_reward, reserve_reward, yield_reward_zsd);
+    if (blk.major_version <= HF_VERSION_AUDIT)
+      remove_reserve_reward(reserve_reward, yield_reward_zsd);
   }
 }
 

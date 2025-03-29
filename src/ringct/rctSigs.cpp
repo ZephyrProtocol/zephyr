@@ -1160,7 +1160,8 @@ namespace rct {
 
         using tt = cryptonote::transaction_type;
         bool conversion_tx = tx_type == tt::MINT_STABLE || tx_type == tt::REDEEM_STABLE || tx_type == tt::MINT_RESERVE || tx_type == tt::REDEEM_RESERVE || tx_type == tt::MINT_YIELD || tx_type == tt::REDEEM_YIELD;
-        if (conversion_tx) {
+        bool audit_tx = tx_type == tt::AUDIT_ZEPH || tx_type == tt::AUDIT_STABLE || tx_type == tt::AUDIT_RESERVE || tx_type == tt::AUDIT_YIELD;
+        if (conversion_tx || audit_tx) {
           rv.maskSums.resize(2);
           rv.maskSums[0] = zero();
           rv.maskSums[1] = zero();
@@ -1218,7 +1219,7 @@ namespace rct {
                 {
                     rv.outPk[i].mask = rct::scalarmult8(C[i]);
                     outSk[i].mask = masks[i];
-                    if (conversion_tx) {
+                    if (conversion_tx || audit_tx) {
                       // sum the change output masks
                       if (outamounts_features.at(i) == in_asset_type) {
                         sc_add(rv.maskSums[1].bytes, rv.maskSums[1].bytes, masks[i].bytes);
@@ -1277,7 +1278,7 @@ namespace rct {
 
             // Convert commitment mask by exchange rate for equalKeys() testing
             if (tx_type == tt::MINT_STABLE) {
-              if (outamounts_features[i] == "ZEPHUSD") {
+              if (outamounts_features[i] == "ZEPHUSD" || outamounts_features[i] == "ZSD") {
                 boost::multiprecision::uint128_t exchange_128 = std::max(pr.stable, pr.stable_ma);
                 boost::multiprecision::uint128_t rate_128 = COIN;
                 rate_128 *= COIN;
@@ -1299,7 +1300,7 @@ namespace rct {
                 outSk_scaled = outSk[i].mask;
               }
             } else if (tx_type == tt::REDEEM_STABLE) {
-              if (outamounts_features[i] == "ZEPH") {
+              if (outamounts_features[i] == "ZEPH" || outamounts_features[i] == "ZPH") {
                 boost::multiprecision::uint128_t exchange_128 = std::min(pr.stable, pr.stable_ma);
                 boost::multiprecision::uint128_t conversion_fee;
                 if (hf_version >= HF_VERSION_V5) {
@@ -1318,7 +1319,7 @@ namespace rct {
                 outSk_scaled = outSk[i].mask;
               }
             } else if (tx_type == tt::MINT_RESERVE) {
-               if (outamounts_features[i] == "ZEPHRSV") {
+               if (outamounts_features[i] == "ZEPHRSV" || outamounts_features[i] == "ZRS") {
                 uint64_t reserve_coin_price = std::max(pr.reserve, pr.reserve_ma);
                 boost::multiprecision::uint128_t rate_128 = COIN;
                 rate_128 *= COIN;
@@ -1342,7 +1343,7 @@ namespace rct {
                 outSk_scaled = outSk[i].mask;
               }
             } else if (tx_type == tt::REDEEM_RESERVE) {
-              if (outamounts_features[i] == "ZEPH") {
+              if (outamounts_features[i] == "ZEPH" || outamounts_features[i] == "ZPH") {
                 boost::multiprecision::uint128_t reserve_coin_price = std::min(pr.reserve, pr.reserve_ma);
                 boost::multiprecision::uint128_t conversion_fee;
                 if (hf_version >= HF_VERSION_V5) {
@@ -1361,7 +1362,7 @@ namespace rct {
                 outSk_scaled = outSk[i].mask;
               }
             } else if (tx_type == tt::MINT_YIELD) {
-               if (outamounts_features[i] == "ZYIELD") {
+               if (outamounts_features[i] == "ZYIELD" || outamounts_features[i] == "ZYS") {
                 boost::multiprecision::uint128_t rate_128 = COIN;
                 rate_128 *= COIN;
                 rate_128 /= pr.yield_price;
@@ -1377,7 +1378,7 @@ namespace rct {
                 outSk_scaled = outSk[i].mask;
               }
             } else if (tx_type == tt::REDEEM_YIELD) {
-              if (outamounts_features[i] == "ZEPHUSD") {
+              if (outamounts_features[i] == "ZEPHUSD" || outamounts_features[i] == "ZSD") {
                 boost::multiprecision::uint128_t yield_coin_price = pr.yield_price;
                 boost::multiprecision::uint128_t conversion_fee = yield_coin_price / 1000; // 0.1% fee
                 yield_coin_price -= conversion_fee;
@@ -1424,7 +1425,7 @@ namespace rct {
         genC(pseudoOuts[i], a[i], inamounts[i]);
 
         // set the sum of input blinding factors
-        if (conversion_tx) {
+        if (conversion_tx || audit_tx) {
           sc_add(rv.maskSums[0].bytes, a[i].bytes, sumpouts.bytes);
         }
 
@@ -1813,13 +1814,17 @@ namespace rct {
         CHECK_AND_ASSERT_MES(rv.pseudoOuts.empty(), false, "rv.pseudoOuts is not empty");
         CHECK_AND_ASSERT_MES(rv.outPk.size() == rv.ecdhInfo.size(), false, "Mismatched sizes of outPk and rv.ecdhInfo");
 
-        CHECK_AND_ASSERT_MES(std::find(oracle::ASSET_TYPES.begin(), oracle::ASSET_TYPES.end(), strSource) != oracle::ASSET_TYPES.end(), false, "Invalid Source Asset!");
-        CHECK_AND_ASSERT_MES(std::find(oracle::ASSET_TYPES.begin(), oracle::ASSET_TYPES.end(), strDest) != oracle::ASSET_TYPES.end(), false, "Invalid Dest Asset!");
+        CHECK_AND_ASSERT_MES(std::find(oracle::ASSET_TYPES.begin(), oracle::ASSET_TYPES.end(), strSource) != oracle::ASSET_TYPES.end() || std::find(oracle::ASSET_TYPES_V2.begin(), oracle::ASSET_TYPES_V2.end(), strSource) != oracle::ASSET_TYPES_V2.end(), false, "Invalid Source Asset!");
+        CHECK_AND_ASSERT_MES(std::find(oracle::ASSET_TYPES.begin(), oracle::ASSET_TYPES.end(), strDest) != oracle::ASSET_TYPES.end() || std::find(oracle::ASSET_TYPES_V2.begin(), oracle::ASSET_TYPES_V2.end(), strDest) != oracle::ASSET_TYPES_V2.end(), false, "Invalid Dest Asset!");
         CHECK_AND_ASSERT_MES(tx_type != tt::UNSET, false, "Invalid transaction type.");
+
+        const bool is_audit_tx = tx_type == tt::AUDIT_ZEPH || tx_type == tt::AUDIT_STABLE || tx_type == tt::AUDIT_RESERVE || tx_type == tt::AUDIT_YIELD;
         if (strSource != strDest) {
           CHECK_AND_ASSERT_MES(rv.maskSums.size() == 2, false, "maskSums size is not 2");
-          CHECK_AND_ASSERT_MES(!pr.empty(), false, "Empty pricing record found for a conversion tx");
-          CHECK_AND_ASSERT_MES(!pr.has_missing_rates(hf_version), false, "Missing values in pricing record for a conversion tx");
+          if (!is_audit_tx) {
+            CHECK_AND_ASSERT_MES(!pr.empty(), false, "Empty pricing record found for a conversion tx");
+            CHECK_AND_ASSERT_MES(!pr.has_missing_rates(hf_version), false, "Missing values in pricing record for a conversion tx");
+          }
           CHECK_AND_ASSERT_MES(amount_burnt, false, "0 amount_burnt found for a conversion tx");
           CHECK_AND_ASSERT_MES(amount_minted, false, "0 amount_minted found for a conversion tx");
         }
@@ -1888,6 +1893,8 @@ namespace rct {
           } else if (tx_type == tt::REDEEM_YIELD) {
             rate_128 = pr.yield_price;
             conversion_fee = rate_128 / 1000; // 0.1% fee
+          } else if (is_audit_tx) {
+            rate_128 = COIN;
           } else {
             LOG_PRINT_L1("Invalid transaction type specified");
             return false;

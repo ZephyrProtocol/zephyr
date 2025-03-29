@@ -1115,11 +1115,20 @@ namespace cryptonote
   //---------------------------------------------------------------
   std::string asset_display_name(const std::string &asset_type)
   {
+    if (asset_type == "ZEPH")
+      return "ZEPH (unaudited)";
     if (asset_type == "ZEPHUSD")
-      return "ZSD";
+      return "ZSD (unaudited)";
     if (asset_type == "ZEPHRSV")
-      return "ZRS";
+      return "ZRS (unaudited)";
     if (asset_type == "ZYIELD")
+      return "ZYS (unaudited)";
+
+    if (asset_type == "ZSD")
+      return "ZSD";
+    if (asset_type == "ZRS")
+      return "ZRS";
+    if (asset_type == "ZYS")
       return "ZYS";
     return "ZEPH";
   }

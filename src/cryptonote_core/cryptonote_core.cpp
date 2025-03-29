@@ -929,8 +929,36 @@ namespace cryptonote
 	      continue;
       }
 
+
+      transaction_type tx_type = tx_info[n].tvc.m_type;
+      bool audit_tx = tx_type == transaction_type::AUDIT_ZEPH || tx_type == transaction_type::AUDIT_STABLE || tx_type == transaction_type::AUDIT_RESERVE || tx_type == transaction_type::AUDIT_YIELD;
+
+      if (hf_version == HF_VERSION_AUDIT && !audit_tx) {
+        MERROR("Invalid transaction type for HF_VERSION_AUDIT: " << tx_info[n].tx_hash);
+        set_semantics_failed(tx_info[n].tx_hash);
+        tx_info[n].tvc.m_verifivation_failed = true;
+        tx_info[n].result = false;
+        continue;
+      }
+
+      if (hf_version > HF_VERSION_AUDIT && audit_tx) {
+        MERROR("Invalid transaction type for HF_VERSION > HF_VERSION_AUDIT: " << tx_info[n].tx_hash);
+        set_semantics_failed(tx_info[n].tx_hash);
+        tx_info[n].tvc.m_verifivation_failed = true;
+        tx_info[n].result = false;
+        continue;
+      }
+
+      if (hf_version == HF_VERSION_PAUSE) {
+        MERROR("Transaction found during pause fork. Rejecting..." << tx_info[n].tx_hash);
+        set_semantics_failed(tx_info[n].tx_hash);
+        tx_info[n].tvc.m_verifivation_failed = true;
+        tx_info[n].result = false;
+        continue;
+      }
+
       // Get the pricing_record_height for any oracle TX
-      if (tx_info[n].tvc.m_source_asset != tx_info[n].tvc.m_dest_asset) {
+      if (tx_info[n].tvc.m_source_asset != tx_info[n].tvc.m_dest_asset && !audit_tx) {
         if (hf_version < HF_VERSION_DJED) {
           MERROR("Conversion TX found before fork. Rejecting..." << tx_info[n].tx_hash);
           set_semantics_failed(tx_info[n].tx_hash);

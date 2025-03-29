@@ -235,6 +235,7 @@ namespace cryptonote
 
   bool tx_pr_height_valid(const uint64_t current_height, const uint64_t pr_height, const crypto::hash& tx_hash);
   
+  void get_audited_asset_amounts(const std::vector<std::pair<std::string, std::string>>& circ_amounts, boost::multiprecision::uint128_t& zeph_audited, boost::multiprecision::uint128_t& stable_audited, boost::multiprecision::uint128_t& reserve_audited, boost::multiprecision::uint128_t& yield_audited);
 
   void get_reserve_info(
     const std::vector<std::pair<std::string, std::string>>& circ_amounts,

@@ -138,6 +138,12 @@ namespace cryptonote
   //---------------------------------------------------------------------------------
   bool tx_memory_pool::add_tx(transaction &tx, /*const crypto::hash& tx_prefix_hash,*/ const crypto::hash &id, const cryptonote::blobdata &blob, size_t tx_weight, tx_verification_context& tvc, relay_method tx_relay, bool relayed, uint8_t version)
   {
+    if (version == HF_VERSION_PAUSE) {
+      LOG_ERROR("Transactions are not allowed during HF_VERSION_PAUSE");
+      tvc.m_verifivation_failed = true;
+      return false;
+    }
+
     const bool kept_by_block = (tx_relay == relay_method::block);
 
     // this should already be called with that lock, but let's make it explicit for clarity
@@ -211,8 +217,22 @@ namespace cryptonote
       tvc.m_type = tx_type;
     }
 
+    bool audit_tx = tx_type == transaction_type::AUDIT_ZEPH || tx_type == transaction_type::AUDIT_STABLE || tx_type == transaction_type::AUDIT_RESERVE || tx_type == transaction_type::AUDIT_YIELD;
+
+    if (version == HF_VERSION_AUDIT && !audit_tx) {
+      LOG_ERROR("Only audit transactions are allowed during HF_VERSION_AUDIT");
+      tvc.m_verifivation_failed = true;
+      return false;
+    }
+
+    if (version > HF_VERSION_AUDIT && audit_tx) {
+      LOG_ERROR("Audit transactions are not allowed after HF_VERSION_AUDIT");
+      tvc.m_verifivation_failed = true;
+      return false;
+    }
+
     // check whether this is a conversion tx.
-    if (source != dest) {
+    if (source != dest && !audit_tx) {
 
       if (version < HF_VERSION_DJED) {
         LOG_ERROR("Conversion txs are only allowed after HF_VERSION_DJED");
@@ -272,7 +292,7 @@ namespace cryptonote
 
     } else {
       // make sure there is no burnt/mint set for transfers, since these numbers will affect circulating supply.
-      if (tx.amount_burnt || tx.amount_minted) {
+      if ((tx.amount_burnt || tx.amount_minted) && !audit_tx) {
         LOG_ERROR("error: Invalid Tx found. Amount burnt/mint > 0 for a transfer tx.");
         tvc.m_verifivation_failed = true;
         return false;
@@ -1747,6 +1767,11 @@ namespace cryptonote
       return false;
     }
 
+    if (version == HF_VERSION_PAUSE)
+    {
+      MWARNING("Block template filling is paused");
+      return true;
+    }
 
     size_t max_total_weight_pre_v5 = (130 * median_weight) / 100 - CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE;
     size_t max_total_weight_v5 = 2 * median_weight - CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE;
@@ -1888,10 +1913,22 @@ namespace cryptonote
         continue;
       }
 
+      bool audit_tx = tx_type == tt::AUDIT_ZEPH || tx_type == tt::AUDIT_STABLE || tx_type == tt::AUDIT_RESERVE || tx_type == tt::AUDIT_YIELD;
+      if (version == HF_VERSION_AUDIT && !audit_tx) {
+        LOG_PRINT_L2(" non-audit transaction ignored: " << sorted_it->second);
+        continue;
+      }
+
+      if (version > HF_VERSION_AUDIT && audit_tx) {
+        LOG_PRINT_L2(" audit transaction ignored: " << sorted_it->second);
+        continue;
+      }
+
+
       boost::multiprecision::int128_t conversion_this_tx_zeph = 0;
       boost::multiprecision::int128_t conversion_this_tx_stables = 0;
       boost::multiprecision::int128_t conversion_this_tx_reserves = 0;
-      if (source != dest)
+      if (source != dest && !audit_tx)
       {
         if (!have_valid_pr) {
           continue;
@@ -1956,7 +1993,20 @@ namespace cryptonote
       total_weight += meta.weight;
 
       total_collected_fee_in_zeph += fee_this_tx_in_zeph;
-      fee_map[meta.fee_asset_type] += meta.fee;
+
+      std::string tx_fee_asset = meta.fee_asset_type;
+      if (version >= HF_VERSION_AUDIT) {
+        if (tx_fee_asset == "ZEPH")
+          tx_fee_asset = "ZPH";
+        else if (tx_fee_asset == "ZEPHUSD")
+          tx_fee_asset = "ZSD";
+        else if (tx_fee_asset == "ZEPHRSV")
+          tx_fee_asset = "ZRS";
+        else if (tx_fee_asset == "ZYIELD")
+          tx_fee_asset = "ZYS";
+      }
+      fee_map[tx_fee_asset] += meta.fee;
+
       total_conversion_zeph += conversion_this_tx_zeph;
       total_conversion_stables += conversion_this_tx_stables;
       total_conversion_reserves += conversion_this_tx_reserves;

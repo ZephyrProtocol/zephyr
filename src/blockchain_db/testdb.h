@@ -115,6 +115,7 @@ public:
   virtual bool has_key_image(const crypto::key_image& img) const override { return false; }
   virtual void remove_block() override { }
   virtual void remove_reserve_reward(const uint64_t& reserve_reward, const uint64_t& yield_reward_zsd) override { }
+  virtual void remove_block_rewards(const uint64_t& zeph_generated, const uint64_t& reserve_reward, const uint64_t& yield_reward_zsd) override { }
   virtual uint64_t add_transaction_data(const crypto::hash& blk_hash, const std::pair<cryptonote::transaction, cryptonote::blobdata_ref>& tx, const crypto::hash& tx_hash, const crypto::hash& tx_prunable_hash, const bool miner_tx) override {return 0;}
   virtual void remove_transaction_data(const crypto::hash& tx_hash, const cryptonote::transaction& tx, const bool miner_tx) override {}
   virtual std::pair<uint64_t, uint64_t> add_output(const crypto::hash& tx_hash, const cryptonote::tx_out& tx_output, const uint64_t& local_index, const uint64_t unlock_time, const rct::key *commitment) override {return std::make_pair(0, 0);}
@@ -147,6 +148,7 @@ public:
                         , uint64_t long_term_block_weight
                         , const cryptonote::difficulty_type& cumulative_difficulty
                         , const uint64_t& coins_generated
+                        , const uint64_t& zeph_generated
                         , const uint64_t& reserve_reward
                         , const uint64_t& yield_reward_zsd
                         , uint64_t num_rct_outs
@@ -174,6 +176,7 @@ public:
   virtual void drop_alt_blocks() override {}
   virtual bool for_all_alt_blocks(std::function<bool(const crypto::hash &blkid, const alt_block_data_t &data, const cryptonote::blobdata_ref *blob)> f, bool include_blob = false) const override { return true; }
 
+  virtual std::vector<std::pair<std::string, std::string>> get_audited_supply() const override { return std::vector<std::pair<std::string, std::string>>(); }
   virtual std::vector<std::pair<std::string, std::string>> get_circulating_supply() const override { return std::vector<std::pair<std::string, std::string>>(); }
   virtual std::vector<oracle::pricing_record> get_pricing_record_history() const override { return std::vector<oracle::pricing_record>(); }
   virtual void get_output_id_from_asset_type_output_index(const std::string asset_type, const std::vector<uint64_t> &asset_type_output_indices, std::vector<uint64_t> &output_indices) const override { }

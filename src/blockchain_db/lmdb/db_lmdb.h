@@ -77,6 +77,9 @@ typedef struct mdb_txn_cursors
 
   MDB_cursor *m_txc_circ_supply;
   MDB_cursor *m_txc_circ_supply_tally;
+
+  MDB_cursor *m_txc_total_asset_supply;
+  MDB_cursor *m_txc_reserve_asset_supply;
 } mdb_txn_cursors;
 
 #define m_cur_blocks	m_cursors->m_txc_blocks
@@ -102,6 +105,9 @@ typedef struct mdb_txn_cursors
 #define m_cur_circ_supply       m_cursors->m_txc_circ_supply
 #define m_cur_circ_supply_tally m_cursors->m_txc_circ_supply_tally
 
+#define m_cur_total_asset_supply m_cursors->m_txc_total_asset_supply
+#define m_cur_reserve_asset_supply m_cursors->m_txc_reserve_asset_supply
+
 typedef struct mdb_rflags
 {
   bool m_rf_txn;
@@ -126,6 +132,8 @@ typedef struct mdb_rflags
   bool m_rf_properties;
   bool m_rf_circ_supply;
   bool m_rf_circ_supply_tally;
+  bool m_rf_total_asset_supply;
+  bool m_rf_reserve_asset_supply;
 } mdb_rflags;
 
 typedef struct mdb_threadinfo
@@ -262,6 +270,7 @@ public:
 
   virtual uint64_t height() const;
 
+  virtual std::vector<std::pair<std::string, std::string>> get_audited_supply() const;
   virtual std::vector<std::pair<std::string, std::string>> get_circulating_supply() const;
   virtual std::vector<oracle::pricing_record> get_pricing_record_history() const;
 
@@ -338,6 +347,7 @@ public:
                             , uint64_t long_term_block_weight
                             , const difficulty_type& cumulative_difficulty
                             , const uint64_t& coins_generated
+                            , const uint64_t& zeph_generated
                             , const uint64_t& reserve_reward
                             , const uint64_t& yield_reward_zsd
                             , const std::vector<std::pair<transaction, blobdata>>& txs
@@ -394,6 +404,7 @@ private:
                 , uint64_t long_term_block_weight
                 , const difficulty_type& cumulative_difficulty
                 , const uint64_t& coins_generated
+                , const uint64_t& zeph_generated
                 , const uint64_t& reserve_reward
                 , const uint64_t& yield_reward_zsd
                 , uint64_t num_rct_outs
@@ -403,6 +414,7 @@ private:
 
   virtual void remove_block();
   virtual void remove_reserve_reward(const uint64_t& reserve_reward, const uint64_t& yield_reward_zsd);
+  virtual void remove_block_rewards(const uint64_t& zeph_generated, const uint64_t& reserve_reward, const uint64_t& yield_reward_zsd);
 
   virtual uint64_t add_transaction_data(const crypto::hash& blk_hash, const std::pair<transaction, blobdata_ref>& tx, const crypto::hash& tx_hash, const crypto::hash& tx_prunable_hash, const bool miner_tx);
 
@@ -503,6 +515,9 @@ private:
 
   MDB_dbi m_circ_supply;
   MDB_dbi m_circ_supply_tally;
+
+  MDB_dbi m_total_asset_supply;
+  MDB_dbi m_reserve_asset_supply;
 
   mutable uint64_t m_cum_size;	// used in batch size estimation
   mutable unsigned int m_cum_count;

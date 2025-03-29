@@ -55,5 +55,9 @@ namespace cryptonote
     MINT_YIELD,
     REDEEM_YIELD,
     YIELD_TRANSFER,
+    AUDIT_ZEPH,
+    AUDIT_STABLE,
+    AUDIT_RESERVE,
+    AUDIT_YIELD
   };
 }

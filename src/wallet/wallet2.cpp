@@ -2289,6 +2289,28 @@ bool wallet2::get_pricing_record(oracle::pricing_record& pr, const uint64_t heig
   }
 }
 //----------------------------------------------------------------------------------------------------
+bool wallet2::get_audited_supply(std::vector<std::pair<std::string, std::string>> &amounts)
+{
+  cryptonote::COMMAND_RPC_GET_CIRCULATING_SUPPLY::request req = AUTO_VAL_INIT(req);
+  cryptonote::COMMAND_RPC_GET_CIRCULATING_SUPPLY::response res = AUTO_VAL_INIT(res);
+  m_daemon_rpc_mutex.lock();
+  bool r = invoke_http_json_rpc("/json_rpc", "get_audited_supply", req, res, rpc_timeout);
+  m_daemon_rpc_mutex.unlock();
+  if (r && res.status == CORE_RPC_STATUS_OK)
+  {
+    // Got the supply data - convert to a meaningful format
+    for (auto i: res.supply_tally) {
+      amounts.push_back(std::make_pair(std::string(i.currency_label), std::string(i.amount)));
+    }
+    return true;
+  }
+  else
+  {
+    MERROR("Failed to retrieve audited supply from daemon");
+    return false;
+  }
+}
+//----------------------------------------------------------------------------------------------------
 bool wallet2::get_circulating_supply(std::vector<std::pair<std::string, std::string>> &amounts)
 {
   // Issue an RPC call to get the block header (and thus the pricing record) at the specified height
@@ -4282,8 +4304,14 @@ bool wallet2::get_rct_distribution(const std::string rct_asset_type, uint64_t &s
   cryptonote::COMMAND_RPC_GET_OUTPUT_DISTRIBUTION::request req = AUTO_VAL_INIT(req);
   cryptonote::COMMAND_RPC_GET_OUTPUT_DISTRIBUTION::response res = AUTO_VAL_INIT(res);
   req.amounts.push_back(0);
-  const uint64_t ZYIELD_FORK_HEIGHT = 360000;
-  req.from_height = rct_asset_type == "ZYIELD" ? ZYIELD_FORK_HEIGHT : 0;
+
+  if (rct_asset_type == "ZYIELD")
+    req.from_height = YIELD_FORK_HEIGHT;
+  else if (rct_asset_type == "ZPH" || rct_asset_type == "ZSD" || rct_asset_type == "ZRS" || rct_asset_type == "ZYS")
+    req.from_height = AUDIT_FORK_HEIGHT;
+  else
+    req.from_height = 0;
+
   req.rct_asset_type = rct_asset_type;
   req.cumulative = false;
   req.binary = true;
@@ -6589,7 +6617,10 @@ boost::optional<wallet2::cache_file_data> wallet2::get_cache_file_data()
 std::map<uint32_t, std::map<std::string, uint64_t>> wallet2::balance(uint32_t index_major, bool strict)
 {
   std::map<uint32_t, std::map<std::string, uint64_t>> amounts;
-  for (const auto &asset_type : oracle::ASSET_TYPES) {
+  std::vector<std::string> all_asset_types = oracle::ASSET_TYPES;
+  all_asset_types.insert(all_asset_types.end(), oracle::ASSET_TYPES_V2.begin(), oracle::ASSET_TYPES_V2.end());
+
+  for (const auto &asset_type : all_asset_types) {
     for (const auto& i : balance_per_subaddress(asset_type, index_major, strict)) {
       amounts[i.first][asset_type] += i.second;
     }
@@ -6600,7 +6631,10 @@ std::map<uint32_t, std::map<std::string, uint64_t>> wallet2::balance(uint32_t in
 std::map<uint32_t, std::map<std::string, uint64_t>> wallet2::unlocked_balance(uint32_t index_major, bool strict, std::map<std::string, uint64_t> *blocks_to_unlock, std::map<std::string, uint64_t> *time_to_unlock)
 {
   std::map<uint32_t, std::map<string, uint64_t>> amounts;
-  for (const auto &asset_type : oracle::ASSET_TYPES) {
+  std::vector<std::string> all_asset_types = oracle::ASSET_TYPES;
+  all_asset_types.insert(all_asset_types.end(), oracle::ASSET_TYPES_V2.begin(), oracle::ASSET_TYPES_V2.end());
+
+  for (const auto &asset_type : all_asset_types) {
     for (const auto& i : unlocked_balance_per_subaddress(asset_type, index_major, strict)) {
       amounts[i.first][asset_type] += i.second.first;
       if (blocks_to_unlock && i.second.second.first > (*blocks_to_unlock)[asset_type])
@@ -6738,7 +6772,10 @@ std::map<uint32_t, std::pair<uint64_t, std::pair<uint64_t, uint64_t>>> wallet2::
 std::map<std::string, uint64_t> wallet2::balance_all(bool strict) const
 {
   std::map<std::string, uint64_t> balances;
-  for (auto &asset_type: oracle::ASSET_TYPES) {
+  std::vector<std::string> all_asset_types = oracle::ASSET_TYPES;
+  all_asset_types.insert(all_asset_types.end(), oracle::ASSET_TYPES_V2.begin(), oracle::ASSET_TYPES_V2.end());
+
+  for (auto &asset_type: all_asset_types) {
     for (uint32_t index_major = 0; index_major < get_num_subaddress_accounts(); ++index_major)
       balances[asset_type] += balance(asset_type, index_major, strict);
   }
@@ -6748,7 +6785,10 @@ std::map<std::string, uint64_t> wallet2::balance_all(bool strict) const
 std::map<std::string, uint64_t> wallet2::unlocked_balance_all(bool strict, std::map<std::string, uint64_t> *blocks_to_unlock, std::map<std::string, uint64_t> *time_to_unlock)
 {
   std::map<std::string, uint64_t> balances;
-  for (auto &asset_type: oracle::ASSET_TYPES) {
+  std::vector<std::string> all_asset_types = oracle::ASSET_TYPES;
+  all_asset_types.insert(all_asset_types.end(), oracle::ASSET_TYPES_V2.begin(), oracle::ASSET_TYPES_V2.end());
+
+  for (auto &asset_type: all_asset_types) {
     for (uint32_t index_major = 0; index_major < get_num_subaddress_accounts(); ++index_major) {
       uint64_t local_blocks_to_unlock = 0, local_time_to_unlock = 0;
       balances[asset_type] += unlocked_balance(asset_type, index_major, strict, blocks_to_unlock ? &local_blocks_to_unlock : NULL, time_to_unlock ? &local_time_to_unlock : NULL);
@@ -10093,6 +10133,17 @@ static uint32_t get_count_above(const std::vector<wallet2::transfer_details> &tr
   return count;
 }
 
+void wallet2::get_audit_info(
+  boost::multiprecision::uint128_t& zeph_audited,
+  boost::multiprecision::uint128_t& stable_audited,
+  boost::multiprecision::uint128_t& reserve_audited,
+  boost::multiprecision::uint128_t& yield_audited
+){
+  std::vector<std::pair<std::string, std::string>> circ_amounts;
+  THROW_WALLET_EXCEPTION_IF(!get_audited_supply(circ_amounts), error::wallet_internal_error, "Failed to get audited supply");
+  return cryptonote::get_audited_asset_amounts(circ_amounts, zeph_audited, stable_audited, reserve_audited, yield_audited);
+}
+
 
 void wallet2::get_reserve_info(
   const oracle::pricing_record& pricing_record,
@@ -10376,7 +10427,9 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(
     THROW_WALLET_EXCEPTION_IF(needed_money < dt.amount, error::tx_sum_overflow, dsts, 0, m_nettype);
   }
 
-  if (source_asset != dest_asset) {
+  const bool audit_tx = tx_type == tt::AUDIT_ZEPH || tx_type == tt::AUDIT_STABLE || tx_type == tt::AUDIT_RESERVE || tx_type == tt::AUDIT_YIELD;
+
+  if (source_asset != dest_asset && !audit_tx) {
     std::vector<std::pair<std::string, std::string>> circ_amounts;
     THROW_WALLET_EXCEPTION_IF(!get_circulating_supply(circ_amounts), error::wallet_internal_error, "Failed to get circulating supply");
     std::vector<oracle::pricing_record> pricing_record_history;
@@ -10521,7 +10574,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(
     // this is used to build a tx that's 1 or 2 inputs, and 2 outputs, which
     // will get us a known fee.
     uint64_t estimated_fee = estimate_fee(use_per_byte_fee, use_rct, 2, fake_outs_count, 2, extra.size(), bulletproof, clsag, bulletproof_plus, use_view_tags, base_fee, fee_quantization_mask);
-    if (source_asset != "ZEPH" && source_asset != dest_asset) {
+    if (source_asset != "ZEPH" && source_asset != dest_asset && !audit_tx) {
       estimated_fee = get_fee_in_asset_equivalent(source_asset, estimated_fee, pricing_record, hf_version);
       THROW_WALLET_EXCEPTION_IF(estimated_fee == 0, error::wallet_internal_error, "Failed to convert zeph value fee to " + source_asset + " equivalent");
     }
@@ -10714,7 +10767,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(
 
       const size_t num_outputs = get_num_outputs(tx.dsts, m_transfers, tx.selected_transfers);
       needed_fee = estimate_fee(use_per_byte_fee, use_rct ,tx.selected_transfers.size(), fake_outs_count, num_outputs, extra.size(), bulletproof, clsag, bulletproof_plus, use_view_tags, base_fee, fee_quantization_mask);
-      if (source_asset != "ZEPH" && source_asset != dest_asset) {
+      if (source_asset != "ZEPH" && source_asset != dest_asset && !audit_tx) {
         needed_fee = get_fee_in_asset_equivalent(source_asset, needed_fee, pricing_record, hf_version);
         THROW_WALLET_EXCEPTION_IF(needed_fee == 0, error::wallet_internal_error, "Failed to convert zeph value fee to " + source_asset + " equivalent");
       }
@@ -10802,7 +10855,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(
 
       auto txBlob = t_serializable_object_to_blob(test_ptx.tx);
       needed_fee = calculate_fee(use_per_byte_fee, test_ptx.tx, txBlob.size(), base_fee, fee_quantization_mask);
-      if (source_asset != "ZEPH" && source_asset != dest_asset) {
+      if (source_asset != "ZEPH" && source_asset != dest_asset && !audit_tx) {
         needed_fee = get_fee_in_asset_equivalent(source_asset, needed_fee, pricing_record, hf_version);
         THROW_WALLET_EXCEPTION_IF(needed_fee == 0, error::wallet_internal_error, "Failed to convert zeph value fee to " + source_asset + " equivalent");
       }
@@ -10861,7 +10914,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(
    
           txBlob = t_serializable_object_to_blob(test_ptx.tx);
           needed_fee = calculate_fee(use_per_byte_fee, test_ptx.tx, txBlob.size(), base_fee, fee_quantization_mask);
-          if (source_asset != "ZEPH" && source_asset != dest_asset) {
+          if (source_asset != "ZEPH" && source_asset != dest_asset && !audit_tx) {
             needed_fee = get_fee_in_asset_equivalent(source_asset, needed_fee, pricing_record, hf_version);
             THROW_WALLET_EXCEPTION_IF(needed_fee == 0, error::wallet_internal_error, "Failed to convert zeph value fee to " + source_asset + " equivalent");
           }
@@ -11239,10 +11292,11 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(
 
   tt tx_type;
   THROW_WALLET_EXCEPTION_IF(!get_tx_type(source_asset, dest_asset, tx_type), error::wallet_internal_error, "invalid tx type");
+  const bool audit_tx = tx_type == tt::AUDIT_ZEPH || tx_type == tt::AUDIT_STABLE || tx_type == tt::AUDIT_RESERVE || tx_type == tt::AUDIT_YIELD;
   const uint64_t current_height = get_blockchain_current_height()-1;
   uint32_t hf_version = get_current_hard_fork();
   oracle::pricing_record pricing_record;
-  if (source_asset != dest_asset) {
+  if (source_asset != dest_asset && !audit_tx) {
     bool b = get_pricing_record(pricing_record, current_height);
     THROW_WALLET_EXCEPTION_IF(!b, error::wallet_internal_error, "Failed to get pricing record");
   }
@@ -11291,7 +11345,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(
 
       const size_t num_outputs = get_num_outputs(tx.dsts, m_transfers, tx.selected_transfers);
       needed_fee = estimate_fee(use_per_byte_fee, use_rct, tx.selected_transfers.size(), fake_outs_count, num_outputs, extra.size(), bulletproof, clsag, bulletproof_plus, use_view_tags, base_fee, fee_quantization_mask);
-      if (source_asset != "ZEPH" && source_asset != dest_asset) {
+      if (source_asset != "ZEPH" && source_asset != dest_asset && !audit_tx) {
         needed_fee = get_fee_in_asset_equivalent(source_asset, needed_fee, pricing_record, hf_version);
         THROW_WALLET_EXCEPTION_IF(needed_fee == 0, error::wallet_internal_error, "Failed to convert zeph value fee to " + source_asset + " equivalent");
       }
@@ -11309,7 +11363,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(
           detail::digit_split_strategy, tx_dust_policy(::config::DEFAULT_DUST_THRESHOLD), test_tx, test_ptx, use_view_tags);
       auto txBlob = t_serializable_object_to_blob(test_ptx.tx);
       needed_fee = calculate_fee(use_per_byte_fee, test_ptx.tx, txBlob.size(), base_fee, fee_quantization_mask);
-      if (source_asset != "ZEPH" && source_asset != dest_asset) {
+      if (source_asset != "ZEPH" && source_asset != dest_asset && !audit_tx) {
         needed_fee = get_fee_in_asset_equivalent(source_asset, needed_fee, pricing_record, hf_version);
         THROW_WALLET_EXCEPTION_IF(needed_fee == 0, error::wallet_internal_error, "Failed to convert zeph value fee to " + source_asset + " equivalent");
       }
@@ -11347,7 +11401,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(
           }
           dt.amount = dt_amount + dt_residue;
           dt.dest_asset_type = dest_asset;
-          if (source_asset != dest_asset) {
+          if (source_asset != dest_asset && !audit_tx) {
             uint64_t unconvertible_residue = dt.amount % 100000000;
             dt.amount -= unconvertible_residue;
             needed_fee += unconvertible_residue;
@@ -11385,7 +11439,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(
           }
         }
 
-        if (source_asset != dest_asset) {
+        if (source_asset != dest_asset && !audit_tx) {
           std::vector<std::pair<std::string, std::string>> circ_amounts;
           THROW_WALLET_EXCEPTION_IF(!get_circulating_supply(circ_amounts), error::wallet_internal_error, "Failed to get circulating supply");
           std::vector<oracle::pricing_record> pricing_record_history;

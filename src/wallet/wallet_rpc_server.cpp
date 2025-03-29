@@ -464,11 +464,15 @@ namespace tools
 
     std::string asset_type = req.asset_type.empty() ? "ZEPH" : boost::algorithm::to_upper_copy(req.asset_type);
     // verify that asset is valid
-    if (std::find(oracle::ASSET_TYPES.begin(), oracle::ASSET_TYPES.end(), asset_type) == oracle::ASSET_TYPES.end()) {
+    if (std::find(oracle::ASSET_TYPES.begin(), oracle::ASSET_TYPES.end(), asset_type) == oracle::ASSET_TYPES.end() && std::find(oracle::ASSET_TYPES_V2.begin(), oracle::ASSET_TYPES_V2.end(), asset_type) == oracle::ASSET_TYPES_V2.end()) {
       er.message = std::string("Invalid source asset specified: ") + asset_type; 
       return false;
     }
-    std::vector<std::string> assets = req.all_assets ? oracle::ASSET_TYPES : std::vector<std::string>{asset_type};
+
+    std::vector<std::string> all_asset_types = oracle::ASSET_TYPES;
+    all_asset_types.insert(all_asset_types.end(), oracle::ASSET_TYPES_V2.begin(), oracle::ASSET_TYPES_V2.end());
+
+    std::vector<std::string> assets = req.all_assets ? all_asset_types : std::vector<std::string>{asset_type};
 
     try
     {
@@ -905,11 +909,11 @@ namespace tools
   bool wallet_rpc_server::validate_transfer(const std::string& source_asset, const std::string& dest_asset, const std::list<wallet_rpc::transfer_destination>& destinations, const std::string& payment_id, std::vector<cryptonote::tx_destination_entry>& dsts, std::vector<uint8_t>& extra, bool at_least_one_destination, epee::json_rpc::error& er)
   {
     // verify that assets are valid
-    if (std::find(oracle::ASSET_TYPES.begin(), oracle::ASSET_TYPES.end(), source_asset) == oracle::ASSET_TYPES.end()) {
+    if (std::find(oracle::ASSET_TYPES.begin(), oracle::ASSET_TYPES.end(), source_asset) == oracle::ASSET_TYPES.end() && std::find(oracle::ASSET_TYPES_V2.begin(), oracle::ASSET_TYPES_V2.end(), source_asset) == oracle::ASSET_TYPES_V2.end()) {
       er.message = std::string("Invalid source asset specified: ") + source_asset; 
       return false;
     }
-    if (std::find(oracle::ASSET_TYPES.begin(), oracle::ASSET_TYPES.end(), dest_asset) == oracle::ASSET_TYPES.end()) {
+    if (std::find(oracle::ASSET_TYPES.begin(), oracle::ASSET_TYPES.end(), dest_asset) == oracle::ASSET_TYPES.end() && std::find(oracle::ASSET_TYPES_V2.begin(), oracle::ASSET_TYPES_V2.end(), dest_asset) == oracle::ASSET_TYPES_V2.end()) {
       er.message = std::string("Invalid destination asset specified: ") + dest_asset; 
       return false;
     }

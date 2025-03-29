@@ -173,7 +173,11 @@ namespace cryptonote
       LOG_PRINT_L1("CREATING BLOCK reserve_reward " << reserve_reward << " yield_reward_in_zeph " << yield_reward_in_zeph << " height: " << height);
     }
     
-    block_reward += fee_map["ZEPH"];
+    std::string mining_reward_asset = "ZEPH";
+    if (hard_fork_version >= HF_VERSION_AUDIT)
+      mining_reward_asset = "ZPH";
+
+    block_reward += fee_map[mining_reward_asset];
     uint64_t summary_amounts = 0;
     CHECK_AND_ASSERT_MES(1 <= max_outs, false, "max_out must be non-zero");
 
@@ -194,8 +198,9 @@ namespace cryptonote
     if (use_view_tags)
       crypto::derive_view_tag(derivation, out_index, view_tag);
 
+
     tx_out out;
-    cryptonote::set_tx_out("ZEPH", amount, out_eph_public_key, use_view_tags, view_tag, out);
+    cryptonote::set_tx_out(mining_reward_asset, amount, out_eph_public_key, use_view_tags, view_tag, out);
     tx.vout.push_back(out);
     out_index++;
 
@@ -232,7 +237,7 @@ namespace cryptonote
     if (hard_fork_version >= HF_VERSION_DJED) {
       for (auto &fee_map_entry: fee_map)
       {
-        if (fee_map_entry.first == "ZEPH" || fee_map_entry.second == 0)
+        if (fee_map_entry.first == "ZEPH" || fee_map_entry.first == "ZPH" || fee_map_entry.second == 0)
             continue;
         crypto::key_derivation derivation = AUTO_VAL_INIT(derivation);
         crypto::public_key out_eph_public_key = AUTO_VAL_INIT(out_eph_public_key);
@@ -424,11 +429,11 @@ namespace cryptonote
     }
     
     // check both strSource and strDest are supported.
-    if (std::find(oracle::ASSET_TYPES.begin(), oracle::ASSET_TYPES.end(), source) == oracle::ASSET_TYPES.end()) {
+    if (std::find(oracle::ASSET_TYPES.begin(), oracle::ASSET_TYPES.end(), source) == oracle::ASSET_TYPES.end() && std::find(oracle::ASSET_TYPES_V2.begin(), oracle::ASSET_TYPES_V2.end(), source) == oracle::ASSET_TYPES_V2.end()) {
       LOG_ERROR("Source Asset type " << source << " is not supported! Rejecting..");
       return false;
     }
-    if (std::find(oracle::ASSET_TYPES.begin(), oracle::ASSET_TYPES.end(), destination) == oracle::ASSET_TYPES.end()) {
+    if (std::find(oracle::ASSET_TYPES.begin(), oracle::ASSET_TYPES.end(), destination) == oracle::ASSET_TYPES.end() && std::find(oracle::ASSET_TYPES_V2.begin(), oracle::ASSET_TYPES_V2.end(), destination) == oracle::ASSET_TYPES_V2.end()) {
       LOG_ERROR("Destination Asset type " << destination << " is not supported! Rejecting..");
       return false;
     }
@@ -439,41 +444,52 @@ namespace cryptonote
   bool get_tx_type(const std::string& source, const std::string& destination, transaction_type& type) {
 
     // check both source and destination are supported.
-    if (std::find(oracle::ASSET_TYPES.begin(), oracle::ASSET_TYPES.end(), source) == oracle::ASSET_TYPES.end()) {
+    if (std::find(oracle::ASSET_TYPES.begin(), oracle::ASSET_TYPES.end(), source) == oracle::ASSET_TYPES.end() && std::find(oracle::ASSET_TYPES_V2.begin(), oracle::ASSET_TYPES_V2.end(), source) == oracle::ASSET_TYPES_V2.end()) {
       LOG_ERROR("Source Asset type " << source << " is not supported! Rejecting..");
       return false;
     }
-    if (std::find(oracle::ASSET_TYPES.begin(), oracle::ASSET_TYPES.end(), destination) == oracle::ASSET_TYPES.end()) {
+    if (std::find(oracle::ASSET_TYPES.begin(), oracle::ASSET_TYPES.end(), destination) == oracle::ASSET_TYPES.end() && std::find(oracle::ASSET_TYPES_V2.begin(), oracle::ASSET_TYPES_V2.end(), destination) == oracle::ASSET_TYPES_V2.end()) {
       LOG_ERROR("Destination Asset type " << destination << " is not supported! Rejecting..");
       return false;
     }
 
     // Find the tx type
     if (source == destination) {
-      if (source == "ZEPH") {
+      if (source == "ZEPH" || source == "ZPH") {
         type = transaction_type::TRANSFER;
-      } else if (source == "ZEPHUSD") {
+      } else if (source == "ZEPHUSD" || source == "ZSD") {
         type = transaction_type::STABLE_TRANSFER;
-      } else if (source == "ZEPHRSV") {
+      } else if (source == "ZEPHRSV" || source == "ZRS") {
         type = transaction_type::RESERVE_TRANSFER;
-      } else if (source == "ZYIELD") {
+      } else if (source == "ZYIELD" || source == "ZYS") {
         type = transaction_type::YIELD_TRANSFER;
       } else {
-        LOG_ERROR("Invalid conversion from " << source << "to" << destination << ". Rejecting..");
+        LOG_ERROR("Invalid transfer from " << source << "to" << destination << ". Rejecting..");
         return false;
       }
     } else {
-      if (source == "ZEPH" && destination == "ZEPHUSD") {
+      // AUDIT TYPES
+      if (source == "ZEPH" && destination == "ZPH") {
+        type = transaction_type::AUDIT_ZEPH;
+      } else if (source == "ZEPHUSD" && destination == "ZSD") {
+        type = transaction_type::AUDIT_STABLE;
+      } else if (source == "ZEPHRSV" && destination == "ZRS") {
+        type = transaction_type::AUDIT_RESERVE;
+      } else if (source == "ZYIELD" && destination == "ZYS") {
+        type = transaction_type::AUDIT_YIELD;
+      // END AUDIT TYPES
+      // Handle the conversion types
+      } else if ((source == "ZEPH" && destination == "ZEPHUSD") || (source == "ZPH" && destination == "ZSD")) {
         type = transaction_type::MINT_STABLE;
-      } else if (source == "ZEPHUSD" && destination == "ZEPH") {
+      } else if ((source == "ZEPHUSD" && destination == "ZEPH") || (source == "ZSD" && destination == "ZPH")) {
         type = transaction_type::REDEEM_STABLE;
-      } else if (source == "ZEPH" && destination == "ZEPHRSV") {
+      } else if ((source == "ZEPH" && destination == "ZEPHRSV") || (source == "ZPH" && destination == "ZRS")) {
         type = transaction_type::MINT_RESERVE;
-      } else if (source == "ZEPHRSV" && destination == "ZEPH") {
+      } else if ((source == "ZEPHRSV" && destination == "ZEPH") || (source == "ZRS" && destination == "ZPH")) {
         type = transaction_type::REDEEM_RESERVE;
-      } else if (source == "ZEPHUSD" && destination == "ZYIELD") {
+      } else if ((source == "ZEPHUSD" && destination == "ZYIELD") || (source == "ZSD" && destination == "ZYS")) {
         type = transaction_type::MINT_YIELD;
-      } else if (source == "ZYIELD" && destination == "ZEPHUSD") {
+      } else if ((source == "ZYIELD" && destination == "ZEPHUSD") || (source == "ZYS" && destination == "ZSD")) {
         type = transaction_type::REDEEM_YIELD;
       } else {
         LOG_ERROR("Invalid conversion from " << source << "to" << destination << ". Rejecting..");
@@ -489,7 +505,7 @@ namespace cryptonote
   {
     zeph_reserve = 0;
     for (auto circ_amount : circ_amounts) {
-      if (circ_amount.first == "ZEPH") {
+      if (circ_amount.first == "ZEPH" || circ_amount.first == "DJED") {
         zeph_reserve = multiprecision::uint128_t(circ_amount.second);
         break;
       }
@@ -497,14 +513,14 @@ namespace cryptonote
 
     num_stables = 0;
     for (auto circ_amount : circ_amounts) {
-      if (circ_amount.first == "ZEPHUSD") {
+      if (circ_amount.first == "ZEPHUSD" || circ_amount.first == "ZSD") {
         num_stables = multiprecision::uint128_t(circ_amount.second);
         break;
       }
     }
     num_reserves = 0;
     for (auto circ_amount : circ_amounts) {
-      if (circ_amount.first == "ZEPHRSV") {
+      if (circ_amount.first == "ZEPHRSV" || circ_amount.first == "ZRS") {
         num_reserves = multiprecision::uint128_t(circ_amount.second);
         break;
       }
@@ -514,15 +530,46 @@ namespace cryptonote
   {
     num_yield = 0;
     for (auto circ_amount : circ_amounts) {
-      if (circ_amount.first == "ZYIELD") {
+      if (circ_amount.first == "ZYIELD" || circ_amount.first == "ZYS") {
         num_yield = multiprecision::uint128_t(circ_amount.second);
         break;
       }
     }
     num_yield_rsv = 0;
     for (auto circ_amount : circ_amounts) {
-      if (circ_amount.first == "ZYIELDRSV") {
+      if (circ_amount.first == "ZYIELDRSV" || circ_amount.first == "YIELD") {
         num_yield_rsv = multiprecision::uint128_t(circ_amount.second);
+        break;
+      }
+    }
+  }
+  void get_audited_asset_amounts(const std::vector<std::pair<std::string, std::string>>& circ_amounts, multiprecision::uint128_t& zeph_audited, multiprecision::uint128_t& stable_audited, multiprecision::uint128_t& reserve_audited, multiprecision::uint128_t& yield_audited)
+  {
+    zeph_audited = 0;
+    for (auto circ_amount : circ_amounts) {
+      if (circ_amount.first == "ZPH") {
+        zeph_audited = multiprecision::uint128_t(circ_amount.second);
+        break;
+      }
+    }
+    stable_audited = 0;
+    for (auto circ_amount : circ_amounts) {
+      if (circ_amount.first == "ZSD") {
+        stable_audited = multiprecision::uint128_t(circ_amount.second);
+        break;
+      }
+    }
+    reserve_audited = 0;
+    for (auto circ_amount : circ_amounts) {
+      if (circ_amount.first == "ZRS") {
+        reserve_audited = multiprecision::uint128_t(circ_amount.second);
+        break;
+      }
+    }
+    yield_audited = 0;
+    for (auto circ_amount : circ_amounts) {
+      if (circ_amount.first == "ZYS") {
+        yield_audited = multiprecision::uint128_t(circ_amount.second);
         break;
       }
     }
@@ -1276,13 +1323,13 @@ namespace cryptonote
   //---------------------------------------------------------------------------------
   uint64_t get_fee_in_zeph_equivalent(const std::string& fee_asset, uint64_t fee_amount, const oracle::pricing_record& pr, const uint8_t hf_version)
   {
-    if (fee_asset == "ZEPH" || pr.has_missing_rates(hf_version)) {
+    if (fee_asset == "ZEPH" || fee_asset == "ZPH" || pr.has_missing_rates(hf_version)) {
       return fee_amount;
-    } else if (fee_asset == "ZEPHUSD") {
+    } else if (fee_asset == "ZEPHUSD" || fee_asset == "ZSD") {
       return asset_to_zeph_fee(fee_amount, pr.stable_ma);
-    } else if (fee_asset == "ZEPHRSV") {
+    } else if (fee_asset == "ZEPHRSV" || fee_asset == "ZRS") {
       return asset_to_zeph_fee(fee_amount, pr.reserve_ma);
-    } else if (fee_asset == "ZYIELD") {
+    } else if (fee_asset == "ZYIELD" || fee_asset == "ZYS") {
       uint64_t fee_in_zsd = asset_to_zeph_fee(fee_amount, pr.yield_price);
       return asset_to_zeph_fee(fee_in_zsd, pr.stable_ma);
     }
@@ -1292,13 +1339,13 @@ namespace cryptonote
     //---------------------------------------------------------------------------------
   uint64_t get_fee_in_asset_equivalent(const std::string& to_asset_type, uint64_t fee_amount, const oracle::pricing_record& pr, const uint8_t hf_version)
   {
-    if (to_asset_type == "ZEPH" || pr.has_missing_rates(hf_version)) {
+    if (to_asset_type == "ZEPH" || to_asset_type == "ZPH" || pr.has_missing_rates(hf_version)) {
       return fee_amount;
-    } else if (to_asset_type == "ZEPHUSD") {
+    } else if (to_asset_type == "ZEPHUSD" || to_asset_type == "ZSD") {
       return zeph_to_asset_fee(fee_amount, pr.stable_ma);
-    } else if (to_asset_type == "ZEPHRSV") {
+    } else if (to_asset_type == "ZEPHRSV" || to_asset_type == "ZRS") {
       return zeph_to_asset_fee(fee_amount, pr.reserve_ma);
-    } else if (to_asset_type == "ZYIELD") {
+    } else if (to_asset_type == "ZYIELD" || to_asset_type == "ZYS") {
       uint64_t fee_in_zsd = zeph_to_asset_fee(fee_amount, pr.stable_ma);
       return zeph_to_asset_fee(fee_in_zsd, pr.yield_price);
     }
@@ -1363,20 +1410,13 @@ namespace cryptonote
     crypto::public_key txkey_pub;
 
     // check both strSource and strDest are supported.
-    if (std::find(oracle::ASSET_TYPES.begin(), oracle::ASSET_TYPES.end(), source_asset) == oracle::ASSET_TYPES.end()) {
+    if (std::find(oracle::ASSET_TYPES.begin(), oracle::ASSET_TYPES.end(), source_asset) == oracle::ASSET_TYPES.end() && std::find(oracle::ASSET_TYPES_V2.begin(), oracle::ASSET_TYPES_V2.end(), source_asset) == oracle::ASSET_TYPES_V2.end()) {
       LOG_ERROR("Unsupported source asset type " << source_asset);
       return false;
     }
-    if (std::find(oracle::ASSET_TYPES.begin(), oracle::ASSET_TYPES.end(), dest_asset) == oracle::ASSET_TYPES.end()) {
+    if (std::find(oracle::ASSET_TYPES.begin(), oracle::ASSET_TYPES.end(), dest_asset) == oracle::ASSET_TYPES.end() && std::find(oracle::ASSET_TYPES_V2.begin(), oracle::ASSET_TYPES_V2.end(), dest_asset) == oracle::ASSET_TYPES_V2.end()) {
       LOG_ERROR("Unsupported destination asset type " << dest_asset);
       return false;
-    }
-
-
-    if (source_asset != dest_asset) {
-      tx.pricing_record_height = current_height;
-    } else {
-      tx.pricing_record_height = 0;
     }
 
     // if we have a stealth payment id, find it and encrypt it with the tx key now
@@ -1596,7 +1636,15 @@ namespace cryptonote
       }
     }
 
-    if (source_asset != dest_asset && tx_type != transaction_type::MINT_YIELD && tx_type != transaction_type::REDEEM_YIELD) {
+    bool audit_tx = tx_type == transaction_type::AUDIT_ZEPH || tx_type == transaction_type::AUDIT_STABLE || tx_type == transaction_type::AUDIT_RESERVE || tx_type == transaction_type::AUDIT_YIELD;
+
+    if (source_asset != dest_asset && !audit_tx) {
+      tx.pricing_record_height = current_height;
+    } else {
+      tx.pricing_record_height = 0;
+    }
+
+    if (source_asset != dest_asset && tx_type != transaction_type::MINT_YIELD && tx_type != transaction_type::REDEEM_YIELD && !audit_tx) {
       multiprecision::int128_t conversion_this_tx_zeph = 0;
       multiprecision::int128_t conversion_this_tx_stables = 0;
       multiprecision::int128_t conversion_this_tx_reserves = 0;

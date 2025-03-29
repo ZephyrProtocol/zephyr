@@ -205,6 +205,15 @@ namespace cryptonote
     bool mint_yield_sweep_all(const std::vector<std::string> &args);
     bool redeem_yield_sweep_all(const std::vector<std::string> &args);
 
+    bool audit(const std::vector<std::string> &args);
+    bool audit_all(const std::vector<std::string> &args);
+    bool audit_stable(const std::vector<std::string> &args);
+    bool audit_stable_all(const std::vector<std::string> &args);
+    bool audit_reserve(const std::vector<std::string> &args);
+    bool audit_reserve_all(const std::vector<std::string> &args);
+    bool audit_yield(const std::vector<std::string> &args);
+    bool audit_yield_all(const std::vector<std::string> &args);
+
     bool donate(const std::vector<std::string> &args);
     bool sign_transfer(const std::vector<std::string> &args);
     bool submit_transfer(const std::vector<std::string> &args);
@@ -290,6 +299,7 @@ namespace cryptonote
     bool version(const std::vector<std::string>& args);
     bool on_unknown_command(const std::vector<std::string>& args);
 
+    bool audit_info(const std::vector<std::string> &args);
     bool reserve_info(const std::vector<std::string> &args);
     bool yield_info(const std::vector<std::string> &args);
 
