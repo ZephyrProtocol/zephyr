@@ -29,6 +29,11 @@
 set(blockchain_db_sources
   blockchain_db.cpp
   lmdb/db_lmdb.cpp
+  ../cryptonote_core/cryptonote_tx_utils.cpp
+  ../cryptonote_core/blockchain.cpp
+  ../cryptonote_core/tx_pool.cpp
+  ../cryptonote_core/tx_verification_utils.cpp
+  ../hardforks/hardforks.cpp
   )
 
 set(blockchain_db_headers)
