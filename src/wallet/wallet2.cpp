@@ -10805,7 +10805,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(
       available_for_fee = try_carving_from_partial_payment(needed_fee, available_for_fee);
 
       if (!dsts.empty()) {
-        THROW_WALLET_EXCEPTION_IF(source_asset != dest_asset, error::wallet_internal_error, "Cannot split conversion transaction - use a smaller amount or consolidate your inputs");
+        THROW_WALLET_EXCEPTION_IF((source_asset != dest_asset && !audit_tx), error::wallet_internal_error, "Cannot split conversion transaction - use a smaller amount or consolidate your inputs");
         for (auto &txdt: tx.dsts) {
           if (txdt.amount != txdt.dest_amount) {
             // Sanity check that the amount sums to what we want
@@ -11476,7 +11476,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(
       accumulated_change += test_ptx.change_dts.amount;
       if (!unused_transfers_indices.empty() || !unused_dust_indices.empty())
       {
-        if (source_asset != dest_asset) {
+        if (source_asset != dest_asset && !audit_tx) {
           THROW_WALLET_EXCEPTION(error::wallet_internal_error, "Cannot split conversion transactions");
         }
         LOG_PRINT_L2("We have more to pay, starting another tx");
