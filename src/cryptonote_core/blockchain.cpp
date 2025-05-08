@@ -3302,7 +3302,7 @@ bool Blockchain::check_tx_outputs(const transaction& tx, tx_verification_context
   }
 
   // Disallow all old asset types post audit
-  if (hf_version > HF_VERSION_AUDIT) {
+  if (hf_version > HF_VERSION_AUDIT_EXTENSION) {
     for (auto &o: tx.vout) {
       std::string asset_type = boost::get<txout_zephyr_tagged_key>(o.target).asset_type;
       if (asset_type == "ZEPH" || asset_type == "ZEPHUSD" || asset_type == "ZEPHRSV" || asset_type == "ZYIELD") {
@@ -4672,14 +4672,14 @@ leave: {
 
     bool audit_tx = tx_type == tt::AUDIT_ZEPH || tx_type == tt::AUDIT_STABLE || tx_type == tt::AUDIT_RESERVE || tx_type == tt::AUDIT_YIELD;
 
-    if (hf_version == HF_VERSION_AUDIT && !audit_tx) {
-      LOG_PRINT_L2("error: non-audit transaction found in block during HF_VERSION_AUDIT");
+    if ((hf_version == HF_VERSION_AUDIT || hf_version == HF_VERSION_AUDIT_EXTENSION) && !audit_tx) {
+      LOG_PRINT_L2("error: non-audit transaction found in block during AUDIT period");
       bvc.m_verifivation_failed = true;
       goto leave;
     }
 
-    if (hf_version > HF_VERSION_AUDIT && audit_tx) {
-      LOG_PRINT_L2("error: audit transaction found in block after HF_VERSION_AUDIT");
+    if (hf_version > HF_VERSION_AUDIT_EXTENSION && audit_tx) {
+      LOG_PRINT_L2("error: audit transaction found in block after AUDIT period");
       bvc.m_verifivation_failed = true;
       goto leave;
     }

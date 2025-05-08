@@ -3831,7 +3831,7 @@ std::vector<std::pair<std::string, std::string>> BlockchainLMDB::get_circulating
   int result = 0;
 
   MDB_cursor_op op = MDB_FIRST;
-  if (m_height >= HF_VERSION_V10_FORK_HEIGHT) {
+  if (m_height >= HF_VERSION_V11_FORK_HEIGHT) {
     while (1)
     {
       int result = mdb_cursor_get(m_cur_total_asset_supply, &k, &v, op);

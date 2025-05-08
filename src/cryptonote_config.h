@@ -178,11 +178,12 @@
 #define HF_VERSION_V7                           7
 #define HF_VERSION_AUDIT                        8
 #define HF_VERSION_PAUSE                        9
-#define HF_VERSION_V10                          10
+#define HF_VERSION_AUDIT_EXTENSION              10
+#define HF_VERSION_V11                          11
 
 #define YIELD_FORK_HEIGHT                       360000
 #define AUDIT_FORK_HEIGHT                       481500
-#define HF_VERSION_V10_FORK_HEIGHT              99999999ull
+#define HF_VERSION_V11_FORK_HEIGHT              99999999ull
 
 
 #define PER_KB_FEE_QUANTIZATION_DECIMALS        8

@@ -219,14 +219,14 @@ namespace cryptonote
 
     bool audit_tx = tx_type == transaction_type::AUDIT_ZEPH || tx_type == transaction_type::AUDIT_STABLE || tx_type == transaction_type::AUDIT_RESERVE || tx_type == transaction_type::AUDIT_YIELD;
 
-    if (version == HF_VERSION_AUDIT && !audit_tx) {
-      LOG_ERROR("Only audit transactions are allowed during HF_VERSION_AUDIT");
+    if ((version == HF_VERSION_AUDIT || version == HF_VERSION_AUDIT_EXTENSION) && !audit_tx) {
+      LOG_ERROR("Only audit transactions are allowed during the AUDIT period");
       tvc.m_verifivation_failed = true;
       return false;
     }
 
-    if (version > HF_VERSION_AUDIT && audit_tx) {
-      LOG_ERROR("Audit transactions are not allowed after HF_VERSION_AUDIT");
+    if (version > HF_VERSION_AUDIT_EXTENSION && audit_tx) {
+      LOG_ERROR("Audit transactions are not allowed after HF_VERSION_AUDIT_EXTENSION");
       tvc.m_verifivation_failed = true;
       return false;
     }
@@ -1914,12 +1914,12 @@ namespace cryptonote
       }
 
       bool audit_tx = tx_type == tt::AUDIT_ZEPH || tx_type == tt::AUDIT_STABLE || tx_type == tt::AUDIT_RESERVE || tx_type == tt::AUDIT_YIELD;
-      if (version == HF_VERSION_AUDIT && !audit_tx) {
+      if ((version == HF_VERSION_AUDIT || version == HF_VERSION_AUDIT_EXTENSION) && !audit_tx) {
         LOG_PRINT_L2(" non-audit transaction ignored: " << sorted_it->second);
         continue;
       }
 
-      if (version > HF_VERSION_AUDIT && audit_tx) {
+      if (version > HF_VERSION_AUDIT_EXTENSION && audit_tx) {
         LOG_PRINT_L2(" audit transaction ignored: " << sorted_it->second);
         continue;
       }
