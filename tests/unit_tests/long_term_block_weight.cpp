@@ -56,6 +56,7 @@ public:
                         , uint64_t long_term_block_weight
                         , const cryptonote::difficulty_type& cumulative_difficulty
                         , const uint64_t& coins_generated
+                        , const uint64_t& zeph_generated
                         , const uint64_t& reserve_reward
                         , const uint64_t& yield_reward_zsd
                         , uint64_t num_rct_outs

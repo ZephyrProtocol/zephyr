@@ -86,6 +86,7 @@ namespace
         , uint64_t long_term_block_weight
         , const cryptonote::difficulty_type& cumulative_difficulty
         , const uint64_t& coins_generated
+        , const uint64_t& zeph_generated
         , const uint64_t& reserve_reward
         , const uint64_t& yield_reward_zsd
         , uint64_t num_rct_outs
@@ -175,7 +176,7 @@ static std::unique_ptr<cryptonote::BlockchainAndPool> init_blockchain(const std:
     const block *blk = &boost::get<block>(ev);
     auto blk_hash = get_block_hash(*blk);
     oracle::asset_type_counts num_rct_outs_by_asset_type;
-    bdb->add_block(*blk, 1, 1, 1, 0, 0, 0, 0, num_rct_outs_by_asset_type, blk_hash);
+    bdb->add_block(*blk, 1, 1, 1, 0, 0, 0, 0, 0, num_rct_outs_by_asset_type, blk_hash);
   }
 
   bool r = bap->blockchain.init(bdb, nettype, true, test_options, 2, nullptr);
