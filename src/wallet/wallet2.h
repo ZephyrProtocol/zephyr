@@ -1141,11 +1141,13 @@ private:
     bool load_tx(const std::string &signed_filename, std::vector<tools::wallet2::pending_tx> &ptx, std::function<bool(const signed_tx_set&)> accept_func = NULL);
     bool parse_tx_from_str(const std::string &signed_tx_st, std::vector<tools::wallet2::pending_tx> &ptx, std::function<bool(const signed_tx_set &)> accept_func);
     
-    void get_audit_info(
+    void get_supply_info(
       boost::multiprecision::uint128_t& zeph_audited,
       boost::multiprecision::uint128_t& stables_audited,
       boost::multiprecision::uint128_t& reserves_audited,
-      boost::multiprecision::uint128_t& yield_audited
+      boost::multiprecision::uint128_t& yield_audited,
+      boost::multiprecision::uint128_t& djed_reserve,
+      boost::multiprecision::uint128_t& yield_reserve
     );
 
     void get_reserve_info(

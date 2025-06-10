@@ -1394,8 +1394,10 @@ bool Blockchain::validate_miner_transaction(
     }
   }
 
+  uint64_t height = m_db->height();
+
   uint64_t base_outputs = 2;
-  if (version >= HF_VERSION_V6) {
+  if (version >= HF_VERSION_V6 && height != HF_VERSION_V11_FORK_HEIGHT) {
     base_outputs = 1;
   }
 
@@ -1437,6 +1439,30 @@ bool Blockchain::validate_miner_transaction(
         MERROR_VER("First output of a miner tx must be ZPH");
         return false;
       }
+
+      if (height == HF_VERSION_V11_FORK_HEIGHT) {
+        // validate second output is one-time unauditable ZEPH payout
+        std::string second_output_asset_type;
+        ok = cryptonote::get_output_asset_type(b.miner_tx.vout[1], second_output_asset_type);
+        if (!ok || second_output_asset_type != "ZPH") {
+          MERROR_VER("Second output of a miner tx must be ZPH");
+          return false;
+        }
+
+        if (b.miner_tx.vout[1].amount != UNAUDITABLE_ZEPH_AMOUNT)
+        {
+          MERROR("unauditable_zeph_amount incorrect.  Should be: " << print_money(UNAUDITABLE_ZEPH_AMOUNT) << ", is: " << print_money(b.miner_tx.vout[1].amount));
+          return false;
+        }
+
+        std::string gov_wallet_address_2_str = cryptonote::get_governance_address_2(m_nettype);
+        if (!validate_governance_reward_key(height, gov_wallet_address_2_str, 1, boost::get<txout_zephyr_tagged_key>(b.miner_tx.vout[1].target).key, m_nettype))
+        {
+          MERROR("Governance reward public key incorrect (vout[1]).");
+          return false;
+        }
+      }
+
     } else if (version >= HF_VERSION_V6) {
       // validate first output is ZEPH (miner tx)
       std::string first_output_asset_type;
@@ -1507,7 +1533,14 @@ bool Blockchain::validate_miner_transaction(
     yield_reward = get_zeph_yield_reward(base_reward);
   }
 
-  if (version >= HF_VERSION_AUDIT) {
+  if (height == HF_VERSION_V11_FORK_HEIGHT) {
+    if (money_in_use_map["ZPH"] != base_reward - reserve_reward - yield_reward + fee_map["ZPH"] + UNAUDITABLE_ZEPH_AMOUNT)
+    {
+      MERROR_VER("coinbase transaction amount mismatch (" << print_money(money_in_use_map["ZPH"]) << "). Block reward is " << print_money(base_reward - reserve_reward + fee_map["ZPH"] + UNAUDITABLE_ZEPH_AMOUNT) << "(" << print_money(base_reward - reserve_reward) << "+" << print_money(fee_map["ZPH"]) << "+" << print_money(UNAUDITABLE_ZEPH_AMOUNT) << ")");
+      return false;
+    }
+  }
+  else if (version >= HF_VERSION_AUDIT) {
     if(money_in_use_map["ZPH"] != base_reward - reserve_reward - yield_reward + fee_map["ZPH"])
     {
       MERROR_VER("coinbase transaction amount mismatch (" << print_money(money_in_use_map["ZPH"]) << "). Block reward is " << print_money(base_reward - reserve_reward + fee_map["ZPH"]) << "(" << print_money(base_reward - reserve_reward) << "+" << print_money(fee_map["ZPH"]) << ")");
@@ -3302,7 +3335,7 @@ bool Blockchain::check_tx_outputs(const transaction& tx, tx_verification_context
   }
 
   // Disallow all old asset types post audit
-  if (hf_version > HF_VERSION_AUDIT_EXTENSION) {
+  if (hf_version >= HF_VERSION_V11) {
     for (auto &o: tx.vout) {
       std::string asset_type = boost::get<txout_zephyr_tagged_key>(o.target).asset_type;
       if (asset_type == "ZEPH" || asset_type == "ZEPHUSD" || asset_type == "ZEPHRSV" || asset_type == "ZYIELD") {
@@ -4678,14 +4711,14 @@ leave: {
       goto leave;
     }
 
-    if (hf_version > HF_VERSION_AUDIT_EXTENSION && audit_tx) {
-      LOG_PRINT_L2("error: audit transaction found in block after AUDIT period");
+    if (hf_version == HF_VERSION_PAUSE) {
+      LOG_PRINT_L2("error: transaction found in block during HF_VERSION_PAUSE");
       bvc.m_verifivation_failed = true;
       goto leave;
     }
 
-    if (hf_version == HF_VERSION_PAUSE) {
-      LOG_PRINT_L2("error: transaction found in block during HF_VERSION_PAUSE");
+    if (hf_version >= HF_VERSION_V11 && audit_tx) {
+      LOG_PRINT_L2("error: audit transaction found in block after AUDIT period");
       bvc.m_verifivation_failed = true;
       goto leave;
     }
@@ -4841,6 +4874,10 @@ leave: {
         yield_reward_zsd = cryptonote::zeph_to_zephusd(yield_reward_in_zeph, bl.pricing_record, hf_version);
       }
     }
+  }
+
+  if (blockchain_height == HF_VERSION_V11_FORK_HEIGHT) {
+    base_reward += UNAUDITABLE_ZEPH_AMOUNT;
   }
 
   TIME_MEASURE_FINISH(vmt);

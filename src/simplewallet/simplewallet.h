@@ -299,7 +299,7 @@ namespace cryptonote
     bool version(const std::vector<std::string>& args);
     bool on_unknown_command(const std::vector<std::string>& args);
 
-    bool audit_info(const std::vector<std::string> &args);
+    bool supply_info(const std::vector<std::string> &args);
     bool reserve_info(const std::vector<std::string> &args);
     bool yield_info(const std::vector<std::string> &args);
 

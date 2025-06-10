@@ -380,6 +380,10 @@ void BlockchainDB::pop_reserve_reward(block& blk, const uint64_t& block_weight)
       }
     }
 
+    if (block_height == HF_VERSION_V11_FORK_HEIGHT) {
+      base_reward += UNAUDITABLE_ZEPH_AMOUNT;
+    }
+
     if (blk.major_version >= HF_VERSION_AUDIT)
       remove_block_rewards(base_reward, reserve_reward, yield_reward_zsd);
     if (blk.major_version <= HF_VERSION_AUDIT)

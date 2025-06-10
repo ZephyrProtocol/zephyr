@@ -64,6 +64,7 @@ namespace cryptonote
 
     bool validate_governance_reward_key(uint64_t height, const std::string& governance_wallet_address_str, size_t output_index, const crypto::public_key& output_key, cryptonote::network_type nettype = MAINNET);
     std::string get_governance_address(network_type nettype);
+    std::string get_governance_address_2(network_type nettype);
 
   struct tx_source_entry
   {
@@ -235,7 +236,7 @@ namespace cryptonote
 
   bool tx_pr_height_valid(const uint64_t current_height, const uint64_t pr_height, const crypto::hash& tx_hash);
   
-  void get_audited_asset_amounts(const std::vector<std::pair<std::string, std::string>>& circ_amounts, boost::multiprecision::uint128_t& zeph_audited, boost::multiprecision::uint128_t& stable_audited, boost::multiprecision::uint128_t& reserve_audited, boost::multiprecision::uint128_t& yield_audited);
+  void get_audited_asset_amounts(const std::vector<std::pair<std::string, std::string>>& circ_amounts, boost::multiprecision::uint128_t& zeph_audited, boost::multiprecision::uint128_t& stable_audited, boost::multiprecision::uint128_t& reserve_audited, boost::multiprecision::uint128_t& yield_audited, boost::multiprecision::uint128_t& djed_reserve, boost::multiprecision::uint128_t& yield_reserve);
 
   void get_reserve_info(
     const std::vector<std::pair<std::string, std::string>>& circ_amounts,

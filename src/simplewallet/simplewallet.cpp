@@ -322,7 +322,7 @@ namespace
 
   const char* USAGE_RESERVE_INFO("reserve_info");
   const char* USAGE_YIELD_INFO("yield_info");
-  const char* USAGE_AUDIT_INFO("audit_info");
+  const char* USAGE_SUPPLY_INFO("supply_info");
 
   std::string input_line(const std::string& prompt, bool yesno = false)
   {
@@ -2342,25 +2342,32 @@ bool simple_wallet::yield_transfer(const std::vector<std::string> &args_)
   return true;
 }
 
-bool simple_wallet::audit_info(const std::vector<std::string> &args)
+bool simple_wallet::supply_info(const std::vector<std::string> &args)
 {
   uint64_t current_height = m_wallet->get_blockchain_current_height();
 
-  boost::multiprecision::uint128_t zeph_audited;
-  boost::multiprecision::uint128_t stables_audited;
-  boost::multiprecision::uint128_t reserves_audited;
-  boost::multiprecision::uint128_t yield_audited;
+  boost::multiprecision::uint128_t zeph_supply;
+  boost::multiprecision::uint128_t stables_supply;
+  boost::multiprecision::uint128_t reserves_supply;
+  boost::multiprecision::uint128_t yield_supply;
 
-  m_wallet->get_audit_info(zeph_audited, stables_audited, reserves_audited, yield_audited);
+  boost::multiprecision::uint128_t djed_reserve;
+  boost::multiprecision::uint128_t yield_reserve;
+
+  m_wallet->get_supply_info(zeph_supply, stables_supply, reserves_supply, yield_supply, djed_reserve, yield_reserve);
 
   message_writer(console_color_white, false) << boost::format(tr("Height:             %d")) % current_height;
 
   message_writer(console_color_white, false) << "";
-  message_writer(console_color_default, false) << "Audit Info";
-  message_writer(console_color_white, false) << boost::format(tr("ZEPH:               %d ƶeph")) % print_money(zeph_audited);
-  message_writer(console_color_white, false) << boost::format(tr("ZSD:                %d ƶsd")) % print_money(stables_audited);
-  message_writer(console_color_white, false) << boost::format(tr("ZRS:                %d ƶrs")) % print_money(reserves_audited);
-  message_writer(console_color_white, false) << boost::format(tr("ZYS:                %d ƶys")) % print_money(yield_audited);
+  message_writer(console_color_default, false) << "Supply Info";
+  message_writer(console_color_white, false) << boost::format(tr("ZEPH:               %d ƶeph")) % print_money(zeph_supply);
+  message_writer(console_color_white, false) << boost::format(tr("ZSD:                %d ƶsd")) % print_money(stables_supply);
+  message_writer(console_color_white, false) << boost::format(tr("ZRS:                %d ƶrs")) % print_money(reserves_supply);
+  message_writer(console_color_white, false) << boost::format(tr("ZYS:                %d ƶys")) % print_money(yield_supply);
+
+  message_writer(console_color_white, false) << "";
+  message_writer(console_color_white, false) << boost::format(tr("Djed Reserve:       %d ƶeph")) % print_money(djed_reserve);
+  message_writer(console_color_white, false) << boost::format(tr("Yield Reserve:      %d ƶzd")) % print_money(yield_reserve);
 
   return true;
 }
@@ -3964,10 +3971,10 @@ m_cmd_binder.set_handler("audit_yield_all", boost::bind(&simple_wallet::on_comma
                            tr(USAGE_YIELD_INFO),
                            tr("Get the current yield info"));
 
- m_cmd_binder.set_handler("audit_info",
-                           boost::bind(&simple_wallet::audit_info, this, _1),
-                           tr(USAGE_AUDIT_INFO),
-                           tr("Get the current audit info"));
+ m_cmd_binder.set_handler("supply_info",
+                           boost::bind(&simple_wallet::supply_info, this, _1),
+                           tr(USAGE_SUPPLY_INFO),
+                           tr("Get the current supply info"));
 
 
  m_cmd_binder.set_handler("apropos",
@@ -6125,10 +6132,7 @@ bool simple_wallet::show_balance_unlocked(bool detailed)
   const std::string tag = m_wallet->get_account_tags().second[m_current_subaddress_account];
   success_msg_writer() << tr("Tag: ") << (tag.empty() ? std::string{tr("(No tag assigned)")} : tag);
 
-  std::vector<std::string> all_asset_types = oracle::ASSET_TYPES;
-  all_asset_types.insert(all_asset_types.end(), oracle::ASSET_TYPES_V2.begin(), oracle::ASSET_TYPES_V2.end());
-
-  for (const auto& asset: all_asset_types) {
+  for (const auto& asset: oracle::ASSET_TYPES_V2) {
     uint64_t balance = m_wallet->balance(asset, m_current_subaddress_account, false);
     if (balance == 0)
       continue;
@@ -10025,10 +10029,7 @@ void simple_wallet::print_accounts(const std::string& tag)
   std::map<std::string, std::pair<uint64_t, uint64_t>> total_balances;
   std::map<std::string, std::pair<uint64_t, uint64_t>> total_balances_unaudited;
 
-  std::vector<std::string> all_asset_types = oracle::ASSET_TYPES;
-  all_asset_types.insert(all_asset_types.end(), oracle::ASSET_TYPES_V2.begin(), oracle::ASSET_TYPES_V2.end());
-
-  for (const auto& asset: all_asset_types) {
+  for (const auto& asset: oracle::ASSET_TYPES_V2) {
     uint64_t total_balance = 0, total_unlocked_balance = 0;
     for (uint32_t account_index = 0; account_index < m_wallet->get_num_subaddress_accounts(); ++account_index)
     {

@@ -941,16 +941,16 @@ namespace cryptonote
         continue;
       }
 
-      if (hf_version > HF_VERSION_AUDIT_EXTENSION && audit_tx) {
-        MERROR("Invalid transaction type for HF_VERSION > HF_VERSION_AUDIT_EXTENSION: " << tx_info[n].tx_hash);
+      if (hf_version == HF_VERSION_PAUSE) {
+        MERROR("Transaction found during pause fork. Rejecting..." << tx_info[n].tx_hash);
         set_semantics_failed(tx_info[n].tx_hash);
         tx_info[n].tvc.m_verifivation_failed = true;
         tx_info[n].result = false;
         continue;
       }
 
-      if (hf_version == HF_VERSION_PAUSE) {
-        MERROR("Transaction found during pause fork. Rejecting..." << tx_info[n].tx_hash);
+      if (hf_version >= HF_VERSION_V11 && audit_tx) {
+        MERROR("Invalid transaction type for HF_VERSION > HF_VERSION_V11: " << tx_info[n].tx_hash);
         set_semantics_failed(tx_info[n].tx_hash);
         tx_info[n].tvc.m_verifivation_failed = true;
         tx_info[n].result = false;

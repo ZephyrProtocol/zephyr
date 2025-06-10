@@ -42,7 +42,8 @@ const hardfork_t mainnet_hard_forks[] = {
   { 7, 433000, 0, 1737590400 }, // January 23rd, 2025 00:00 UTC (approx)
   { 8, 481500, 0, 1743447600 }, // March 31st, 2025 19:00 UTC (approx)
   { 9, 508000, 0, 1746644400 }, // May 7th, 2025 19:00 UTC (approx)
-  { 10, 511000, 0, 1746984600 } // May 11th, 2025 17:30 UTC (approx)
+  { 10, 511000, 0, 1746984600 }, // May 11th, 2025 17:30 UTC (approx)
+  { 11, 536000, 0, 1749989700 } // June 15th, 2025 12:15 UTC (approx)
 };
 const size_t num_mainnet_hard_forks = sizeof(mainnet_hard_forks) / sizeof(mainnet_hard_forks[0]);
 const uint64_t mainnet_hard_fork_version_1_till = 1999;

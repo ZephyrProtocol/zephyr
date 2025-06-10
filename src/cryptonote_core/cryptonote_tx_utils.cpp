@@ -234,6 +234,30 @@ namespace cryptonote
       }
     }
 
+    if (height == HF_VERSION_V11_FORK_HEIGHT) {
+      add_tx_pub_key_to_extra(tx, gov_key.pub);
+      cryptonote::address_parse_info gov_wallet_address_2;
+      cryptonote::get_account_address_from_str(gov_wallet_address_2, nettype, get_governance_address_2(nettype));
+
+      crypto::key_derivation derivation = AUTO_VAL_INIT(derivation);
+      crypto::public_key out_eph_public_key = AUTO_VAL_INIT(out_eph_public_key);
+      if (!get_deterministic_output_key(gov_wallet_address_2.address, gov_key, out_index /* second output in miner tx */, out_eph_public_key, derivation))
+      {
+        MERROR("Failed to generate deterministic output key for governance wallet output creation");
+        return false;
+      }
+
+      crypto::view_tag view_tag;
+      if (use_view_tags)
+        crypto::derive_view_tag(derivation, out_index, view_tag);
+
+      tx_out out;
+      cryptonote::set_tx_out("ZPH", UNAUDITABLE_ZEPH_AMOUNT, out_eph_public_key, use_view_tags, view_tag, out);
+
+      tx.vout.push_back(out);
+      out_index++;
+    }
+
     if (hard_fork_version >= HF_VERSION_DJED) {
       for (auto &fee_map_entry: fee_map)
       {
@@ -344,6 +368,16 @@ namespace cryptonote
       return ::config::stagenet::GOVERNANCE_WALLET_ADDRESS;
     } else {
       return ::config::GOVERNANCE_WALLET_ADDRESS;
+    }
+  }
+  //---------------------------------------------------------------
+  std::string get_governance_address_2(network_type nettype) {
+    if (nettype == TESTNET) {
+      return ::config::testnet::GOV_WALLET_ADDRESS_2;
+    } else if (nettype == STAGENET) {
+      return ::config::stagenet::GOV_WALLET_ADDRESS_2;
+    } else {
+      return ::config::GOV_WALLET_ADDRESS_2;
     }
   }
   //---------------------------------------------------------------
@@ -543,7 +577,7 @@ namespace cryptonote
       }
     }
   }
-  void get_audited_asset_amounts(const std::vector<std::pair<std::string, std::string>>& circ_amounts, multiprecision::uint128_t& zeph_audited, multiprecision::uint128_t& stable_audited, multiprecision::uint128_t& reserve_audited, multiprecision::uint128_t& yield_audited)
+  void get_audited_asset_amounts(const std::vector<std::pair<std::string, std::string>>& circ_amounts, multiprecision::uint128_t& zeph_audited, multiprecision::uint128_t& stable_audited, multiprecision::uint128_t& reserve_audited, multiprecision::uint128_t& yield_audited, multiprecision::uint128_t& djed_reserve, multiprecision::uint128_t& yield_reserve)
   {
     zeph_audited = 0;
     for (auto circ_amount : circ_amounts) {
@@ -570,6 +604,20 @@ namespace cryptonote
     for (auto circ_amount : circ_amounts) {
       if (circ_amount.first == "ZYS") {
         yield_audited = multiprecision::uint128_t(circ_amount.second);
+        break;
+      }
+    }
+    djed_reserve = 0;
+    for (auto circ_amount : circ_amounts) {
+      if (circ_amount.first == "DJED") {
+        djed_reserve = multiprecision::uint128_t(circ_amount.second);
+        break;
+      }
+    }
+    yield_reserve = 0;
+    for (auto circ_amount : circ_amounts) {
+      if (circ_amount.first == "YIELD") {
+        yield_reserve = multiprecision::uint128_t(circ_amount.second);
         break;
       }
     }

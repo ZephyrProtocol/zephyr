@@ -10133,15 +10133,17 @@ static uint32_t get_count_above(const std::vector<wallet2::transfer_details> &tr
   return count;
 }
 
-void wallet2::get_audit_info(
+void wallet2::get_supply_info(
   boost::multiprecision::uint128_t& zeph_audited,
   boost::multiprecision::uint128_t& stable_audited,
   boost::multiprecision::uint128_t& reserve_audited,
-  boost::multiprecision::uint128_t& yield_audited
+  boost::multiprecision::uint128_t& yield_audited,
+  boost::multiprecision::uint128_t& djed_reserve,
+  boost::multiprecision::uint128_t& yield_reserve
 ){
   std::vector<std::pair<std::string, std::string>> circ_amounts;
   THROW_WALLET_EXCEPTION_IF(!get_audited_supply(circ_amounts), error::wallet_internal_error, "Failed to get audited supply");
-  return cryptonote::get_audited_asset_amounts(circ_amounts, zeph_audited, stable_audited, reserve_audited, yield_audited);
+  return cryptonote::get_audited_asset_amounts(circ_amounts, zeph_audited, stable_audited, reserve_audited, yield_audited, djed_reserve, yield_reserve);
 }
 
 

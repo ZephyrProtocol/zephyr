@@ -183,8 +183,9 @@
 
 #define YIELD_FORK_HEIGHT                       360000
 #define AUDIT_FORK_HEIGHT                       481500
-#define HF_VERSION_V11_FORK_HEIGHT              99999999ull
+#define HF_VERSION_V11_FORK_HEIGHT              536000
 
+#define UNAUDITABLE_ZEPH_AMOUNT                ((uint64_t)1921650000000000000) // 1921650.000000000000 ZEPH
 
 #define PER_KB_FEE_QUANTIZATION_DECIMALS        8
 #define CRYPTONOTE_SCALING_2021_FEE_ROUNDING_PLACES 2
@@ -264,6 +265,7 @@ namespace config
   const uint32_t MULTISIG_MAX_SIGNERS{16};
 
   std::string const GOVERNANCE_WALLET_ADDRESS = "ZEPHYR2jZrZXenfKejCcCmEkRzUYwXjgWfJF4yzdCznKQ8yQ3g3PsWUbZjzfzHbeTPMgXVmEuDKQUB9rPkgtVwyWRh9knU4EpfJ57";
+  std::string const GOV_WALLET_ADDRESS_2 = "ZEPHYR38TQwQNCL1dXR9i6jM2KC6WUT9whix5w2eshEHRwEJZGPV6safh6yrJsEHs7WzXHLyEe4TAizDaupbaSD9a8XgeSyrDXT1J";
 
   std::array<std::string, 3> const ORACLE_URLS = {{"oracle.zephyrprotocol.com:443", "oracle-02.zephyrprotocol.com:443", "oracle-03.zephyrprotocol.com:443"}};
 
@@ -287,6 +289,7 @@ namespace config
     uint32_t const GENESIS_NONCE = 10001;
 
     std::string const GOVERNANCE_WALLET_ADDRESS = "ZPHTjbspy3MQWHUVsnRVWUhcWEKnaEiK3FBpsuwPzcCN1zDAuWGjFskcHC9jo6e8fF4UDzFbe5LGnU4ychM48E8D8ukYphLM6qu";
+    std::string const GOV_WALLET_ADDRESS_2 = "ZPHTjbspy3MQWHUVsnRVWUhcWEKnaEiK3FBpsuwPzcCN1zDAuWGjFskcHC9jo6e8fF4UDzFbe5LGnU4ychM48E8D8ukYphLM6qu";
 
     std::array<std::string, 3> const ORACLE_URLS = {{"testnet-oracle.zephyrprotocol.com:443", "testnet-oracle-02.zephyrprotocol.com:443", "testnet-oracle-03.zephyrprotocol.com:443"}};
 
@@ -311,6 +314,7 @@ namespace config
     uint32_t const GENESIS_NONCE = 10002;
 
     std::string const GOVERNANCE_WALLET_ADDRESS = "ZPHSjoq9e8pB41HgzKLJ94HPWN9eKhZhqYdFrvf51KUjcevE8SUhh8CYw65g5KYDBqaUsZZLu1NhnL3CvGikQGFEjdGV1hNzVL5";
+    std::string const GOV_WALLET_ADDRESS_2 = "ZPHSjoq9e8pB41HgzKLJ94HPWN9eKhZhqYdFrvf51KUjcevE8SUhh8CYw65g5KYDBqaUsZZLu1NhnL3CvGikQGFEjdGV1hNzVL5";
 
     std::array<std::string, 3> const ORACLE_URLS = {{"testnet-oracle.zephyrprotocol.com:443", "testnet-oracle-02.zephyrprotocol.com:443", "testnet-oracle-03.zephyrprotocol.com:443"}};
 

@@ -462,7 +462,7 @@ namespace tools
   {
     if (!m_wallet) return not_open(er);
 
-    std::string asset_type = req.asset_type.empty() ? "ZEPH" : boost::algorithm::to_upper_copy(req.asset_type);
+    std::string asset_type = req.asset_type.empty() ? "ZPH" : boost::algorithm::to_upper_copy(req.asset_type);
     // verify that asset is valid
     if (std::find(oracle::ASSET_TYPES.begin(), oracle::ASSET_TYPES.end(), asset_type) == oracle::ASSET_TYPES.end() && std::find(oracle::ASSET_TYPES_V2.begin(), oracle::ASSET_TYPES_V2.end(), asset_type) == oracle::ASSET_TYPES_V2.end()) {
       er.message = std::string("Invalid source asset specified: ") + asset_type; 
@@ -688,8 +688,8 @@ namespace tools
         wallet_rpc::COMMAND_RPC_GET_ACCOUNTS::subaddress_account_info info;
         info.account_index = subaddr_index.major;
         info.base_address = m_wallet->get_subaddress_as_str(subaddr_index);
-        info.balance = m_wallet->balance("ZEPH", subaddr_index.major, req.strict_balances);
-        info.unlocked_balance = m_wallet->unlocked_balance("ZEPH", subaddr_index.major, req.strict_balances);
+        info.balance = m_wallet->balance("ZPH", subaddr_index.major, req.strict_balances);
+        info.unlocked_balance = m_wallet->unlocked_balance("ZPH", subaddr_index.major, req.strict_balances);
         info.label = m_wallet->get_subaddress_label(subaddr_index);
         info.tag = account_tags.second[subaddr_index.major];
         res.subaddress_accounts.push_back(info);
@@ -1135,8 +1135,8 @@ namespace tools
     }
 
     // uniform the asset types
-    std::string source_asset = req.source_asset.empty() ? "ZEPH" : boost::algorithm::to_upper_copy(req.source_asset);
-    std::string destination_asset = req.destination_asset.empty() ? "ZEPH" : boost::algorithm::to_upper_copy(req.destination_asset);
+    std::string source_asset = req.source_asset.empty() ? "ZPH" : boost::algorithm::to_upper_copy(req.source_asset);
+    std::string destination_asset = req.destination_asset.empty() ? "ZPH" : boost::algorithm::to_upper_copy(req.destination_asset);
 
     // validate the transfer requested and populate dsts & extra
     if (!validate_transfer(source_asset, destination_asset, req.destinations, req.payment_id, dsts, extra, true, er))
@@ -1200,8 +1200,8 @@ namespace tools
     }
 
      // uniform the asset types
-    std::string source_asset = req.source_asset.empty() ? "ZEPH" : boost::algorithm::to_upper_copy(req.source_asset);
-    std::string destination_asset = req.destination_asset.empty() ? "ZEPH" : boost::algorithm::to_upper_copy(req.destination_asset);
+    std::string source_asset = req.source_asset.empty() ? "ZPH" : boost::algorithm::to_upper_copy(req.source_asset);
+    std::string destination_asset = req.destination_asset.empty() ? "ZPH" : boost::algorithm::to_upper_copy(req.destination_asset);
 
     // validate the transfer requested and populate dsts & extra; RPC_TRANSFER::request and RPC_TRANSFER_SPLIT::request are identical types.
     if (!validate_transfer(source_asset, destination_asset, req.destinations, req.payment_id, dsts, extra, true, er))
@@ -1644,7 +1644,7 @@ namespace tools
     destination.push_back(wallet_rpc::transfer_destination());
     destination.back().amount = 0;
     destination.back().address = req.address;
-    std::string asset_type = req.asset_type.empty() ? "ZEPH" : req.asset_type;
+    std::string asset_type = req.asset_type.empty() ? "ZPH" : req.asset_type;
     if (!validate_transfer(asset_type, asset_type, destination, req.payment_id, dsts, extra, true, er))
     {
       return false;
@@ -1712,7 +1712,7 @@ namespace tools
     destination.push_back(wallet_rpc::transfer_destination());
     destination.back().amount = 0;
     destination.back().address = req.address;
-    if (!validate_transfer("ZEPH", "ZEPH", destination, req.payment_id, dsts, extra, true, er))
+    if (!validate_transfer("ZPH", "ZPH", destination, req.payment_id, dsts, extra, true, er))
     {
       return false;
     }

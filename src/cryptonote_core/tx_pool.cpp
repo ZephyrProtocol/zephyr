@@ -225,8 +225,8 @@ namespace cryptonote
       return false;
     }
 
-    if (version > HF_VERSION_AUDIT_EXTENSION && audit_tx) {
-      LOG_ERROR("Audit transactions are not allowed after HF_VERSION_AUDIT_EXTENSION");
+    if (version >= HF_VERSION_V11 && audit_tx) {
+      LOG_ERROR("Audit transactions are not allowed after HF_VERSION_V11");
       tvc.m_verifivation_failed = true;
       return false;
     }
@@ -1919,11 +1919,10 @@ namespace cryptonote
         continue;
       }
 
-      if (version > HF_VERSION_AUDIT_EXTENSION && audit_tx) {
+      if (version >= HF_VERSION_V11 && audit_tx) {
         LOG_PRINT_L2(" audit transaction ignored: " << sorted_it->second);
         continue;
       }
-
 
       boost::multiprecision::int128_t conversion_this_tx_zeph = 0;
       boost::multiprecision::int128_t conversion_this_tx_stables = 0;
